@@ -345,7 +345,8 @@ void i2cErrHandler() {
 }
 
 void display(int mode) {
-    auto printFreq = [&](long freq) { // show and right-align frequency on display
+    // show and right-align frequency on display
+    auto printFreq = [&](long freq) {
         lcd.print(freq < 10000000 ? "   " : (freq < 100000000 ? "  " : (freq < 1000000000 ? " " : "")));
         lcd.print(freq / 1000000.0);
         lcd.print(" MHz");
