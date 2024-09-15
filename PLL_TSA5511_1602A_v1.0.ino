@@ -127,7 +127,7 @@ void setup() {
         while(!digitalRead(setButton)); // lock cursor position until setButton release
         nameEditMode = true;
     } else { // complete initialization
-        setPll();
+        configurePll();
         display(MAIN_INTERFACE);
         initialized = true;
     }
@@ -145,10 +145,9 @@ void loop() {
 
 void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
     if (nameEditMode) {
-        if (!(buttonDownState && buttonUpState)) { // no change if DOWN and UP are pressed simultaneously
-            handleUpDown(buttonDownState, buttonDownPressed, -1, selectCharacter);
-            handleUpDown(buttonUpState, buttonUpPressed, 1, selectCharacter);
-        }
+        handleDownUp(buttonDownState, buttonDownPressed, -1, selectCharacter);
+        handleDownUp(buttonUpState, buttonUpPressed, 1, selectCharacter);
+
         if (!digitalRead(setButton)) {
               if (nameEditPos >= MAX_NAME_LENGTH - 1) {
                   storeStationName();
@@ -161,7 +160,7 @@ void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
         }
     } else {
         if (!initialized) { // complete initialization when returning from station name editor
-            setPll();
+            configurePll();
             display(MAIN_INTERFACE);
             initialized = true;
         }
@@ -179,10 +178,9 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
 
     if (initialized && !nameEditMode) {
         auto freqChange = [](int direction) { freqSet(&freq, 0, direction); };
-        if (!(buttonDownState && buttonUpState)) { // no change if DOWN and UP are pressed simultaneously
-            handleUpDown(buttonDownState, buttonDownPressed, -1, freqChange);
-            handleUpDown(buttonUpState, buttonUpPressed, 1, freqChange);
-        }
+        handleDownUp(buttonDownState, buttonDownPressed, -1, freqChange);
+        handleDownUp(buttonUpState, buttonUpPressed, 1, freqChange);
+
         if (buttonDownState || buttonUpState) {
             lastButtonPressTime = millis();
             timedOut = false;
@@ -200,9 +198,12 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
     }
 }
 
-void handleUpDown(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
+void handleDownUp(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
     static long buttonPressStartTime = 0, lastButtonPressTime = 0;
 
+    // no change if DOWN and UP are pressed simultaneously
+    if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }    
+    
     if (buttonState) {
       // change on first button press, or - when holding button - continuously after initialPressDelay
         if (!buttonPressed || (currentTime - buttonPressStartTime >= initialPressDelay && currentTime - lastButtonPressTime >= buttonPressInterval)) {
@@ -253,7 +254,7 @@ void freqSet(long* newFreq, int set, int direction) {
             display(SET_FREQUENCY_INTERFACE);
         break;
         case 1: // set frequency
-            setPll();
+            configurePll();
             freqSetMode = false;
             display(MAIN_INTERFACE);
         break;
@@ -280,7 +281,7 @@ void storeFrequency(float frequency) {
     if (initialized) { EEPROM.put(EEPROM_FREQ_ADDR, frequency); }
 }
 
-void setPll() {
+void configurePll() {
     if (freq != currentFreq) {
         long divisor = (freq / PLL_REF_FREQ); // calculate divisor
         byte data[4];
