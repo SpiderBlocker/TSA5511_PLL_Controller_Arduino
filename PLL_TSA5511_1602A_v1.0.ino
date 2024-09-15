@@ -19,6 +19,7 @@ const String description = "PLL Control";
 const String version = "V1.0";
 const String credits = "(C)2024 Loenie";
 
+// included libraries 
 #include <EEPROM.h>
 #include <Wire.h>
 #include <LiquidCrystal.h>
