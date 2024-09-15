@@ -144,9 +144,10 @@ void loop() {
 
 void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
     if (nameEditMode) {
-        handleUpDown(buttonDownState, buttonDownPressed, -1, selectCharacter);
-        handleUpDown(buttonUpState, buttonUpPressed, 1, selectCharacter);
-
+        if (!(buttonDownState && buttonUpState)) { // no change if DOWN and UP are pressed simultaneously
+            handleUpDown(buttonDownState, buttonDownPressed, -1, selectCharacter);
+            handleUpDown(buttonUpState, buttonUpPressed, 1, selectCharacter);
+        }
         if (!digitalRead(setButton)) {
               if (nameEditPos >= MAX_NAME_LENGTH - 1) {
                   storeStationName();
@@ -177,14 +178,14 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
 
     if (initialized && !nameEditMode) {
         auto freqChange = [](int direction) { freqSet(&freq, 0, direction); };
-        handleUpDown(buttonDownState, buttonDownPressed, -1, freqChange);
-        handleUpDown(buttonUpState, buttonUpPressed, 1, freqChange);
-
+        if (!(buttonDownState && buttonUpState)) { // no change if DOWN and UP are pressed simultaneously
+            handleUpDown(buttonDownState, buttonDownPressed, -1, freqChange);
+            handleUpDown(buttonUpState, buttonUpPressed, 1, freqChange);
+        }
         if (buttonDownState || buttonUpState) {
             lastButtonPressTime = millis();
             timedOut = false;
         }
-
         if (freqSetMode && !digitalRead(setButton)) {
             freqSet(&freq, 1, 0);
         } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
@@ -314,7 +315,6 @@ void checkPllStatus() {
             delay(50);
             if (i == 1) { i2cErrHandler(); }
         }
-
         if (pllLock) {
             byte data[2]; // partial programming, starting with byte 4
             data[0] = PLL_CP_HIGH; // set charge pump
