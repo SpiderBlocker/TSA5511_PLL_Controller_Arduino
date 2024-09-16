@@ -3,7 +3,7 @@
 //   Using a 3,2 MHz crystal, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof. 
 //   The practical lower and upper limits will be tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
 //   Using any other crystal frequency (as far as the TSA5511 will support), valid frequency step size and divisor bytes for the TSA5511 are calculated automatically.
-//   Charge pump is kept high at all times for the DRFS06 exciter. For other hardware, in checkPllStatus() set "data[0] = PLL_CP_LOW" if required.
+//   Charge pump is kept high at all times for the DRFS06 exciter. For other hardware, in checkPll() set "data[0] = PLL_CP_LOW" if required.
 //   Button debouncing: 100 nF || switch contact
 //
 // USE
@@ -38,7 +38,6 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
 // EEPROM storage
 const int EEPROM_FREQ_ADDR = 0;
 const int EEPROM_NAME_ADDR = 10;
-const int MAX_NAME_LENGTH = 16;
 
 //I2C settings
 const long i2cClock = 32000; // low I2C clock frequency, more robust through SDA/SCL RF-decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
@@ -79,8 +78,9 @@ const unsigned long lowerFreq = validateFreq(lowerBandEdge); // set valid lower 
 const unsigned long upperFreq = validateFreq(upperBandEdge); // set valid upper band edge frequency
 
 // station name settings
-const char defaultName[MAX_NAME_LENGTH + 1] = "Station Name"; // +1 for null terminator
-char stationName[MAX_NAME_LENGTH + 1]; // +1 for null terminator
+const int maxNameLength = 16;
+const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null terminator
+char stationName[maxNameLength + 1]; // +1 for null terminator
 
 // general definitions/declarations
 const long startupDelay = 2500; // time to show startup message
@@ -140,7 +140,7 @@ void loop() {
 
     handleNameEditMode(buttonDownState, buttonUpState);
     handleFrequencyChange(buttonDownState, buttonUpState);
-    checkPllStatus();
+    checkPll();
 }
 
 void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
@@ -149,7 +149,7 @@ void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
         handleDownUp(buttonUpState, buttonUpPressed, 1, selectCharacter);
 
         if (!digitalRead(setButton)) {
-              if (nameEditPos >= MAX_NAME_LENGTH - 1) {
+              if (nameEditPos >= maxNameLength - 1) {
                   storeStationName();
                   nameEditMode = false;
               } else {
@@ -177,7 +177,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
     static long timedOut = 0, lastButtonPressTime = 0;
 
     if (initialized && !nameEditMode) {
-        auto freqChange = [](int direction) { freqSet(&freq, 0, direction); };
+        auto freqChange = [](int direction) { setFrequency(&freq, 0, direction); };
         handleDownUp(buttonDownState, buttonDownPressed, -1, freqChange);
         handleDownUp(buttonUpState, buttonUpPressed, 1, freqChange);
 
@@ -186,7 +186,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
             timedOut = false;
         }
         if (freqSetMode && !digitalRead(setButton)) {
-            freqSet(&freq, 1, 0);
+            setFrequency(&freq, 1, 0);
         } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
             freqSetMode = false;
             if (!timedOut) { // restore initial status
@@ -219,33 +219,33 @@ void handleDownUp(bool buttonState, bool& buttonPressed, int direction, void (*a
 
 void readStationName() {
     EEPROM.get(EEPROM_NAME_ADDR, stationName);
-    stationName[MAX_NAME_LENGTH] = '\0'; // null terminator
+    stationName[maxNameLength] = '\0'; // null terminator
 
     // set standard station name if string is invalid
-    size_t length = strnlen(stationName, MAX_NAME_LENGTH);
+    size_t length = strnlen(stationName, maxNameLength);
     for (size_t i = 0; i < length; i++) {
         if (stationName[i] < 32 || stationName[i] > 126 || stationName[i] == 0xFF) { // no invalid ASCII-character, no 0xFF
-            strncpy(stationName, defaultName, MAX_NAME_LENGTH); // copy default station name to array
-            for (size_t i = strlen(defaultName); i < MAX_NAME_LENGTH; i++) { // fill remaining positions with spaces
+            strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
+            for (size_t i = strlen(defaultName); i < maxNameLength; i++) { // fill remaining positions with spaces
                 stationName[i] = ' ';
             }
-            stationName[MAX_NAME_LENGTH] = '\0'; // null terminator
+            stationName[maxNameLength] = '\0'; // null terminator
             break;
         }
     }
 }
 
 void storeStationName() {
-    char storedStationName[MAX_NAME_LENGTH + 1];
+    char storedStationName[maxNameLength + 1];
     EEPROM.get(EEPROM_NAME_ADDR, storedStationName);
-    storedStationName[MAX_NAME_LENGTH] = '\0'; // null terminator
+    storedStationName[maxNameLength] = '\0'; // null terminator
 
-    if (strncmp(stationName, storedStationName, MAX_NAME_LENGTH) != 0) { // avoid unnecessary write operations to protect EEPROM
+    if (strncmp(stationName, storedStationName, maxNameLength) != 0) { // avoid unnecessary write operations to protect EEPROM
         EEPROM.put(EEPROM_NAME_ADDR, stationName);
     }
 }
 
-void freqSet(long* newFreq, int set, int direction) {
+void setFrequency(long* newFreq, int set, int direction) {
     switch(set){
         case 0: // change frequency
             if (freqSetMode) { *newFreq += (direction * freqStep); }
@@ -304,7 +304,7 @@ void configurePll() {
     }
 }
 
-void checkPllStatus() {
+void checkPll() {
     if (pllWatchdog && !nameEditMode) {
         for (int i = maxRetries; i > 0; i--) {
             Wire.requestFrom(PLL_ADDR_READ, (byte)1);
