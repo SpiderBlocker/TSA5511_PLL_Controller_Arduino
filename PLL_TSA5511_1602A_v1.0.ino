@@ -123,9 +123,9 @@ void setup() {
     readStationName();
     readFrequency();
 
-    if (!digitalRead(setButton)) { // enable station name editor when holding setButton during startup
+    if (!digitalRead(setButton)) { // enable station name editor when holding SET during startup
         display(STATION_NAME_EDITOR);
-        while(!digitalRead(setButton)); // lock cursor position until setButton release
+        while(!digitalRead(setButton)); // lock cursor position until SET release
         nameEditMode = true;
     } else { // complete initialization
         configurePll();
@@ -140,25 +140,16 @@ void loop() {
     bool buttonSetState = !digitalRead(setButton);
     bool buttonUpState = !digitalRead(upButton);
 
-    handleNameEditMode(buttonDownState, buttonSetState, buttonUpState);
+    handleNameEditorMode(buttonDownState, buttonSetState, buttonUpState);
     handleFrequencyChange(buttonDownState, buttonSetState, buttonUpState);
     checkPll();
 }
 
-void handleNameEditMode(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
+void handleNameEditorMode(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
     if (nameEditMode) {
-        handleButtonPress(buttonDownState, buttonDownPressed, -1, selectCharacter);
-        handleButtonPress(buttonUpState, buttonUpPressed, 1, selectCharacter);
-        handleButtonPress(buttonSetState, buttonSetPressed, 1,[](int) {
-            if (nameEditPos >= maxNameLength - 1) {
-                storeStationName();
-                nameEditMode = false;
-            } else {
-                nameEditPos++; // move to next character position
-                display(STATION_NAME_EDITOR);
-                delay(charScrollInterval);
-            }
-        });
+        handleButtonPress(buttonDownState, buttonDownPressed, -1, nameEditorAction);
+        handleButtonPress(buttonSetState, buttonSetPressed, 0, nameEditorAction);
+        handleButtonPress(buttonUpState, buttonUpPressed, 1, nameEditorAction);
     } else {
         if (!initialized) { // complete initialization when returning from station name editor
             configurePll();
@@ -168,10 +159,23 @@ void handleNameEditMode(bool buttonDownState, bool buttonSetState, bool buttonUp
     }
 }
 
-void selectCharacter(int direction) {
-    int charRange = 'z' - ' ' + 1; // allowed range of characters
-    stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + direction + charRange) % charRange + ' ';
-    display(STATION_NAME_EDITOR);
+void nameEditorAction(int direction) {
+    if (direction == 0) {
+        // SET action
+        if (nameEditPos >= maxNameLength - 1) { // store station name when last character has been confirmed
+            storeStationName();
+            nameEditMode = false;
+        } else {
+            nameEditPos++; // move to next cursor position
+            display(STATION_NAME_EDITOR);
+            delay(charScrollInterval);
+        }
+    } else { 
+        // UP/DOWN action
+        int charRange = 'z' - ' ' + 1; // allowed range of characters
+        stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + direction + charRange) % charRange + ' ';
+        display(STATION_NAME_EDITOR);
+    }
 }
 
 void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
