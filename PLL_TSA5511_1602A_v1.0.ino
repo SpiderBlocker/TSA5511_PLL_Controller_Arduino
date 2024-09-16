@@ -138,17 +138,18 @@ void loop() {
     currentTime = millis();
     bool buttonDownState = !digitalRead(downButton);
     bool buttonUpState = !digitalRead(upButton);
+    bool buttonSetState = !digitalRead(setButton);
 
-    handleNameEditMode(buttonDownState, buttonUpState);
-    handleFrequencyChange(buttonDownState, buttonUpState);
+    handleNameEditMode(buttonDownState, buttonUpState, buttonSetState);
+    handleFrequencyChange(buttonDownState, buttonUpState, buttonSetState);
     checkPll();
 }
 
-void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
+void handleNameEditMode(bool buttonDownState, bool buttonUpState, bool buttonSetState) {
     if (nameEditMode) {
         handleButtonPress(buttonDownState, buttonDownPressed, -1, selectCharacter);
         handleButtonPress(buttonUpState, buttonUpPressed, 1, selectCharacter);
-        handleButtonPress(!digitalRead(setButton), buttonSetPressed, 1,[](int) {
+        handleButtonPress(buttonSetState, buttonSetPressed, 1,[](int) {
             if (nameEditPos >= maxNameLength - 1) {
                 storeStationName();
                 nameEditMode = false;
@@ -173,7 +174,7 @@ void selectCharacter(int direction) {
     display(STATION_NAME_EDITOR);
 }
 
-void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
+void handleFrequencyChange(bool buttonDownState, bool buttonUpState, bool buttonSetState) {
     static long timedOut = 0, lastButtonPressTime = 0;
 
     if (initialized && !nameEditMode) {
@@ -185,7 +186,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
             lastButtonPressTime = millis();
             timedOut = false;
         }
-        if (freqSetMode && !digitalRead(setButton)) {
+        if (freqSetMode && buttonSetState) {
             setFrequency(&freq, 1, 0);
         } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
             freqSetMode = false;
