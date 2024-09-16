@@ -353,7 +353,7 @@ void i2cErrHandler() {
 
 void display(int mode) {
     // show and right-align frequency on display
-    auto printFreq = [&](long freq) {
+    auto printFreq = []() {
         lcd.print(freq < 10000000 ? "   " : (freq < 100000000 ? "  " : (freq < 1000000000 ? " " : "")));
         lcd.print(freq / 1000000.0);
         lcd.print(" MHz");
@@ -381,7 +381,7 @@ void display(int mode) {
         case MAIN_INTERFACE:
             lcd.noCursor(); // required when returning from case STATION_NAME_EDITOR
             lcd.setCursor(5, 0);
-            printFreq(freq);
+            printFreq();
             lcd.setCursor(0, 1);
             lcd.print(stationName);
             break;
@@ -390,7 +390,7 @@ void display(int mode) {
             lcd.setCursor(0, 1);
             lcd.print("SET  ");
             lcd.setCursor(5, 1);
-            printFreq(freq);
+            printFreq();
             break;
 
         case PLL_LOCK_STATUS:
