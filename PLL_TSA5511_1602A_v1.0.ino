@@ -94,6 +94,7 @@ bool initialized = false;
 bool nameEditMode = false;
 bool freqSetMode = false;
 bool buttonDownPressed = false;
+bool buttonSetPressed = false;
 bool buttonUpPressed = false;
 
 // display modi
@@ -145,19 +146,18 @@ void loop() {
 
 void handleNameEditMode(bool buttonDownState, bool buttonUpState) {
     if (nameEditMode) {
-        handleDownUp(buttonDownState, buttonDownPressed, -1, selectCharacter);
-        handleDownUp(buttonUpState, buttonUpPressed, 1, selectCharacter);
-
-        if (!digitalRead(setButton)) {
-              if (nameEditPos >= maxNameLength - 1) {
-                  storeStationName();
-                  nameEditMode = false;
-              } else {
-                  nameEditPos++; // move to next character position
-                  display(STATION_NAME_EDITOR);
-                  delay(charScrollInterval);
-              }
-        }
+        handleButtonPress(buttonDownState, buttonDownPressed, -1, selectCharacter);
+        handleButtonPress(buttonUpState, buttonUpPressed, 1, selectCharacter);
+        handleButtonPress(!digitalRead(setButton), buttonSetPressed, 1,[](int) {
+            if (nameEditPos >= maxNameLength - 1) {
+                storeStationName();
+                nameEditMode = false;
+            } else {
+                nameEditPos++; // move to next character position
+                display(STATION_NAME_EDITOR);
+                delay(charScrollInterval);
+            }
+        });
     } else {
         if (!initialized) { // complete initialization when returning from station name editor
             configurePll();
@@ -178,8 +178,8 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
 
     if (initialized && !nameEditMode) {
         auto freqChange = [](int direction) { setFrequency(&freq, 0, direction); };
-        handleDownUp(buttonDownState, buttonDownPressed, -1, freqChange);
-        handleDownUp(buttonUpState, buttonUpPressed, 1, freqChange);
+        handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
+        handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
 
         if (buttonDownState || buttonUpState) {
             lastButtonPressTime = millis();
@@ -198,7 +198,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonUpState) {
     }
 }
 
-void handleDownUp(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
+void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
     static long buttonPressStartTime = 0, lastButtonPressTime = 0;
 
     // no change if DOWN and UP are pressed simultaneously
