@@ -85,7 +85,7 @@ char stationName[maxNameLength + 1]; // +1 for null terminator
 // general definitions/declarations
 const long startupDelay = 2500; // time to show startup message
 const long initialPressDelay = 1000; // delay before continuous change when holding button
-const long buttonPressInterval = 80; // continuous change speed when holding button
+const long initialPressInterval = 80; // continuous change speed when holding button
 const long charScrollInterval = 300; // display character scrolling speed
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
 unsigned long currentTime;
@@ -204,16 +204,18 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
 }
 
 void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
-    static long buttonPressStartTime = 0, lastButtonPressTime = 0;
+    static long pressStartTime = 0, lastPressTime = 0;
+    long timePressed = currentTime - pressStartTime, fastPressInterval = initialPressInterval;
 
     // no change if DOWN and UP are pressed simultaneously
     if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }    
     
     if (buttonState) {
-      // change on first button press, or - when holding button - continuously after initialPressDelay
-        if (!buttonPressed || (currentTime - buttonPressStartTime >= initialPressDelay && currentTime - lastButtonPressTime >= buttonPressInterval)) {
-            if (!buttonPressed) { buttonPressStartTime = currentTime; }
-            lastButtonPressTime = currentTime;
+        // change on first button press, or - when holding button - continuously after initialPressDelay, with subsequent acceleration
+        if (!nameEditMode && timePressed >= 5 * initialPressDelay) { fastPressInterval = initialPressInterval / 5; }
+        if (!buttonPressed || (timePressed >= initialPressDelay && currentTime - lastPressTime >= fastPressInterval)) {
+            if (!buttonPressed) { pressStartTime = currentTime; }
+            lastPressTime = currentTime;
             buttonPressed = true;
             action(direction);
         }
