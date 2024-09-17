@@ -8,7 +8,7 @@
 //
 // USE
 // - Verify the actual crystal frequency and required band edge frequencies below and change if necessary.
-// - Change frequency using UP/DOWN-buttons and confirm with SET-button. The new frequency will be stored in EEPROM. 
+// - Change frequency using UP/DOWN-buttons and confirm with SET-button. The new frequency will be stored in EEPROM.
 //   Changing frequency without confirmation will timeout and return to main screen unchanged.
 // - Hold SET-button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET-button.
 //   The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
@@ -19,7 +19,7 @@ const String description = "PLL Control";
 const String version = "V1.0";
 const String credits = "(C)2024 Loenie";
 
-// included libraries 
+// required libraries 
 #include <EEPROM.h>
 #include <Wire.h>
 #include <LiquidCrystal.h>
@@ -29,7 +29,7 @@ const int downButton = 2;
 const int setButton = 3;
 const int upButton = 4;
 
-// PLL lock LED pin mapping
+// lock LED pin mapping
 const int pllLockOutput = 7;
 
 // LCD-display pin mapping
@@ -39,7 +39,7 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
 const int EEPROM_FREQ_ADDR = 0;
 const int EEPROM_NAME_ADDR = 10;
 
-//I2C settings
+// I2C settings
 const long i2cClock = 32000; // low I2C clock frequency, more robust through SDA/SCL RF-decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
 const long wireTimeout = 5000; // I2C transmission timeout, avoiding I2C bus crash in some cases
 const int maxRetries = 10; // maximum number of retries in case of a failed I2C transmission
@@ -58,15 +58,11 @@ const int PLL_XTAL_DIVISOR = 512; // PLL crystal divisor
 const int PLL_PRESCALER_DIVISOR = 8; // PLL prescaler divisor
 const long PLL_REF_FREQ = PLL_XTAL_FREQ / PLL_XTAL_DIVISOR * PLL_PRESCALER_DIVISOR; // PLL reference frequency (Hz), also equals the minimum possible VCO frequency and step size
 const int PLL_LOCK_BIT = 6; // PLL lock flag bit
-bool pllLock = false;
-bool pllWatchdog = false;
 
 // VCO frequency settings
 uint64_t lowerBandEdge = 80000000; // lower band edge frequency (Hz)
 uint64_t upperBandEdge = 108000000; // upper band edge frequency (Hz)
 unsigned long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
-unsigned long freq;
-unsigned long currentFreq;
 
 // VCO frequency validation
 unsigned long validateFreq(uint64_t frequency) {
@@ -88,6 +84,8 @@ const long initialPressDelay = 1000; // delay before continuous change when hold
 const long initialPressInterval = 80; // continuous change speed when holding button
 const long charScrollInterval = 300; // display character scrolling speed
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
+unsigned long freq;
+unsigned long currentFreq;
 unsigned long currentTime;
 int nameEditPos;
 bool initialized = false;
@@ -96,6 +94,8 @@ bool freqSetMode = false;
 bool buttonDownPressed = false;
 bool buttonSetPressed = false;
 bool buttonUpPressed = false;
+bool pllLock = false;
+bool pllWatchdog = false;
 
 // display modi
 enum DisplayMode {
@@ -208,7 +208,7 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
     long timePressed = currentTime - pressStartTime, fastPressInterval = initialPressInterval;
 
     // no change if DOWN and UP are pressed simultaneously
-    if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }    
+    if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
     
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay, with subsequent acceleration
