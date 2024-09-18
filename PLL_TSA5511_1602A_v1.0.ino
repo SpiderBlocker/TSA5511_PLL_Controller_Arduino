@@ -140,12 +140,33 @@ void loop() {
     bool buttonSetState = !digitalRead(setButton);
     bool buttonUpState = !digitalRead(upButton);
 
-    handleNameEditorMode(buttonDownState, buttonSetState, buttonUpState);
+    handleNameEditor(buttonDownState, buttonSetState, buttonUpState);
     handleFrequencyChange(buttonDownState, buttonSetState, buttonUpState);
     checkPll();
 }
 
-void handleNameEditorMode(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
+void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
+    static long pressStartTime = 0, lastPressTime = 0;
+    long timePressed = currentTime - pressStartTime, fastPressInterval = initialPressInterval;
+
+    // no change if DOWN and UP are pressed simultaneously
+    if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
+    
+    if (buttonState) {
+        // change on first button press, or - when holding button - continuously after initialPressDelay, with subsequent acceleration
+        if (!nameEditMode && timePressed >= 5 * initialPressDelay) { fastPressInterval = initialPressInterval / 5; }
+        if (!buttonPressed || (timePressed >= initialPressDelay && currentTime - lastPressTime >= fastPressInterval)) {
+            if (!buttonPressed) { pressStartTime = currentTime; }
+            lastPressTime = currentTime;
+            buttonPressed = true;
+            action(direction);
+        }
+    } else {
+        buttonPressed = false;
+    }
+}
+
+void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
     if (nameEditMode) {
         handleButtonPress(buttonDownState, buttonDownPressed, -1, nameEditorAction);
         handleButtonPress(buttonSetState, buttonSetPressed, 0, nameEditorAction);
@@ -178,52 +199,6 @@ void nameEditorAction(int direction) {
     }
 }
 
-void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static long timedOut = 0, lastButtonPressTime = 0;
-
-    if (initialized && !nameEditMode) {
-        auto freqChange = [](int direction) { setFrequency(&freq, 0, direction); };
-        handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
-        handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
-
-        if (buttonDownState || buttonUpState) {
-            lastButtonPressTime = millis();
-            timedOut = false;
-        }
-        if (freqSetMode && buttonSetState) {
-            setFrequency(&freq, 1, 0);
-        } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
-            freqSetMode = false;
-            if (!timedOut) { // restore initial status
-                freq = currentFreq;
-                display(MAIN_INTERFACE);
-                timedOut = true;
-            }
-        }
-    }
-}
-
-void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
-    static long pressStartTime = 0, lastPressTime = 0;
-    long timePressed = currentTime - pressStartTime, fastPressInterval = initialPressInterval;
-
-    // no change if DOWN and UP are pressed simultaneously
-    if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
-    
-    if (buttonState) {
-        // change on first button press, or - when holding button - continuously after initialPressDelay, with subsequent acceleration
-        if (!nameEditMode && timePressed >= 5 * initialPressDelay) { fastPressInterval = initialPressInterval / 5; }
-        if (!buttonPressed || (timePressed >= initialPressDelay && currentTime - lastPressTime >= fastPressInterval)) {
-            if (!buttonPressed) { pressStartTime = currentTime; }
-            lastPressTime = currentTime;
-            buttonPressed = true;
-            action(direction);
-        }
-    } else {
-        buttonPressed = false;
-    }
-}
-
 void readStationName() {
     EEPROM.get(EEPROM_NAME_ADDR, stationName);
     stationName[maxNameLength] = '\0'; // null terminator
@@ -252,19 +227,44 @@ void storeStationName() {
     }
 }
 
-void setFrequency(long* newFreq, int set, int direction) {
-    switch(set){
+void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
+    static long timedOut = 0, lastButtonPressTime = 0;
+
+    if (initialized && !nameEditMode) {
+        auto freqChange = [](int direction) { frequencyChangeAction(&freq, 0, direction); };
+        handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
+        handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
+
+        if (buttonDownState || buttonUpState) {
+            lastButtonPressTime = millis();
+            timedOut = false;
+        }
+        if (freqSetMode && buttonSetState) {
+            frequencyChangeAction(&freq, 1, 0);
+        } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
+            freqSetMode = false;
+            if (!timedOut) { // restore initial status
+                freq = currentFreq;
+                display(MAIN_INTERFACE);
+                timedOut = true;
+            }
+        }
+    }
+}
+
+void frequencyChangeAction(long* newFreq, int action, int direction) {
+    switch(action){
         case 0: // change frequency
             if (freqSetMode) { *newFreq += (direction * freqStep); }
             *newFreq = (*newFreq < lowerFreq) ? upperFreq : (*newFreq > upperFreq) ? lowerFreq : *newFreq;
             freqSetMode = true;
             display(SET_FREQUENCY_INTERFACE);
-        break;
+            break;
         case 1: // set frequency
             configurePll();
             freqSetMode = false;
             display(MAIN_INTERFACE);
-        break;
+            break;
     }
 }
 
