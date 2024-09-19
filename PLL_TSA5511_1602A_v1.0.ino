@@ -180,8 +180,8 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
     }
 }
 
-void nameEditorAction(int direction) {
-    if (direction == 0) {
+void nameEditorAction(int action) {
+    if (action == 0) {
         // SET action
         if (nameEditPos >= maxNameLength - 1) { // store station name when last character has been confirmed
             storeStationName();
@@ -194,7 +194,7 @@ void nameEditorAction(int direction) {
     } else { 
         // UP/DOWN action
         int charRange = 'z' - ' ' + 1; // allowed range of characters
-        stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + direction + charRange) % charRange + ' ';
+        stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + action + charRange) % charRange + ' ';
         display(STATION_NAME_EDITOR);
     }
 }
@@ -253,18 +253,17 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
 }
 
 void frequencyChangeAction(long* newFreq, int action, int direction) {
-    switch(action){
-        case 0: // change frequency
-            if (freqSetMode) { *newFreq += (direction * freqStep); }
-            *newFreq = (*newFreq < lowerFreq) ? upperFreq : (*newFreq > upperFreq) ? lowerFreq : *newFreq;
-            freqSetMode = true;
-            display(SET_FREQUENCY_INTERFACE);
-            break;
-        case 1: // set frequency
-            configurePll();
-            freqSetMode = false;
-            display(MAIN_INTERFACE);
-            break;
+    if (action == 0) {
+        // change frequency
+        if (freqSetMode) { *newFreq += (direction * freqStep); }
+        *newFreq = (*newFreq < lowerFreq) ? upperFreq : (*newFreq > upperFreq) ? lowerFreq : *newFreq;
+        freqSetMode = true;
+        display(SET_FREQUENCY_INTERFACE);
+    } else {
+        // set frequency
+        configurePll();
+        freqSetMode = false;
+        display(MAIN_INTERFACE);
     }
 }
 
