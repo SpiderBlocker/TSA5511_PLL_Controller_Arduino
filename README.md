@@ -1,6 +1,5 @@
 # TSA5511 PLL Controller for Arduino
-**note BLEEP**
-
+# note INTRODUCTION
 My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
 
 Using a 3,2 MHz crystal, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof. The practical lower and upper limits will be tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz. Using any other crystal frequency (as far as the TSA5511 will support), valid frequency step size and divisor bytes for the TSA5511 are calculated automatically.
