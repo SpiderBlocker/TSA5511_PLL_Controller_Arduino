@@ -13,7 +13,7 @@
 //   for reliable communication, like 1 or 2 kΩ.
 //   If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations
 //   on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
-//
+
 // USE
 //   - Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" below and change if necessary.
 //   - The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
