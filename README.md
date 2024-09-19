@@ -10,7 +10,7 @@ Using any other crystal frequency (as far as the TSA5511 may support), valid fre
 It has a built-in station name editor and the station name and last set frequency are stored in EEPROM.
 
 # Hardware
-The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD-display (used in 4-bit mode) with backlighting and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across them) and an optional PLL lock-led with adequate series resistor. The lock status is also shown on the LCD-display. Refer to code for pin-mappings and change if necessary.
+The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD-display (used in 4-bit mode) with backlighting and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock-led with adequate series resistor. The lock status is also shown on the LCD-display. Refer to code for pin-mappings and change if necessary.
 Note that pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.
 If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
 
