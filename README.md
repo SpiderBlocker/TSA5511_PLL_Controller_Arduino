@@ -1,4 +1,5 @@
 # TSA5511 PLL Controller for Arduino
+#note BLEEP
 
 My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
 
