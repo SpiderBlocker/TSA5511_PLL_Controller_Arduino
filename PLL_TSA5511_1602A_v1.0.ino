@@ -231,7 +231,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
     static long timedOut = 0, lastButtonPressTime = 0;
 
     if (initialized && !nameEditMode) {
-        auto freqChange = [](int direction) { frequencyChangeAction(&freq, 0, direction); };
+        auto freqChange = [](int direction) { frequencyChangeAction(0, &freq, direction); };
         handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
         handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
 
@@ -240,7 +240,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
             timedOut = false;
         }
         if (freqSetMode && buttonSetState) {
-            frequencyChangeAction(&freq, 1, 0);
+            frequencyChangeAction(1, &freq, 0);
         } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
             freqSetMode = false;
             if (!timedOut) { // restore initial status
@@ -252,7 +252,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
     }
 }
 
-void frequencyChangeAction(long* newFreq, int action, int direction) {
+void frequencyChangeAction(int action, long* newFreq, int direction) {
     if (action == 0) {
         // change frequency
         if (freqSetMode) { *newFreq += (direction * freqStep); }
