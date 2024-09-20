@@ -185,7 +185,8 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
         // confirm selection
         handleButtonPress(buttonSetState, buttonSetPressed, 0, [](int direction) { nameEditorAction(1, direction); });
     } else {
-        if (!initialized) { // complete initialization when returning from station name editor
+        // complete initialization when returning from station name editor
+        if (!initialized) {
             configurePll();
             display(MAIN_INTERFACE);
             initialized = true;
@@ -248,12 +249,11 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
         auto freqChange = [](int direction) { frequencyChangeAction(0, &freq, direction); };
         handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
         handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
-
         if (buttonDownState || buttonUpState) {
             lastButtonPressTime = millis();
             timedOut = false;
         }
-        // set frequency
+        // confirm frequency
         if (freqSetMode && buttonSetState) {
             frequencyChangeAction(1, &freq, 0);
         } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
@@ -269,13 +269,13 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
 
 void frequencyChangeAction(int action, long* newFreq, int direction) {
     if (action == 0) {
-        // change frequency
+        // UP/DOWN action
         if (freqSetMode) { *newFreq += (direction * freqStep); }
         *newFreq = (*newFreq < lowerFreq) ? upperFreq : (*newFreq > upperFreq) ? lowerFreq : *newFreq;
         freqSetMode = true;
         display(SET_FREQUENCY_INTERFACE);
     } else {
-        // set frequency
+        // SET action
         configurePll();
         freqSetMode = false;
         display(MAIN_INTERFACE);
