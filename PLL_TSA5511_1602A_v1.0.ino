@@ -178,9 +178,12 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
 
 void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
     if (nameEditMode) {
-        handleButtonPress(buttonDownState, buttonDownPressed, -1, nameEditorAction);
-        handleButtonPress(buttonSetState, buttonSetPressed, 0, nameEditorAction);
-        handleButtonPress(buttonUpState, buttonUpPressed, 1, nameEditorAction);
+        // select character
+        auto nameChange = [](int direction) { nameEditorAction(0, direction); };
+        handleButtonPress(buttonDownState, buttonDownPressed, -1, nameChange);
+        handleButtonPress(buttonUpState, buttonUpPressed, 1, nameChange);
+        // confirm selection
+        handleButtonPress(buttonSetState, buttonSetPressed, 0, [](int direction) { nameEditorAction(1, direction); });
     } else {
         if (!initialized) { // complete initialization when returning from station name editor
             configurePll();
@@ -190,8 +193,13 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
     }
 }
 
-void nameEditorAction(int action) {
+void nameEditorAction(int action, int direction) {
     if (action == 0) {
+        // UP/DOWN action
+        int charRange = 'z' - ' ' + 1; // allowed range of characters
+        stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + direction + charRange) % charRange + ' ';
+        display(STATION_NAME_EDITOR);   
+    } else {
         // SET action
         if (nameEditPos >= maxNameLength - 1) { // store station name when last character has been confirmed
             storeStationName();
@@ -201,11 +209,6 @@ void nameEditorAction(int action) {
             display(STATION_NAME_EDITOR);
             delay(charScrollInterval);
         }
-    } else { 
-        // UP/DOWN action
-        int charRange = 'z' - ' ' + 1; // allowed range of characters
-        stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + action + charRange) % charRange + ' ';
-        display(STATION_NAME_EDITOR);
     }
 }
 
@@ -241,6 +244,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
     static long timedOut = 0, lastButtonPressTime = 0;
 
     if (initialized && !nameEditMode) {
+        // change frequency
         auto freqChange = [](int direction) { frequencyChangeAction(0, &freq, direction); };
         handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
         handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
@@ -249,6 +253,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
             lastButtonPressTime = millis();
             timedOut = false;
         }
+        // set frequency
         if (freqSetMode && buttonSetState) {
             frequencyChangeAction(1, &freq, 0);
         } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
