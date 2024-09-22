@@ -18,7 +18,7 @@ If used with the DRFS06 it is recommended to supply the controller separately fr
 - Verify the actual XTAL frequency and required band edge frequencies under "_// PLL settings_" and "_// VCO frequency settings_" and change if necessary.
 - The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "_checkPll()_" set "_data[0] = PLL_CP_LOW_" if required.
 - Change frequency using UP/DOWN-buttons and confirm with SET-button. The new frequency will be stored in EEPROM.
-  Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with delayed subsequent acceleration. 
+  Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
 - Hold SET-button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET-button.
   The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
 - In case of an I2C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart. I2C communication will be retried several times before alerting an error.
