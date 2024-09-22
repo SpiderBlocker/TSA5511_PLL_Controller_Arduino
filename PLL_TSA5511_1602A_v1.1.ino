@@ -21,8 +21,8 @@
 //     will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
 //   - Hold SET-button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET-button.
 //     The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
-//   - In case of an I2C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart.
-//     I2C communication will be retried several times before alerting an error.
+//   - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart.
+//     I²C communication will be retried several times before alerting an error.
 
 // version & credits
 const String description = "PLL Control";
