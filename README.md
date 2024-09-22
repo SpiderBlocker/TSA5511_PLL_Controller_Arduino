@@ -2,7 +2,7 @@
 
 # Description
 My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
-I think this attempt actually succeeded quite well. Did a lot of testing and fault simulations, including I2C verifications using an I2C decoder. The thing now seems to be quite fool-proof :-)
+I think this attempt actually succeeded quite well. Did a lot of testing and fault simulations, including I²C verifications using an I²C decoder. The thing now seems to be quite fool-proof :-)
 
 Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
 The practical lower and upper limits will be much tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
@@ -21,4 +21,4 @@ If used with the DRFS06 it is recommended to supply the controller separately fr
   Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
 - Hold SET-button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET-button.
   The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
-- In case of an I2C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart. I2C communication will be retried several times before alerting an error.
+- In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart. I²C communication will be retried several times before alerting an error.
