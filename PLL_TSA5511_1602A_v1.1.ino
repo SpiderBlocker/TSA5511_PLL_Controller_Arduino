@@ -153,15 +153,13 @@ void loop() {
     checkPll();
 }
 
-
-
 void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
     static long pressStartTime = 0, lastPressTime = 0;
     long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
 
     // no change if DOWN and UP are pressed simultaneously
     if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
-    
+
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay
         if (!buttonPressed) { pressStartTime = millis(); }
