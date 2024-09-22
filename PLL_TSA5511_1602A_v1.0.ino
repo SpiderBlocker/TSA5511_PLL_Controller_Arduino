@@ -96,7 +96,6 @@ const long charScrollInterval = 300; // display character scrolling speed
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
 unsigned long freq;
 unsigned long currentFreq;
-unsigned long currentTime;
 int nameEditPos;
 bool initialized = false;
 bool nameEditMode = false;
@@ -145,7 +144,6 @@ void setup() {
 }
 
 void loop() {
-    currentTime = millis();
     bool buttonDownState = !digitalRead(downButton);
     bool buttonSetState = !digitalRead(setButton);
     bool buttonUpState = !digitalRead(upButton);
@@ -157,7 +155,7 @@ void loop() {
 
 void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
     static long pressStartTime = 0, lastPressTime = 0;
-    long timePressed = currentTime - pressStartTime, fastPressInterval = initialPressInterval;
+    long timePressed = millis() - pressStartTime, fastPressInterval = initialPressInterval;
 
     // no change if DOWN and UP are pressed simultaneously
     if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
@@ -165,9 +163,9 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay, with subsequent acceleration
         if (!nameEditMode && timePressed >= 5 * initialPressDelay) { fastPressInterval = initialPressInterval / 5; }
-        if (!buttonPressed || (timePressed >= initialPressDelay && currentTime - lastPressTime >= fastPressInterval)) {
-            if (!buttonPressed) { pressStartTime = currentTime; }
-            lastPressTime = currentTime;
+        if (!buttonPressed || (timePressed >= initialPressDelay && millis() - lastPressTime >= fastPressInterval)) {
+            if (!buttonPressed) { pressStartTime = millis(); }
+            lastPressTime = millis();
             buttonPressed = true;
             action(direction);
         }
@@ -197,8 +195,8 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
 void nameEditorAction(int action, int direction) {
     if (action == 0) {
         // UP/DOWN action
-        int charRange = 126 - 32 + 1; // allowed range of characters
-        stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + direction + charRange) % charRange + ' ';
+        int charRange = 126 - 32 + 1; // allowed ASCII character range
+        stationName[nameEditPos] = (stationName[nameEditPos] - 32 + direction + charRange) % charRange + 32; 
         display(STATION_NAME_EDITOR);   
     } else {
         // SET action
@@ -222,8 +220,8 @@ void readStationName() {
     for (size_t i = 0; i < length; i++) {
         if (stationName[i] < 32 || stationName[i] > 126 || stationName[i] == 0xFF) { // no invalid ASCII-character, no 0xFF
             strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
-            for (size_t i = strlen(defaultName); i < maxNameLength; i++) { // fill remaining positions with spaces
-                stationName[i] = ' ';
+            for (size_t i = strlen(defaultName); i < maxNameLength; i++) { // fill remaining positions with spaces (ASCII 32)
+                stationName[i] = 32;
             }
             stationName[maxNameLength] = '\0'; // null terminator
             break;
@@ -421,8 +419,8 @@ void display(int mode) {
                 static int charPos = 0;
                 static bool movingRight = true;
                 digitalWrite(pllLockOutput, LOW);
-                if (currentTime - lastCharScrollTime >= charScrollInterval) {
-                    lastCharScrollTime = currentTime;
+                if (millis() - lastCharScrollTime >= charScrollInterval) {
+                    lastCharScrollTime = millis();
                     lcd.print("     ");
                     lcd.setCursor(charPos, 0);
                     lcd.print(movingRight ? ">>" : "<<");
