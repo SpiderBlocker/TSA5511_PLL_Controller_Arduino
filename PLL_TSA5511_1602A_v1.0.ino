@@ -7,7 +7,7 @@
 
 // HARDWARE
 //   The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD-display (used in 4-bit mode) with backlighting and contrast adjustment,
-//   three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across them) and an optional PLL lock-led with adequate series resistor.
+//   three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock-led with adequate series resistor.
 //   The lock status is also shown on the LCD-display. Refer to pin-mappings below and change if necessary.
 //   Note that pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values
 //   for reliable communication, like 1 or 2 kΩ.
@@ -197,7 +197,7 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
 void nameEditorAction(int action, int direction) {
     if (action == 0) {
         // UP/DOWN action
-        int charRange = 'z' - ' ' + 1; // allowed range of characters
+        int charRange = 126 - 32 + 1; // allowed range of characters
         stationName[nameEditPos] = (stationName[nameEditPos] - ' ' + direction + charRange) % charRange + ' ';
         display(STATION_NAME_EDITOR);   
     } else {
@@ -242,7 +242,8 @@ void storeStationName() {
 }
 
 void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static long timedOut = 0, lastButtonPressTime = 0;
+    static long lastButtonPressTime = 0;
+    static bool timedOut = false;
 
     if (initialized && !nameEditMode) {
         // change frequency
