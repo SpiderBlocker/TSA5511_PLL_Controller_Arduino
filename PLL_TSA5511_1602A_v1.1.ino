@@ -75,8 +75,8 @@ uint64_t upperBandEdge = 108000000; // upper band edge frequency (Hz)
 unsigned long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
 
 // VCO frequency validation
-uint64_t verifiedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge; // swap lowerBandEdge and upperBandEdge if necessary
-uint64_t verifiedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge; // swap lowerBandEdge and upperBandEdge if necessary
+uint64_t verifiedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
+         verifiedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
 unsigned long validateFreq(uint64_t frequency) {
     if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
     if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
@@ -169,8 +169,7 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
             if (!nameEditMode) {
                 // gradual acceleration
                 long postDelayTime = totalPressTime - initialPressDelay;
-                fastPressInterval = initialPressInterval / (1 + (postDelayTime / initialPressDelay));
-                fastPressInterval = max(fastPressInterval, initialPressInterval / 8);
+                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
             }
         }
         if (!buttonPressed || (totalPressTime >= initialPressDelay && millis() - lastPressTime >= fastPressInterval)) {
