@@ -75,15 +75,15 @@ uint64_t upperBandEdge = 108000000; // upper band edge frequency (Hz)
 unsigned long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
 
 // VCO frequency validation
-uint64_t verifiedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
-         verifiedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
+uint64_t validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
+         validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
 unsigned long validateFreq(uint64_t frequency) {
     if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
     if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
     return round((double)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
-const unsigned long lowerFreq = validateFreq(verifiedLowerBandEdge); // set valid lower band edge frequency
-const unsigned long upperFreq = validateFreq(verifiedUpperBandEdge); // set valid upper band edge frequency
+const unsigned long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
+const unsigned long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
 
 // station name settings
 const int maxNameLength = 16;
