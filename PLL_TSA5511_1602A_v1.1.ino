@@ -49,13 +49,13 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
 const int EEPROM_FREQ_ADDR = 0;
 const int EEPROM_NAME_ADDR = 10;
 
-// I2C settings
-const long i2cClock = 32000; // low I2C clock frequency, more robust through SDA/SCL RF-decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
-const long wireTimeout = 5000; // I2C transmission timeout, avoiding I2C bus crash in some cases
-const int maxRetries = 10; // maximum number of retries in case of a failed I2C transmission
+// I²C settings
+const long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF-decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
+const long wireTimeout = 5000; // I²C transmission timeout, avoiding I²C bus crash in some cases
+const int maxRetries = 10; // maximum number of retries in case of a failed I²C transmission
 
 // PLL settings
-const byte PLL_ADDR = 0x30; // PLL 7-bit I2C address (left-aligned in 8-bit format)
+const byte PLL_ADDR = 0x30; // PLL 7-bit I²C address (left-aligned in 8-bit format)
 const byte PLL_ADDR_WRITE = (PLL_ADDR << 1); // 8-bit write address
 const byte PLL_ADDR_READ = ((PLL_ADDR << 1) | 1); // 8-bit read address
 const byte PLL_CP_LOW = 0x8E; // charge pump low
@@ -75,13 +75,15 @@ uint64_t upperBandEdge = 108000000; // upper band edge frequency (Hz)
 unsigned long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
 
 // VCO frequency validation
+uint64_t verifiedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge; // swap lowerBandEdge and upperBandEdge if necessary
+uint64_t verifiedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge; // swap lowerBandEdge and upperBandEdge if necessary
 unsigned long validateFreq(uint64_t frequency) {
     if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
     if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
     return round((double)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
-const unsigned long lowerFreq = validateFreq(lowerBandEdge); // set valid lower band edge frequency
-const unsigned long upperFreq = validateFreq(upperBandEdge); // set valid upper band edge frequency
+const unsigned long lowerFreq = validateFreq(verifiedLowerBandEdge); // set valid lower band edge frequency
+const unsigned long upperFreq = validateFreq(verifiedUpperBandEdge); // set valid upper band edge frequency
 
 // station name settings
 const int maxNameLength = 16;
