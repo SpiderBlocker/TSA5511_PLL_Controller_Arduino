@@ -93,8 +93,8 @@ char stationName[maxNameLength + 1]; // +1 for null terminator
 // general definitions/declarations
 const long startupDelay = 2500; // time to show startup message
 const long initialPressDelay = 1000; // delay before continuous change when holding button
-const long initialPressInterval = 80; // continuous change speed when holding button
-const long charScrollInterval = 300; // display character scrolling speed
+const long initialPressInterval = 80; // continuous change interval when holding button
+const long charScrollInterval = 300; // display character scrolling interval
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
 unsigned long freq;
 unsigned long currentFreq;
