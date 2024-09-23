@@ -203,7 +203,7 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
 void nameEditorAction(int action, int direction) {
     if (action == 0) {
         // UP/DOWN action
-        int charRange = 126 - 32 + 1; // allowed ASCII character range
+        int charRange = 127 - 32 + 1; // allowed ASCII character range
         stationName[nameEditPos] = (stationName[nameEditPos] - 32 + direction + charRange) % charRange + 32;
         display(STATION_NAME_EDITOR);
     } else {
@@ -226,7 +226,7 @@ void readStationName() {
     // set standard station name if string is invalid
     size_t length = strnlen(stationName, maxNameLength);
     for (size_t i = 0; i < length; i++) {
-        if (stationName[i] < 32 || stationName[i] > 126 || stationName[i] == 0xFF) { // no invalid ASCII-character, no 0xFF
+        if (stationName[i] < 32 || stationName[i] > 127 || stationName[i] == 0xFF) { // no invalid ASCII-character, no 0xFF
             strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
             for (size_t i = strlen(defaultName); i < maxNameLength; i++) { // fill remaining positions with spaces (ASCII 32)
                 stationName[i] = 32;
