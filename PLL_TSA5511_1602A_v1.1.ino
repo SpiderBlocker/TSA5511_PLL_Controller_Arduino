@@ -66,7 +66,7 @@ const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
 const long PLL_XTAL_FREQ = 3200000; // PLL crystal frequency (Hz)
 const int PLL_XTAL_DIVISOR = 512; // PLL crystal divisor
 const int PLL_PRESCALER_DIVISOR = 8; // PLL prescaler divisor
-const long PLL_REF_FREQ = PLL_XTAL_FREQ / PLL_XTAL_DIVISOR * PLL_PRESCALER_DIVISOR; // PLL reference frequency (Hz), also equals the minimum possible VCO frequency and step size
+const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; // PLL reference frequency (Hz), also equals the minimum possible VCO frequency and step size
 const int PLL_LOCK_BIT = 6; // PLL lock flag bit
 
 // VCO frequency settings
@@ -156,8 +156,8 @@ void loop() {
 }
 
 void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
-    static long pressStartTime = 0, lastPressTime = 0;
-    long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
+    static unsigned long pressStartTime = 0, lastPressTime = 0;
+    unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
 
     // no change if DOWN and UP are pressed simultaneously
     if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
@@ -248,7 +248,7 @@ void storeStationName() {
 }
 
 void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static long lastButtonPressTime = 0;
+    static unsigned long lastButtonPressTime = 0;
     static bool timedOut = false;
 
     if (initialized && !nameEditMode) {
