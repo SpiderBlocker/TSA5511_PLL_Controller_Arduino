@@ -70,17 +70,17 @@ const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIV
 const int PLL_LOCK_BIT = 6; // PLL lock flag bit
 
 // VCO frequency settings
-uint64_t lowerBandEdge = 80000000; // lower band edge frequency (Hz)
-uint64_t upperBandEdge = 108000000; // upper band edge frequency (Hz)
+float lowerBandEdge = 80000000; // lower band edge frequency (Hz)
+float upperBandEdge = 108000000; // upper band edge frequency (Hz)
 unsigned long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
 
 // VCO frequency validation
-uint64_t validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
+float validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
          validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
-unsigned long validateFreq(uint64_t frequency) {
+unsigned long validateFreq(float frequency) {
     if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
     if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
-    return round((double)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
+    return round((float)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
 const unsigned long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
 const unsigned long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
@@ -292,19 +292,19 @@ void frequencyChangeAction(int action, long* newFreq, int direction) {
 void readFrequency() {
     if (!freqSetMode) {
         // get last stored frequency from EEPROM
-        float storedFreq;
+        long storedFreq;
         EEPROM.get(EEPROM_FREQ_ADDR, storedFreq);
 
         // check if storedFreq is a valid float and within the valid range (lowerFreq to upperFreq)
-        if (isnan(storedFreq) || storedFreq < (lowerFreq) || storedFreq > (upperFreq)) {
+        if (storedFreq < lowerFreq || storedFreq > upperFreq) {
             freq = lowerFreq; // default initial frequency
         } else {
-            freq = round((double)storedFreq / PLL_REF_FREQ) * PLL_REF_FREQ; // round to closest multiple of PLL_REF_FREQ
+            freq = round(storedFreq / PLL_REF_FREQ) * PLL_REF_FREQ; // round to closest multiple of PLL_REF_FREQ
         }
     }
 }
 
-void storeFrequency(float frequency) {
+void storeFrequency(long frequency) {
     // avoid unnecessary write operations during startup to protect EEPROM
     if (initialized) { EEPROM.put(EEPROM_FREQ_ADDR, frequency); }
 }
