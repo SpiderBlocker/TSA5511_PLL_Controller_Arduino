@@ -72,18 +72,18 @@ const int PLL_LOCK_BIT = 6; // PLL lock flag bit
 // VCO frequency settings
 float lowerBandEdge = 80000000; // lower band edge frequency (Hz)
 float upperBandEdge = 108000000; // upper band edge frequency (Hz)
-unsigned long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
+long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
 
 // VCO frequency validation
 float validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
          validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
-unsigned long validateFreq(float frequency) {
+long validateFreq(float frequency) {
     if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
     if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
     return round((float)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
-const unsigned long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
-const unsigned long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
+const long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
+const long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
 
 // station name settings
 const int maxNameLength = 16;
@@ -96,8 +96,8 @@ const long initialPressDelay = 1000; // delay before continuous change when hold
 const long initialPressInterval = 80; // continuous change interval when holding button
 const long charScrollInterval = 300; // display character scrolling interval
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
-unsigned long freq;
-unsigned long currentFreq;
+long freq;
+long currentFreq;
 int nameEditPos;
 bool initialized = false;
 bool nameEditMode = false;
