@@ -1,28 +1,30 @@
-// DESCRIPTION
-//   PLL controller for the TSA5511, intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
-//   Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
-//   The practical lower and upper limits will be much tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
-//   Using any other crystal frequency (as far as the TSA5511 may support), valid frequency step size and divisor bytes for the TSA5511 are calculated automatically.
-//   It has a built-in station name editor and the station name and last set frequency are stored in EEPROM.
+/*
+DESCRIPTION
+  PLL controller for the TSA5511, intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
+  Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
+  The practical lower and upper limits will be much tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
+  Using any other crystal frequency (as far as the TSA5511 may support), valid frequency step size and divisor bytes for the TSA5511 are calculated automatically.
+  It has a built-in station name editor and the station name and last set frequency are stored in EEPROM.
 
-// HARDWARE
-//   The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD-display (used in 4-bit mode) with backlighting and contrast adjustment,
-//   three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock-led with adequate series resistor.
-//   The lock status is also shown on the LCD-display. Refer to pin-mappings below and change if necessary.
-//   Note that pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values
-//   for reliable communication, like 1 or 2 kΩ.
-//   If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations
-//   on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
+HARDWARE
+  • The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD-display (used in 4-bit mode) with backlighting and contrast adjustment,
+    three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock-led with adequate series resistor.
+    The lock status is also shown on the LCD-display. Refer to pin-mappings below and change if necessary.
+  • Note that pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values
+    for reliable communication, like 1 or 2 kΩ.
+  • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations
+    on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
 
-// USE
-//   - Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" below and change if necessary.
-//   - The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
-//   - Change frequency using UP/DOWN-buttons and confirm with SET-button. The new frequency will be stored in EEPROM. Changing frequency without confirmation
-//     will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
-//   - Hold SET-button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET-button.
-//     The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
-//   - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart.
-//     I²C communication will be retried several times before alerting an error.
+USE
+  • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" below and change if necessary.
+  • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
+  • Change frequency using UP/DOWN-buttons and confirm with SET-button. The new frequency will be stored in EEPROM. Changing frequency without confirmation will
+    timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
+  • Hold SET-button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET-button. The new station name
+    will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
+  • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET-button to restart. I²C communication will be retried
+    several times before alerting an error.
+*/
 
 // version & credits
 const String description = "PLL Control";
@@ -76,7 +78,7 @@ long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to 
 
 // VCO frequency validation
 float validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
-         validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
+      validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
 long validateFreq(float frequency) {
     if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
     if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
