@@ -297,7 +297,7 @@ void readFrequency() {
         long storedFreq;
         EEPROM.get(EEPROM_FREQ_ADDR, storedFreq);
 
-        // check if storedFreq is a valid float and within the valid range (lowerFreq to upperFreq)
+        // check if storedFreq lies within the valid range (lowerFreq to upperFreq)
         if (storedFreq < lowerFreq || storedFreq > upperFreq) {
             freq = lowerFreq; // default initial frequency
         } else {
