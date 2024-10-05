@@ -27,9 +27,9 @@ USE
 */
 
 // version & credits
-const String description = "PLL Control";
-const String version = "V1.1";
-const String credits = "(C)2024 Loenie";
+#define description "PLL Control"
+#define version "V1.1"
+#define credits "(C)2024 Loenie"
 
 // required libraries 
 #include <EEPROM.h>
@@ -44,7 +44,7 @@ const int upButton = 4;
 // lock LED pin mapping
 const int pllLockOutput = 7;
 
-// LCD-display pin mapping
+// LCD-display pin mapping (RS, E, D4, D5, D6, D7)
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
 
 // EEPROM storage
@@ -111,7 +111,7 @@ bool pllLock = false;
 bool pllWatchdog = false;
 
 // display modi
-enum DisplayMode {
+enum {
     STARTUP = 0,
     STATION_NAME_EDITOR,
     MAIN_INTERFACE,
@@ -388,7 +388,9 @@ void display(int mode) {
         case STARTUP:
             lcd.clear();
             lcd.setCursor(0, 0);
-            lcd.print(description + " " + version);
+            lcd.print(description);
+            lcd.print(" ");
+            lcd.print(version);
             lcd.setCursor(0, 1);
             lcd.print(credits);
             break;
@@ -425,7 +427,7 @@ void display(int mode) {
                 digitalWrite(pllLockOutput, HIGH);
             } else {
                 // animation during lock wait
-                static long lastCharScrollTime = 0;
+                static unsigned long lastCharScrollTime = 0;
                 static int charPos = 0;
                 static bool movingRight = true;
                 digitalWrite(pllLockOutput, LOW);
