@@ -230,10 +230,7 @@ void readStationName() {
     for (size_t i = 0; i < length; i++) {
         if (stationName[i] < 32 || stationName[i] > 127 || stationName[i] == 0xFF) { // no invalid ASCII-character, no 0xFF
             strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
-            for (size_t i = strlen(defaultName); i < maxNameLength; i++) { // fill remaining positions with spaces (ASCII 32)
-                stationName[i] = 32;
-            }
-            stationName[maxNameLength] = '\0'; // null terminator
+            memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // fill remaining positions with spaces (ASCII 32)
             break;
         }
     }
@@ -242,9 +239,9 @@ void readStationName() {
 void storeStationName() {
     char storedStationName[maxNameLength + 1];
     EEPROM.get(EEPROM_NAME_ADDR, storedStationName);
-    storedStationName[maxNameLength] = '\0'; // null terminator
 
-    if (strncmp(stationName, storedStationName, maxNameLength) != 0) { // avoid unnecessary write operations to protect EEPROM
+    // avoid unnecessary write operations to protect EEPROM
+    if (strncmp(stationName, storedStationName, maxNameLength) != 0) {
         EEPROM.put(EEPROM_NAME_ADDR, stationName);
     }
 }
