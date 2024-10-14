@@ -255,7 +255,7 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
             configurePll();
             display(MAIN_INTERFACE);
             initialized = true;
-            checkPll(); // anticipate on possibility that SET button is not being released timely
+            checkPll(); // anticipate on possibility that SET button will not be released timely
             while(!digitalRead(setButton)) { lcdDimmerTimer = millis(); } // avoid dimming right upon SET button release
         }
     }
