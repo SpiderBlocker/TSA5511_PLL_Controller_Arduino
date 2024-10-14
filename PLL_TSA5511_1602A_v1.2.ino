@@ -25,8 +25,8 @@ USE
     timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
   • Press and hold SET button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET button. The new station
     name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
-  • The LCD backlight will dim after a preset time. Press and hold the SET button during normal operation to turn it off completely. The LCD backlight will turn on
-    again by pressing any button.
+  • During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold the SET button to turn it off completely. The LCD backlight
+    will turn on again by pressing any button.
   • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET button to restart. I²C communication will be retried
     several times before alerting an error.
 */
@@ -57,7 +57,7 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // LCD backlight turn off delay after holding SET
 const long dimDelay = 10000; // LCD brightness dimmer delay
-const int dimStepDelay = 5; // LCD gradual brightness dimming speed
+const int dimStepDelay = 7; // LCD gradual brightness dimming speed
 const int lcdBackgroundBrightness = 255; // LCD active brightness
 const int dimmedBrightness = 50; // LCD quiescent brightness
 
@@ -112,9 +112,9 @@ const long initialPressDelay = 1000; // delay before continuous change when hold
 const long initialPressInterval = 80; // continuous change interval when holding button
 const long charScrollInterval = 300; // display character scrolling interval
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
+unsigned long lcdDimmerTimer;
 long freq;
 long currentFreq;
-long lastButtonPressTime = 0;
 int nameEditPos;
 bool initialized = false;
 bool nameEditMode = false;
@@ -155,7 +155,6 @@ void setup() {
     if (!digitalRead(setButton)) { // enable station name editor when holding SET during startup
         display(STATION_NAME_EDITOR);
         while(!digitalRead(setButton)); // lock cursor position until SET release
-        lastButtonPressTime = millis(); // reset LCD backlight dimmer timer
         nameEditMode = true;
     } else { // complete initialization
         configurePll();
@@ -179,8 +178,8 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
     static unsigned long pressStartTime = 0, lastPressTime = 0;
     unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
 
-    // no change if DOWN and UP are pressed simultaneously
-    if (!digitalRead(downButton) && !digitalRead(upButton)) { return; }
+    // quit if any combination of DOWN/SET/UP is pressed
+    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) { return; }
 
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay
@@ -203,17 +202,18 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
 }
 
 void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static unsigned long lastDimUpdateTime = 0;
+    static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
-    static int currentBrightness = 255;
+    static int currentBrightness = lcdBackgroundBrightness;
     static bool backlightOff = false;
     static bool disableBrightnessRestore = false;
 
     // turn off background lighting by pressing and holding SET button
+    if (!pllLock) { buttonHoldStartTime = 0; } // reset timer while waiting for PLL lock
     if (buttonSetState && !nameEditMode) {
         if (buttonHoldStartTime == 0) {
             buttonHoldStartTime = millis();
-        } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
+        } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff && pllLock) {
             analogWrite(lcdBacklightOutput, 0);
             backlightOff = true;
             disableBrightnessRestore = true;
@@ -226,16 +226,17 @@ void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool but
     if ((buttonDownState || buttonSetState || buttonUpState) && !disableBrightnessRestore) {
         currentBrightness = lcdBackgroundBrightness;
         analogWrite(lcdBacklightOutput, currentBrightness);
-        if (backlightOff) { while(!digitalRead(setButton)); }
-        lastButtonPressTime = millis();
+        if (backlightOff) { while(!digitalRead(setButton)); } // avoid that backlight turns off again if SET button was not released timely
+        lcdDimmerTimer = millis();
         backlightOff = false;
     }
     // gradual dimming after timeout
-    if ((millis() - lastButtonPressTime > dimDelay) && !backlightOff) {
-        if (millis() - lastDimUpdateTime >= dimStepDelay && currentBrightness > dimmedBrightness) {
+    if (nameEditMode || !pllLock) { lcdDimmerTimer = millis(); } // no dimming in name editor mode or while waiting for PLL lock
+    if ((millis() - lcdDimmerTimer > dimDelay) && !nameEditMode && !backlightOff && pllLock) {
+        if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > dimmedBrightness) {
             currentBrightness--;
             analogWrite(lcdBacklightOutput, currentBrightness);
-            lastDimUpdateTime = millis();
+            lastDimmerUpdateTime = millis();
         }
     }
 }
@@ -254,9 +255,8 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
             configurePll();
             display(MAIN_INTERFACE);
             initialized = true;
-            checkPll();
-            while(!digitalRead(setButton));
-            lastButtonPressTime = millis(); // reset LCD backlight dimmer timer
+            checkPll(); // anticipate on possibility that SET button is not being released timely
+            while(!digitalRead(setButton)) { lcdDimmerTimer = millis(); } // avoid dimming right upon SET button release
         }
     }
 }
@@ -306,7 +306,7 @@ void storeStationName() {
 }
 
 void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static unsigned long lastButtonPressTime = 0;
+    static unsigned long inactivityTimer = 0;
     static bool timedOut = false;
 
     if (initialized && !nameEditMode) {
@@ -315,13 +315,13 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
         handleButtonPress(buttonDownState, buttonDownPressed, -1, freqChange);
         handleButtonPress(buttonUpState, buttonUpPressed, 1, freqChange);
         if (buttonDownState || buttonUpState) {
-            lastButtonPressTime = millis();
+            inactivityTimer = millis();
             timedOut = false;
         }
         // confirm frequency
         if (freqSetMode && buttonSetState) {
             frequencyChangeAction(1, &freq, 0);
-        } else if (millis() - lastButtonPressTime > freqSetTimeout) { // inactivity timeout
+        } else if (millis() - inactivityTimer > freqSetTimeout) { // inactivity timeout
             freqSetMode = false;
             if (!timedOut) { // restore initial status
                 freq = currentFreq;
