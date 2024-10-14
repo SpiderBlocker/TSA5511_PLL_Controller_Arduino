@@ -11,7 +11,7 @@ It has a built-in station name editor and the station name and last set frequenc
 
 # Hardware
 - The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlighting and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status is also shown on the LCD display.
-- LCD backlighting control is availale if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pins used for both the LCD backlighting and the PLL lock LED must support PWM. Refer to code to change the brightness levels for both the LCD backlighting and PLL lock LED as you wish.
+- LCD backlighting control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pins used for both the LCD backlighting and the PLL lock LED must support PWM. Refer to code to change the brightness levels for both the LCD backlighting and PLL lock LED as you wish.
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
 
