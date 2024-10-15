@@ -11,14 +11,14 @@ It has a built-in station name editor and the station name and last set frequenc
 
 # Hardware
 - The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlighting and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status is also shown on the LCD display.
-- LCD backlighting control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pins used for both the LCD backlighting and the PLL lock LED must support PWM. Refer to code to change the brightness levels for both the LCD backlighting and PLL lock LED as you wish.
+- LCD backlighting control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pins used for both the the PLL lock LED and the LCD backlighting must support PWM. Currently pin 5 and pin 6 are configured, which are valid for all current Arduino boards. The brightness level settings for both the LCD backlighting and PLL lock LED can be adjusted as you wish by changing their respective settings in the code.
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
 
 # Use
 - Verify the actual XTAL frequency and required band edge frequencies under "_// PLL settings_" and "_// VCO frequency settings_" and change if necessary.
 - The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "_checkPll()_" set "_data[0] = PLL_CP_LOW_" if required.
-- Change frequency using UP/DOWN buttons and confirm with SET button. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
-- Hold SET button during startup to enable the station name editor. Select characters using UP/DOWN buttons and confirm with SET button. The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
-- During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold the SET button to turn it off completely. The LCD backlight will turn on again by pressing any button.
-- In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET button to restart. I²C communication will be retried several times before alerting an error.
+- Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
+- Hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
+- During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold SET to turn it off completely. The LCD backlight will turn on again by pressing any button.
+- In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
