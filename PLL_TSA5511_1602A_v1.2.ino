@@ -11,24 +11,24 @@ HARDWARE
     pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status
     is also shown on the LCD display.
   • LCD backlighting control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital
-    pins used for both the LCD backlighting and the PLL lock LED must support PWM. Refer to code to change the brightness levels for both the LCD backlighting and
-    PLL lock LED as you wish.
+    pins used for both the PLL lock LED and the LCD backlighting must support PWM. Currently pin 5 and pin 6 are configured, which are valid for all current Arduino
+    boards. The brightness level settings for both the LCD backlighting and PLL lock LED can be adjusted as you wish by changing their respective settings below. 
   • Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication,
     like 1 or 2 kΩ.
-  • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations
-    on the TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
+  • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the
+    TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
 
 USE
   • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" below and change if necessary.
   • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
-  • Change frequency using UP/DOWN-buttons and confirm with SET button. The new frequency will be stored in EEPROM. Changing frequency without confirmation will
-    timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
-  • Press and hold SET button during startup to enable the station name editor. Select characters using UP/DOWN-buttons and confirm with SET button. The new station
-    name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
-  • During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold the SET button to turn it off completely. The LCD backlight
-    will turn on again by pressing any button.
-  • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET button to restart. I²C communication will be retried
-    several times before alerting an error.
+  • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
+    to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
+  • Press and hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in
+    EEPROM after the last character has been confirmed and the main screen will be displayed.
+  • During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold SET to turn it off completely. The LCD backlight will turn
+    on again by pressing any button.
+  • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times
+    before alerting an error.
 */
 
 // version & credits
@@ -47,11 +47,11 @@ const int setButton = 3;
 const int upButton = 4;
 
 // lock LED pin mapping and brightness
-const int pllLockOutput = 5;
+const int pllLockOutput = 5; // lock LED anode
 const int pllLockBrightness = 20; // lock LED brightness 
 
 // LCD display pin mapping
-const int lcdBacklightOutput = 6; // LCD backlight LED anode
+const int lcdBacklightOutput = 6; // LCD backlight anode
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
@@ -146,21 +146,7 @@ void setup() {
     Wire.setWireTimeout(wireTimeout, true);
     lcd.begin(16, 2);
 
-    display(STARTUP);
-    analogWrite(lcdBacklightOutput, lcdBackgroundBrightness);
-    delay(startupDelay);
-    readStationName();
-    readFrequency();
-
-    if (!digitalRead(setButton)) { // enable station name editor when holding SET during startup
-        display(STATION_NAME_EDITOR);
-        while(!digitalRead(setButton)); // lock cursor position until SET release
-        nameEditMode = true;
-    } else { // complete initialization
-        configurePll();
-        display(MAIN_INTERFACE);
-        initialized = true;
-    }
+    initialize(true);
 }
 
 void loop() {
@@ -172,6 +158,28 @@ void loop() {
     handleNameEditor(buttonDownState, buttonSetState, buttonUpState);
     handleFrequencyChange(buttonDownState, buttonSetState, buttonUpState);
     checkPll();
+}
+
+void initialize(bool fullInit) { // full initialization at startup
+    if (fullInit) {
+        analogWrite(lcdBacklightOutput, lcdBackgroundBrightness);
+        display(STARTUP);
+        delay(startupDelay);
+        readStationName();
+        readFrequency();
+        if (!digitalRead(setButton)) { // enable station name editor when holding SET during startup
+            display(STATION_NAME_EDITOR);
+            while (!digitalRead(setButton)); // lock cursor position until SET release
+            nameEditMode = true;
+        }
+    } else { // complete initialization after returning from handleNameEditor
+        configurePll();
+        display(MAIN_INTERFACE);
+        initialized = true;
+        checkPll(); // anticipating that SET is still pressed when returning from station name editor
+        while (!digitalRead(setButton)); // wait for release of SET before resetting dimmer timer
+        lcdDimmerTimer = millis();
+    }
 }
 
 void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
@@ -206,9 +214,8 @@ void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool but
     static unsigned long buttonHoldStartTime = 0;
     static int currentBrightness = lcdBackgroundBrightness;
     static bool backlightOff = false;
-    static bool disableBrightnessRestore = false;
 
-    // turn off background lighting by pressing and holding SET button
+    // turn off background lighting by pressing and holding SET
     if (!pllLock) { buttonHoldStartTime = 0; } // reset timer while waiting for PLL lock
     if (buttonSetState && !nameEditMode) {
         if (buttonHoldStartTime == 0) {
@@ -216,19 +223,20 @@ void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool but
         } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff && pllLock) {
             analogWrite(lcdBacklightOutput, 0);
             backlightOff = true;
-            disableBrightnessRestore = true;
+            while (!digitalRead(setButton)); // avoid that backlight turns on again if SET was not released timely
+            return;
         }
     } else {
         buttonHoldStartTime = 0;
-        disableBrightnessRestore = false;
     }
     // restore brightness when pressing any button
-    if ((buttonDownState || buttonSetState || buttonUpState) && !disableBrightnessRestore) {
+    if ((buttonDownState || buttonSetState || buttonUpState)) {
         currentBrightness = lcdBackgroundBrightness;
         analogWrite(lcdBacklightOutput, currentBrightness);
-        if (backlightOff) { while(!digitalRead(setButton)); } // avoid that backlight turns off again if SET button was not released timely
-        lcdDimmerTimer = millis();
+        if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
         backlightOff = false;
+        lcdDimmerTimer = millis();
+        return;
     }
     // gradual dimming after timeout
     if (nameEditMode || !pllLock) { lcdDimmerTimer = millis(); } // no dimming in name editor mode or while waiting for PLL lock
@@ -250,14 +258,7 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
         // confirm selection
         handleButtonPress(buttonSetState, buttonSetPressed, 0, [](int direction) { nameEditorAction(1, direction); });
     } else {
-        // complete initialization when returning from station name editor
-        if (!initialized) {
-            configurePll();
-            display(MAIN_INTERFACE);
-            initialized = true;
-            checkPll(); // anticipate on possibility that SET button will not be released timely
-            while(!digitalRead(setButton)) { lcdDimmerTimer = millis(); } // avoid dimming right upon SET button release
-        }
+        if (!initialized) { initialize(false); } // complete initialization
     }
 }
 
