@@ -7,12 +7,12 @@ DESCRIPTION
   It has a built-in station name editor and the station name and last set frequency are stored in EEPROM.
 
 HARDWARE
-  • The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlighting and contrast adjustment, three
+  • The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three
     pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status
     is also shown on the LCD display.
-  • LCD backlighting control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital
-    pins used for both the PLL lock LED and the LCD backlighting must support PWM. Currently pin 5 and pin 6 are configured, which are valid for all current Arduino
-    boards. The brightness level settings for both the LCD backlighting and PLL lock LED can be adjusted as you wish by changing their respective settings below. 
+  • LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital
+    pins used for both the PLL lock LED and the LCD backlight must support PWM. Currently pin 5 and pin 6 are configured, which are valid for all current Arduino
+    boards. The brightness level settings for both the LCD backlight and PLL lock LED can be adjusted as you wish by changing their respective settings below. 
   • Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication,
     like 1 or 2 kΩ.
   • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the
@@ -112,7 +112,6 @@ const long initialPressDelay = 1000; // delay before continuous change when hold
 const long initialPressInterval = 80; // continuous change interval when holding button
 const long charScrollInterval = 300; // display character scrolling interval
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
-unsigned long lcdDimmerTimer;
 long freq;
 long currentFreq;
 int nameEditPos;
@@ -172,13 +171,10 @@ void initialize(bool fullInit) { // full initialization at startup
             while (!digitalRead(setButton)); // lock cursor position until SET release
             nameEditMode = true;
         }
-    } else { // complete initialization after returning from handleNameEditor
+    } else { // finalize initialization after returning from handleNameEditor
         configurePll();
         display(MAIN_INTERFACE);
         initialized = true;
-        checkPll(); // anticipating that SET is still pressed when returning from station name editor
-        while (!digitalRead(setButton)); // wait for release of SET before resetting dimmer timer
-        lcdDimmerTimer = millis();
     }
 }
 
@@ -210,17 +206,33 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
 }
 
 void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
+    static unsigned long lcdDimmerTimer = 0;
     static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
     static int currentBrightness = lcdBackgroundBrightness;
     static bool backlightOff = false;
+    static bool initialize = true;
 
+    // no LCD backlight control in station name editor until SET release
+    if (initialize) {
+        if (buttonSetState || nameEditMode) {
+            return;
+        } else {
+            initialize = false;
+            lcdDimmerTimer = millis();
+        }
+    } 
+    // no LCD backlight control while waiting for PLL lock
+    if (!pllLock) {
+        buttonHoldStartTime = 0;
+        lcdDimmerTimer = millis();
+        return;
+    }
     // turn off background lighting by pressing and holding SET
-    if (!pllLock) { buttonHoldStartTime = 0; } // reset timer while waiting for PLL lock
-    if (buttonSetState && !nameEditMode) {
+    if (buttonSetState) {
         if (buttonHoldStartTime == 0) {
             buttonHoldStartTime = millis();
-        } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff && pllLock) {
+        } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
             analogWrite(lcdBacklightOutput, 0);
             backlightOff = true;
             while (!digitalRead(setButton)); // avoid that backlight turns on again if SET was not released timely
@@ -239,8 +251,7 @@ void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool but
         return;
     }
     // gradual dimming after timeout
-    if (nameEditMode || !pllLock) { lcdDimmerTimer = millis(); } // no dimming in name editor mode or while waiting for PLL lock
-    if ((millis() - lcdDimmerTimer > dimDelay) && !nameEditMode && !backlightOff && pllLock) {
+    if ((millis() - lcdDimmerTimer > dimDelay) && !backlightOff) {
         if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > dimmedBrightness) {
             currentBrightness--;
             analogWrite(lcdBacklightOutput, currentBrightness);
@@ -258,7 +269,7 @@ void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpSt
         // confirm selection
         handleButtonPress(buttonSetState, buttonSetPressed, 0, [](int direction) { nameEditorAction(1, direction); });
     } else {
-        if (!initialized) { initialize(false); } // complete initialization
+        if (!initialized) { initialize(false); } // finalize initialization
     }
 }
 
