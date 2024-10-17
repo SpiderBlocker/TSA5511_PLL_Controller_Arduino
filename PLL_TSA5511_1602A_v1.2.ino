@@ -11,15 +11,15 @@ HARDWARE
     pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status
     is also shown on the LCD display.
   • LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital
-    pins used for both the PLL lock LED and the LCD backlight must support PWM. Currently pin 5 and pin 6 are configured, which are valid for all current Arduino
-    boards. The brightness level settings for both the LCD backlight and PLL lock LED can be adjusted as you wish by changing their respective settings below. 
+    pins used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards. The brightness level settings and
+    timings for the LCD backlight can be adjusted as you wish under "// LCD brightness and dimmer settings". 
   • Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication,
     like 1 or 2 kΩ.
   • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the
     TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
 
 USE
-  • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" below and change if necessary.
+  • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" and change if necessary.
   • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
   • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
     to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
@@ -46,19 +46,18 @@ const int downButton = 2;
 const int setButton = 3;
 const int upButton = 4;
 
-// lock LED pin mapping and brightness
+// lock LED pin mapping
 const int pllLockOutput = 5; // lock LED anode
-const int pllLockBrightness = 20; // lock LED brightness 
 
 // LCD display pin mapping
-const int lcdBacklightOutput = 6; // LCD backlight anode
+const int backlightOutput = 6; // LCD backlight anode
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // LCD backlight turn off delay after holding SET
 const long dimDelay = 10000; // LCD brightness dimmer delay
 const int dimStepDelay = 7; // LCD gradual brightness dimming speed
-const int lcdBackgroundBrightness = 255; // LCD active brightness
+const int backgroundBrightness = 255; // LCD active brightness
 const int dimmedBrightness = 50; // LCD quiescent brightness
 
 // EEPROM storage
@@ -139,6 +138,7 @@ void setup() {
     pinMode(setButton, INPUT_PULLUP);
     pinMode(upButton, INPUT_PULLUP);
     pinMode(pllLockOutput, OUTPUT);
+    pinMode(backlightOutput, OUTPUT);
 
     Wire.begin();
     Wire.setClock(i2cClock);
@@ -153,7 +153,7 @@ void loop() {
     bool buttonSetState = !digitalRead(setButton);
     bool buttonUpState = !digitalRead(upButton);
 
-    handleDisplayBrightness(buttonDownState, buttonSetState, buttonUpState);
+    handleBacklightControl(buttonDownState, buttonSetState, buttonUpState);
     handleNameEditor(buttonDownState, buttonSetState, buttonUpState);
     handleFrequencyChange(buttonDownState, buttonSetState, buttonUpState);
     checkPll();
@@ -161,7 +161,7 @@ void loop() {
 
 void initialize(bool fullInit) { // full initialization at startup
     if (fullInit) {
-        analogWrite(lcdBacklightOutput, lcdBackgroundBrightness);
+        analogWrite(backlightOutput, backgroundBrightness);
         display(STARTUP);
         delay(startupDelay);
         readStationName();
@@ -205,27 +205,24 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
     }
 }
 
-void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static unsigned long lcdDimmerTimer = 0;
+void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
+    static unsigned long dimmerTimer = 0;
     static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
-    static int currentBrightness = lcdBackgroundBrightness;
+    static int currentBrightness = backgroundBrightness;
+    static bool backlightControlActive = false;
     static bool backlightOff = false;
-    static bool initialize = true;
 
     // no LCD backlight control in station name editor until SET release
-    if (initialize) {
-        if (buttonSetState || nameEditMode) {
-            return;
-        } else {
-            initialize = false;
-            lcdDimmerTimer = millis();
-        }
+    if (!backlightControlActive) {
+        if (nameEditMode || buttonSetState) { return; }
+        backlightControlActive = true;
+        dimmerTimer = millis();
     } 
     // no LCD backlight control while waiting for PLL lock
     if (!pllLock) {
         buttonHoldStartTime = 0;
-        lcdDimmerTimer = millis();
+        dimmerTimer = millis();
         return;
     }
     // turn off background lighting by pressing and holding SET
@@ -233,7 +230,7 @@ void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool but
         if (buttonHoldStartTime == 0) {
             buttonHoldStartTime = millis();
         } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
-            analogWrite(lcdBacklightOutput, 0);
+            analogWrite(backlightOutput, 0);
             backlightOff = true;
             while (!digitalRead(setButton)); // avoid that backlight turns on again if SET was not released timely
             return;
@@ -243,18 +240,18 @@ void handleDisplayBrightness(bool buttonDownState, bool buttonSetState, bool but
     }
     // restore brightness when pressing any button
     if ((buttonDownState || buttonSetState || buttonUpState)) {
-        currentBrightness = lcdBackgroundBrightness;
-        analogWrite(lcdBacklightOutput, currentBrightness);
+        currentBrightness = backgroundBrightness;
+        analogWrite(backlightOutput, currentBrightness);
         if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
         backlightOff = false;
-        lcdDimmerTimer = millis();
+        dimmerTimer = millis();
         return;
     }
     // gradual dimming after timeout
-    if ((millis() - lcdDimmerTimer > dimDelay) && !backlightOff) {
+    if ((millis() - dimmerTimer > dimDelay) && !backlightOff) {
         if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > dimmedBrightness) {
             currentBrightness--;
-            analogWrite(lcdBacklightOutput, currentBrightness);
+            analogWrite(backlightOutput, currentBrightness);
             lastDimmerUpdateTime = millis();
         }
     }
@@ -492,13 +489,13 @@ void display(int mode) {
             lcd.setCursor(0, 0);
             if (pllLock){
                 lcd.print("LOCK  ");
-                analogWrite(pllLockOutput, pllLockBrightness);
+                digitalWrite(pllLockOutput, HIGH);
             } else {
                 // animation during lock wait
                 static unsigned long lastCharScrollTime = 0;
                 static int charPos = 0;
                 static bool movingRight = true;
-                analogWrite(pllLockOutput, 0);
+                digitalWrite(pllLockOutput, LOW);
                 if (millis() - lastCharScrollTime >= charScrollInterval) {
                     lastCharScrollTime = millis();
                     lcd.print("     ");
@@ -513,7 +510,7 @@ void display(int mode) {
         case I2C_ERROR:
             lcd.noCursor(); // required when returning from case STATION_NAME_EDITOR
             lcd.clear();
-            analogWrite(pllLockOutput, 0);
+            digitalWrite(pllLockOutput, LOW);
             lcd.setCursor(0, 0);
             lcd.print("I2C ERROR");
             lcd.setCursor(0, 1);
