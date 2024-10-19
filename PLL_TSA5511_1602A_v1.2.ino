@@ -21,12 +21,12 @@ HARDWARE
 USE
   • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" and change if necessary.
   • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
-  • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
-    to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
   • Press and hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in
     EEPROM after the last character has been confirmed and the main screen will be displayed.
-  • During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold SET to turn it off completely. The LCD backlight will turn
-    on again by pressing any button.
+  • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
+    to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
+  • During normal operation (PLL locked) the LCD backlight will dim after a preset time. Press and hold SET to turn it off completely. The LCD backlight will be set
+    to maximum brightness again by pressing any button.
   • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times
     before alerting an error.
 */
@@ -51,14 +51,14 @@ const int pllLockOutput = 5; // lock LED anode
 
 // LCD display pin mapping
 const int backlightOutput = 6; // LCD backlight anode
-LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
+LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // LCD RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // LCD backlight turn off delay after holding SET
 const long dimDelay = 10000; // LCD brightness dimmer delay
 const int dimStepDelay = 7; // LCD gradual brightness dimming speed
-const int backgroundBrightness = 255; // LCD active brightness
-const int dimmedBrightness = 50; // LCD quiescent brightness
+const int maxBrightness = 255; // LCD maximum brightness
+const int lowBrightness = 50; // LCD dimmed brightness
 
 // EEPROM storage
 const int EEPROM_FREQ_ADDR = 0;
@@ -105,7 +105,7 @@ const int maxNameLength = 16;
 const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null terminator
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
-// general definitions/declarations
+// other definitions
 const long startupDelay = 2500; // time to show startup message
 const long initialPressDelay = 1000; // delay before continuous change when holding button
 const long initialPressInterval = 80; // continuous change interval when holding button
@@ -161,7 +161,7 @@ void loop() {
 
 void initialize(bool fullInit) { // full initialization at startup
     if (fullInit) {
-        analogWrite(backlightOutput, backgroundBrightness);
+        analogWrite(backlightOutput, maxBrightness);
         display(STARTUP);
         delay(startupDelay);
         readStationName();
@@ -182,7 +182,7 @@ void handleButtonPress(bool buttonState, bool& buttonPressed, int direction, voi
     static unsigned long pressStartTime = 0, lastPressTime = 0;
     unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
 
-    // quit if any combination of DOWN/SET/UP is pressed
+    // disallow any combination of DOWN/SET/UP
     if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) { return; }
 
     if (buttonState) {
@@ -209,7 +209,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static unsigned long dimmerTimer = 0;
     static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
-    static int currentBrightness = backgroundBrightness;
+    static int currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
     static bool backlightOff = false;
 
@@ -240,7 +240,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
     // restore brightness when pressing any button
     if ((buttonDownState || buttonSetState || buttonUpState)) {
-        currentBrightness = backgroundBrightness;
+        currentBrightness = maxBrightness;
         analogWrite(backlightOutput, currentBrightness);
         if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
         backlightOff = false;
@@ -249,7 +249,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
     // gradual dimming after timeout
     if ((millis() - dimmerTimer > dimDelay) && !backlightOff) {
-        if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > dimmedBrightness) {
+        if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > lowBrightness) {
             currentBrightness--;
             analogWrite(backlightOutput, currentBrightness);
             lastDimmerUpdateTime = millis();
@@ -362,7 +362,7 @@ void readFrequency() {
         long storedFreq;
         EEPROM.get(EEPROM_FREQ_ADDR, storedFreq);
 
-        // check if storedFreq lies within the valid range (lowerFreq to upperFreq)
+        // check if storedFreq lies within valid range (lowerFreq to upperFreq)
         if (storedFreq < lowerFreq || storedFreq > upperFreq) {
             freq = lowerFreq; // default initial frequency
         } else {
@@ -426,13 +426,17 @@ void checkPll() {
                 delay(50);
                 if (i == 1) { i2cErrHandler(); }
             }
+            digitalWrite(pllLockOutput, HIGH);
+        } else {
+            digitalWrite(pllLockOutput, LOW);
         }
     }
 }
 
 void i2cErrHandler() {
     display(I2C_ERROR);
-    while (!digitalRead(setButton)); // ensure setButton is released, as it may trigger a premature reset
+    digitalWrite(pllLockOutput, LOW);
+    while (!digitalRead(setButton)); // ensure that SET is released, to prevent premature reset
     while (true) {
         if (!digitalRead(setButton)) {
             delay(30); // alleviate processor loading
@@ -489,13 +493,11 @@ void display(int mode) {
             lcd.setCursor(0, 0);
             if (pllLock){
                 lcd.print("LOCK  ");
-                digitalWrite(pllLockOutput, HIGH);
             } else {
                 // animation during lock wait
                 static unsigned long lastCharScrollTime = 0;
                 static int charPos = 0;
                 static bool movingRight = true;
-                digitalWrite(pllLockOutput, LOW);
                 if (millis() - lastCharScrollTime >= charScrollInterval) {
                     lastCharScrollTime = millis();
                     lcd.print("     ");
@@ -510,7 +512,6 @@ void display(int mode) {
         case I2C_ERROR:
             lcd.noCursor(); // required when returning from case STATION_NAME_EDITOR
             lcd.clear();
-            digitalWrite(pllLockOutput, LOW);
             lcd.setCursor(0, 0);
             lcd.print("I2C ERROR");
             lcd.setCursor(0, 1);
