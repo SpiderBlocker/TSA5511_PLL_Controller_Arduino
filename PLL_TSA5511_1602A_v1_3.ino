@@ -230,12 +230,12 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // pause LCD backlight control after returning from freqSetMode
+    // no LCD backlight control during and shortly after frequency set mode
     if (freqSetMode) {
         cooldownTime = millis();
         dimmerTimer = millis();
-    } // reset timer while in freqSetMode
-    if (millis() - cooldownTime < 350) { return; } // period must exceed double-click detection limit
+    }
+    if (millis() - cooldownTime < 350) { return; } // period must exceed SET double-click upper detection limit
 
     // no LCD backlight control while waiting for PLL lock
     if (!pllLock) {
