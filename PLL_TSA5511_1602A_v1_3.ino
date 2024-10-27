@@ -217,11 +217,15 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static unsigned long buttonHoldStartTime = 0;
     static unsigned long StatusDisplayTime = 0;
     static unsigned long lastSetButtonClickTime = 0;
+    static unsigned long doubleClickResetTime = 0;
+    const long doubleClickCooldown = 350;
     static int setButtonClickCount = 0;
     static int currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
     static bool backlightOff = false;
 
+    // pause double-click detection after returning from freqSetMode
+    if (freqSetMode) { doubleClickResetTime = millis(); }
     // no LCD backlight control in station name editor until SET release
     if (!backlightControlActive) {
         if (nameEditMode || buttonSetState) { return; }
@@ -249,6 +253,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
     // toggle dimmer function and store to EEPROM
     if (buttonSetState) {
+        if (millis() - doubleClickResetTime < doubleClickCooldown) { return; } // disable double-click detection during cooldown period
         if (millis() - lastSetButtonClickTime >= 20 && millis() - lastSetButtonClickTime < 300) { // detect SET double-click (20 ms debounce period)
             setButtonClickCount++;
         } else {
