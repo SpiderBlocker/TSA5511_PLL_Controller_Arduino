@@ -223,21 +223,23 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static bool backlightControlActive = false;
     static bool backlightOff = false;
 
-    // pause LCD backlight control after returning from freqSetMode
-    if (freqSetMode) { cooldownTime = millis(); } // reset timer while in freqSetMode
-    if (millis() - cooldownTime < 350) { return; } // period must exceed double-click detection limit
     // no LCD backlight control in station name editor until SET release
     if (!backlightControlActive) {
         if (nameEditMode || buttonSetState) { return; }
         backlightControlActive = true;
         dimmerTimer = millis();
     }
+
+    // pause LCD backlight control after returning from freqSetMode
+    if (freqSetMode) { cooldownTime = millis(); } // reset timer while in freqSetMode
+    if (millis() - cooldownTime < 350) { return; } // period must exceed double-click detection limit
+
     // no LCD backlight control while waiting for PLL lock
     if (!pllLock) {
-        buttonHoldStartTime = 0;
         dimmerTimer = millis();
         return;
     }
+
     // turn off background lighting by pressing and holding SET
     if (buttonSetState) {
         if (buttonHoldStartTime == 0) {
@@ -251,7 +253,17 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     } else {
         buttonHoldStartTime = 0;
     }
-    // toggle dimmer function and store to EEPROM
+
+    // restore brightness by pressing any button
+    if ((buttonDownState || buttonSetState || buttonUpState)) {
+        currentBrightness = maxBrightness;
+        analogWrite(backlightOutput, currentBrightness);
+        if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
+        backlightOff = false;
+        dimmerTimer = millis();
+    }
+
+    // toggle dimmer function, store to EEPROM and show dimmer status screen
     if (buttonSetState) {
         if (millis() - lastSetButtonClickTime >= 30 && millis() - lastSetButtonClickTime < 300) { // detect SET double-click (20 ms debounce period)
             setButtonClickCount++;
@@ -269,8 +281,10 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         setButtonClickCount = 0;
         dimmerTimer = millis();
     }
+
+    // avoid that backlight turns off during message display if SET was not released timely and then restore main screen
     if (millis() < StatusDisplayTime) {
-        buttonHoldStartTime = 0; // avoid that backlight turns off during message display if SET was not released timely
+        buttonHoldStartTime = 0;
         return;
     } else if (StatusDisplayTime != 0) {
         dimmerSetMode = false;
@@ -278,15 +292,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         display(PLL_LOCK_STATUS);
         StatusDisplayTime = 0;
     }
-    // restore brightness when pressing any button
-    if ((buttonDownState || buttonSetState || buttonUpState)) {
-        currentBrightness = maxBrightness;
-        analogWrite(backlightOutput, currentBrightness);
-        if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
-        backlightOff = false;
-        dimmerTimer = millis();
-        return;
-    }
+
     // gradual dimming after timeout
     if (backlightDimActive && (millis() - dimmerTimer > dimDelay) && !backlightOff) {
         if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > lowBrightness) {
