@@ -56,7 +56,7 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // backlight turn-off delay after holding SET
 const long dimMessageTime = 2500; // time to show dimmer status message
-const long dimDelay = 7000; // brightness dimmer delay
+const long dimDelay = 3000; // brightness dimmer delay
 const int dimStepDelay = 7; // gradual brightness dimming speed
 const int maxBrightness = 255; // maximum brightness
 const int lowBrightness = 50; // dimmed brightness
@@ -231,7 +231,10 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
 
     // pause LCD backlight control after returning from freqSetMode
-    if (freqSetMode) { cooldownTime = millis(); } // reset timer while in freqSetMode
+    if (freqSetMode) {
+        cooldownTime = millis();
+        dimmerTimer = millis();
+    } // reset timer while in freqSetMode
     if (millis() - cooldownTime < 350) { return; } // period must exceed double-click detection limit
 
     // no LCD backlight control while waiting for PLL lock
@@ -288,6 +291,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         return;
     } else if (StatusDisplayTime != 0) {
         dimmerSetMode = false;
+        dimmerTimer = millis();
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
         StatusDisplayTime = 0;
