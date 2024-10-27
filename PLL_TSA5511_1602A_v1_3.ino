@@ -117,6 +117,7 @@ long freq;
 long currentFreq;
 int nameEditPos;
 bool initialized = false;
+bool dimmerSetMode = false;
 bool nameEditMode = false;
 bool freqSetMode = false;
 bool buttonDownPressed = false;
@@ -256,6 +257,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         lastSetButtonClickTime = millis();
     }
     if (setButtonClickCount == 2) {
+        dimmerSetMode = true;
         backlightDimActive = !backlightDimActive;
         EEPROM.put(EEPROM_DIM_ADDR, backlightDimActive);
         display(LCD_DIMMER_STATUS);
@@ -267,6 +269,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         buttonHoldStartTime = 0; // avoid that backlight turns off during message display if SET was not released timely
         return;
     } else if (StatusDisplayTime != 0) {
+        dimmerSetMode = false;
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
         StatusDisplayTime = 0;
@@ -362,7 +365,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
     static unsigned long inactivityTimer = 0;
     static bool timedOut = true;
 
-    if (initialized && !nameEditMode) {
+    if (initialized && !dimmerSetMode && !nameEditMode) {
         // change frequency
         auto freqChange = [](int direction) { frequencyChangeAction(0, &freq, direction); };
         handleButtonInput(buttonDownState, buttonDownPressed, -1, freqChange);
