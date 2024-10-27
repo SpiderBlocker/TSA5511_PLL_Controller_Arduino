@@ -230,7 +230,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // no LCD backlight control during and shortly after frequency set mode
+    // no LCD backlight control during frequency set mode and shortly after to prevent double-click detection
     if (freqSetMode) {
         cooldownTime = millis();
         dimmerTimer = millis();
@@ -281,6 +281,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         EEPROM.put(EEPROM_DIM_ADDR, backlightDimActive);
         display(LCD_DIMMER_STATUS);
         StatusDisplayTime = millis() + dimMessageTime;
+        while (!digitalRead(setButton));
         setButtonClickCount = 0;
         dimmerTimer = millis();
     }
