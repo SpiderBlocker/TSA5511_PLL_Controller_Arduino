@@ -95,8 +95,8 @@ long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to 
 float validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
       validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
 long validateFreq(float frequency) {
-    if (frequency < PLL_REF_FREQ) { frequency = PLL_REF_FREQ; } // ensure that minimum frequency is not lower than PLL_REF_FREQ
-    if (frequency / PLL_REF_FREQ > 0x7FFF) { frequency = 0x7FFF * PLL_REF_FREQ; } // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
+    frequency = max(frequency, PLL_REF_FREQ); // ensure that minimum frequency is not lower than PLL_REF_FREQ
+    frequency = min(frequency, 0x7FFF * PLL_REF_FREQ); // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
     return round((float)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
 const long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
@@ -230,8 +230,8 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // no LCD backlight control in frequency set mode, during post-click period or during lock wait
-    if ((freqSetMode && (postClickTime = millis())) || (millis() - postClickTime < 350) || !pllLock) { // period must exceed SET double-click upper detection limit
+    // no LCD backlight control in frequency set mode and its post-click period or during lock wait
+    if (freqSetMode && (postClickTime = millis()) || (millis() - postClickTime < 350) || !pllLock) { // period must exceed SET double-click upper detection limit
         dimmerTimer = millis();
         return;
     }
