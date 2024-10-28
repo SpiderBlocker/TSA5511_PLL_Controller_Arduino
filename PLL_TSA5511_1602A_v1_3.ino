@@ -216,8 +216,8 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
     static unsigned long StatusDisplayTime = 0;
+    static unsigned long postClickTime = 0;
     static unsigned long lastSetButtonClickTime = 0;
-    static unsigned long cooldownTime = 0;
     static int setButtonClickCount = 0;
     static int currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
@@ -230,19 +230,12 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // no LCD backlight control during frequency set mode and shortly after to prevent double-click detection
-    if (freqSetMode) {
-        cooldownTime = millis();
-        dimmerTimer = millis();
-    }
-    if (millis() - cooldownTime < 350) { return; } // period must exceed SET double-click upper detection limit
-
-    // no LCD backlight control while waiting for PLL lock
-    if (!pllLock) {
+    // no LCD backlight control in frequency set mode, during post-click period or during lock wait
+    if ((freqSetMode && (postClickTime = millis())) || (millis() - postClickTime < 350) || !pllLock) { // period must exceed SET double-click upper detection limit
         dimmerTimer = millis();
         return;
     }
-
+   
     // turn off background lighting by pressing and holding SET
     if (buttonSetState) {
         if (buttonHoldStartTime == 0) {
