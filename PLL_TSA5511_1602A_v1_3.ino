@@ -92,12 +92,12 @@ float upperBandEdge = 108000000; // upper band edge frequency (Hz)
 long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
 
 // VCO frequency validation
-float validatedLowerBandEdge = (lowerBandEdge < upperBandEdge) ? lowerBandEdge : upperBandEdge, // swap lowerBandEdge and upperBandEdge if necessary
-      validatedUpperBandEdge = (lowerBandEdge > upperBandEdge) ? lowerBandEdge : upperBandEdge;
+float validatedLowerBandEdge = min(lowerBandEdge, upperBandEdge),
+      validatedUpperBandEdge = max(lowerBandEdge, upperBandEdge); // swap lowerBandEdge and upperBandEdge if necessary
 long validateFreq(float frequency) {
     frequency = max(frequency, PLL_REF_FREQ); // ensure that minimum frequency is not lower than PLL_REF_FREQ
     frequency = min(frequency, 0x7FFF * PLL_REF_FREQ); // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
-    return round((float)frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
+    return round(frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
 const long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
 const long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
