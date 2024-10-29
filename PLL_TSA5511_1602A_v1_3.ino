@@ -251,7 +251,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
 
     // restore brightness by pressing any button
-    if ((buttonDownState || buttonSetState || buttonUpState)) {
+    if (buttonDownState || buttonSetState || buttonUpState) {
         currentBrightness = maxBrightness;
         analogWrite(backlightOutput, currentBrightness);
         if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
