@@ -72,7 +72,7 @@ const long wireTimeout = 5000; // I²C transmission timeout, avoiding I²C bus c
 const int maxRetries = 10; // maximum number of retries in case of a failed I²C transmission
 
 // PLL settings
-const byte PLL_ADDR = 0x30; // 7-bit I²C address (left-aligned in 8-bit format)
+const byte PLL_ADDR = 0x30; // 7-bit I²C address
 const byte PLL_ADDR_WRITE = (PLL_ADDR << 1); // 8-bit write address
 const byte PLL_ADDR_READ = ((PLL_ADDR << 1) | 1); // 8-bit read address
 const byte PLL_CP_LOW = 0x8E; // charge pump low
