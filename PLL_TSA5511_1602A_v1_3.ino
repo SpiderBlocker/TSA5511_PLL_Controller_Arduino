@@ -86,12 +86,12 @@ const int PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
 const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; // reference frequency (Hz), also equals the minimum possible VCO frequency and step size
 const int PLL_LOCK_BIT = 6; // lock flag bit
 
-// VCO frequency settings
+// VCO frequency and step size settings
 float lowerBandEdge = 80000000; // lower band edge frequency (Hz)
 float upperBandEdge = 108000000; // upper band edge frequency (Hz)
-long freqStep = PLL_REF_FREQ * 1; // frequency step size (Hz), must be equal to or an exact multiple of PLL_REF_FREQ
+int stepSizeMultiplier = 1; // frequency step size multiplier (frequency step size will be 50 kHz at 3,2 MHz crystal frequency)
 
-// VCO frequency validation
+// VCO frequency and step size validation
 float validatedLowerBandEdge = min(lowerBandEdge, upperBandEdge),
       validatedUpperBandEdge = max(lowerBandEdge, upperBandEdge); // swap lowerBandEdge and upperBandEdge if necessary
 long validateFreq(float frequency) {
@@ -101,9 +101,10 @@ long validateFreq(float frequency) {
 }
 const long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
 const long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
+const long freqStep = min(max(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ), upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
 
 // station name settings
-const int maxNameLength = 16;
+const int maxNameLength = 16; // maximum station name length
 const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null terminator
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
@@ -235,7 +236,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
         return;
     }
-   
+
     // turn off background lighting by pressing and holding SET
     if (buttonSetState) {
         if (buttonHoldStartTime == 0) {
