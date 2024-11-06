@@ -42,9 +42,9 @@ USE
 #include <LiquidCrystal.h>
 
 // buttons pin mapping
-const int downButton = 2;
-const int setButton = 3;
-const int upButton = 4;
+const int downButton = 2; // DOWN button to ground
+const int setButton = 3; // SET button to ground
+const int upButton = 4; // UP button to ground
 
 // lock LED pin mapping
 const int pllLockOutput = 5; // LED anode
@@ -62,7 +62,7 @@ const int maxBrightness = 255; // maximum brightness
 const int lowBrightness = 50; // dimmed brightness
 
 // EEPROM storage
-const int EEPROM_FREQ_ADDR = 0; // last set VCO frequency
+const int EEPROM_FREQ_ADDR = 0; // VCO frequency
 const int EEPROM_NAME_ADDR = 10; // station name
 const int EEPROM_DIM_ADDR = 30; // backlight dimmer status
 
@@ -130,7 +130,7 @@ bool pllWatchdog = false;
 
 // display modi
 enum {
-    STARTUP = 0,
+    STARTUP,
     STATION_NAME_EDITOR,
     MAIN_INTERFACE,
     SET_FREQUENCY_INTERFACE,
@@ -150,7 +150,6 @@ void setup() {
     Wire.setClock(i2cClock);
     Wire.setWireTimeout(wireTimeout, true);
     lcd.begin(16, 2);
-
     initialize(true);
 }
 
@@ -262,7 +261,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
 
     // toggle dimmer function, store to EEPROM and show dimmer status screen
     if (buttonSetState) {
-        if (millis() - lastSetButtonClickTime >= 30 && millis() - lastSetButtonClickTime < 300) { // detect SET double-click (20 ms debounce period)
+        if (millis() - lastSetButtonClickTime >= 30 && millis() - lastSetButtonClickTime < 300) { // detect SET double-click (30 ms debounce period)
             setButtonClickCount++;
         } else {
             setButtonClickCount = 1;
