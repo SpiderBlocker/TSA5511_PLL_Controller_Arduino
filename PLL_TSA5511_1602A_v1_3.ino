@@ -97,8 +97,8 @@ long validateFreq(float frequency) {
     frequency = min(frequency, 0x7FFF * PLL_REF_FREQ); // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
     return round(frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
-const long lowerFreq = validateFreq(min(lowerBandEdge, upperBandEdge));
-const long upperFreq = validateFreq(max(lowerBandEdge, upperBandEdge)); // swap lowerBandEdge and upperBandEdge if necessary
+const long lowerFreq = validateFreq(min(lowerBandEdge, upperBandEdge)); // validated lower band edge frequency
+const long upperFreq = validateFreq(max(lowerBandEdge, upperBandEdge)); // validated upper band edge frequency
 const long freqStep = min(max(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ), upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
 
 // station name settings
