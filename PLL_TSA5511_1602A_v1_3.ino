@@ -56,7 +56,7 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // backlight turn-off delay after holding SET
 const long dimMessageTime = 2500; // time to show dimmer status message
-const long dimDelay = 3000; // brightness dimmer delay
+const long dimDelay = 2500; // brightness dimmer delay
 const int dimStepDelay = 7; // gradual brightness dimming speed
 const int maxBrightness = 255; // maximum brightness
 const int lowBrightness = 50; // dimmed brightness
@@ -92,15 +92,13 @@ float upperBandEdge = 108000000; // upper band edge frequency (Hz)
 int stepSizeMultiplier = 1; // frequency step size multiplier (frequency step size will be 50 kHz at 3,2 MHz crystal frequency)
 
 // VCO frequency and step size validation
-float validatedLowerBandEdge = min(lowerBandEdge, upperBandEdge),
-      validatedUpperBandEdge = max(lowerBandEdge, upperBandEdge); // swap lowerBandEdge and upperBandEdge if necessary
 long validateFreq(float frequency) {
     frequency = max(frequency, PLL_REF_FREQ); // ensure that minimum frequency is not lower than PLL_REF_FREQ
     frequency = min(frequency, 0x7FFF * PLL_REF_FREQ); // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
     return round(frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
-const long lowerFreq = validateFreq(validatedLowerBandEdge); // set valid lower band edge frequency
-const long upperFreq = validateFreq(validatedUpperBandEdge); // set valid upper band edge frequency
+const long lowerFreq = validateFreq(min(lowerBandEdge, upperBandEdge));
+const long upperFreq = validateFreq(max(lowerBandEdge, upperBandEdge)); // swap lowerBandEdge and upperBandEdge if necessary
 const long freqStep = min(max(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ), upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
 
 // station name settings
