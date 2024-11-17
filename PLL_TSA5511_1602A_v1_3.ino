@@ -107,7 +107,7 @@ const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null termi
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
 // other definitions
-const long startupDelay = 2500; // time to show startup message
+const long splashDelay = 2500; // time to show splash screen
 const long initialPressDelay = 1000; // delay before continuous change when holding button
 const long initialPressInterval = 80; // continuous change interval when holding button
 const long charScrollInterval = 300; // display character scrolling interval
@@ -128,7 +128,7 @@ bool pllWatchdog = false;
 
 // display modi
 enum {
-    STARTUP,
+    SPLASH_SCREEN,
     STATION_NAME_EDITOR,
     MAIN_INTERFACE,
     SET_FREQUENCY_INTERFACE,
@@ -165,8 +165,8 @@ void loop() {
 void initialize(bool fullInit) { // full initialization at startup
     if (fullInit) {
         analogWrite(backlightOutput, maxBrightness);
-        display(STARTUP);
-        delay(startupDelay);
+        display(SPLASH_SCREEN);
+        delay(splashDelay);
         readDimmerStatus();
         readStationName();
         readFrequency();
@@ -178,6 +178,7 @@ void initialize(bool fullInit) { // full initialization at startup
     } else { // finalize initialization after returning from handleNameEditor
         configurePll();
         display(MAIN_INTERFACE);
+        display(PLL_LOCK_STATUS);
         initialized = true;
     }
 }
@@ -507,7 +508,7 @@ void display(int mode) {
     };
 
     switch(mode){
-        case STARTUP:
+        case SPLASH_SCREEN:
             lcd.clear();
             lcd.setCursor(0, 0);
             lcd.print(description);
