@@ -454,7 +454,7 @@ void configurePll() {
 }
 
 void checkPll() {
-    if (pllWatchdog && !nameEditMode) {
+    if (pllWatchdog) {
         for (int i = maxRetries; i > 0; i--) {
             Wire.requestFrom(PLL_ADDR_READ, (byte)1);
             if (Wire.available()) {
