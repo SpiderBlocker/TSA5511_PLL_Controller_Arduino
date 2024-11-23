@@ -188,7 +188,7 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int direction, voi
     unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
 
     // disallow any combination of DOWN/SET/UP
-    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) { return; }
+    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
 
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay
@@ -224,7 +224,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
 
     // no LCD backlight control in station name editor until SET release
     if (!backlightControlActive) {
-        if (nameEditMode || buttonSetState) { return; }
+        if (nameEditMode || buttonSetState) return;
         backlightControlActive = true;
         dimmerTimer = millis();
     }
@@ -431,59 +431,57 @@ void storeFrequency(long frequency) {
 }
 
 void configurePll() {
-    if (freq != currentFreq) {
-        long divisor = (freq / PLL_REF_FREQ); // calculate divisor
-        byte data[4];
-        data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
-        data[1] = divisor & 0x00FF; // extract low divisor byte
-        data[2] = PLL_CP_HIGH; // set charge pump
-        data[3] = PLL_ALL_LOW; // set output ports
-        for (int i = maxRetries; i > 0; i--) {
-            Wire.beginTransmission(PLL_ADDR_WRITE);
-            Wire.write(data, 4);
-            if (Wire.endTransmission() == 0) {
-                storeFrequency(freq);
-                currentFreq = freq;
-                pllWatchdog = true;
-                break;
-            }
-            delay(50);
-            if (i == 1) { i2cErrHandler(); }
+    if (freq == currentFreq) return;
+    long divisor = (freq / PLL_REF_FREQ); // calculate divisor
+    byte data[4];
+    data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
+    data[1] = divisor & 0x00FF; // extract low divisor byte
+    data[2] = PLL_CP_HIGH; // set charge pump
+    data[3] = PLL_ALL_LOW; // set output ports
+    for (int i = maxRetries; i > 0; i--) {
+        Wire.beginTransmission(PLL_ADDR_WRITE);
+        Wire.write(data, 4);
+        if (Wire.endTransmission() == 0) {
+            storeFrequency(freq);
+            currentFreq = freq;
+            pllWatchdog = true;
+            break;
         }
+        delay(50);
+        if (i == 1) { i2cErrHandler(); }
     }
 }
 
 void checkPll() {
-    if (pllWatchdog) {
+    if (!pllWatchdog) return;
+    for (int i = maxRetries; i > 0; i--) {
+        Wire.requestFrom(PLL_ADDR_READ, (byte)1);
+        if (Wire.available()) {
+            byte readByte = Wire.read();
+            pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
+            display(PLL_LOCK_STATUS);
+            break;
+        }
+        delay(50);
+        if (i == 1) { i2cErrHandler(); }
+    }
+    if (pllLock) {
+        byte data[2]; // partial programming, starting with byte 4
+        data[0] = PLL_CP_HIGH; // set charge pump
+        data[1] = PLL_P2_P5_HIGH; // set output ports
         for (int i = maxRetries; i > 0; i--) {
-            Wire.requestFrom(PLL_ADDR_READ, (byte)1);
-            if (Wire.available()) {
-                byte readByte = Wire.read();
-                pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
-                display(PLL_LOCK_STATUS);
+            Wire.beginTransmission(PLL_ADDR_WRITE);
+            Wire.write(data, 2);
+            if (Wire.endTransmission() == 0) {
+                pllWatchdog = false; // PLL watchdog not used after lock, as PLL lock flag may fluctuate due to FM modulation
                 break;
             }
             delay(50);
             if (i == 1) { i2cErrHandler(); }
         }
-        if (pllLock) {
-            byte data[2]; // partial programming, starting with byte 4
-            data[0] = PLL_CP_HIGH; // set charge pump
-            data[1] = PLL_P2_P5_HIGH; // set output ports
-            for (int i = maxRetries; i > 0; i--) {
-                Wire.beginTransmission(PLL_ADDR_WRITE);
-                Wire.write(data, 2);
-                if (Wire.endTransmission() == 0) {
-                    pllWatchdog = false; // PLL watchdog not used after lock, as PLL lock flag may fluctuate due to FM modulation
-                    break;
-                }
-                delay(50);
-                if (i == 1) { i2cErrHandler(); }
-            }
-            digitalWrite(pllLockOutput, HIGH);
-        } else {
-            digitalWrite(pllLockOutput, LOW);
-        }
+        digitalWrite(pllLockOutput, HIGH);
+    } else {
+        digitalWrite(pllLockOutput, LOW);
     }
 }
 
@@ -494,7 +492,7 @@ void i2cErrHandler() {
     while (true) {
         if (!digitalRead(setButton)) {
             delay(30); // alleviate processor loading
-            if (!digitalRead(setButton)) { asm volatile ("jmp 0"); } // soft reset
+            if (!digitalRead(setButton)) asm volatile ("jmp 0"); // soft reset
         }
     }
 }
