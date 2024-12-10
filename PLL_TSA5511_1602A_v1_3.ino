@@ -546,7 +546,7 @@ void display(int mode) {
             if (pllLock){
                 lcd.print("LOCK  ");
             } else {
-                // animation during lock wait
+                // animation if unlocked
                 static unsigned long lastCharScrollTime = 0;
                 static int charPos = 0;
                 static bool movingRight = true;
