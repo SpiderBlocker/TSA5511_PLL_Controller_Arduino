@@ -214,7 +214,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static unsigned long dimmerTimer = 0;
     static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
-    static unsigned long StatusDisplayTime = 0;
+    static unsigned long statusDisplayTime = 0;
     static unsigned long postClickTime = 0;
     static unsigned long lastSetButtonClickTime = 0;
     static int setButtonClickCount = 0;
@@ -229,7 +229,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // no LCD backlight control in frequency set mode and its post-click period or during lock wait
+    // no LCD backlight control in frequency set mode and its post-click period or if unlocked
     if (freqSetMode && (postClickTime = millis()) || (millis() - postClickTime < 350) || !pllLock) { // period must exceed SET double-click upper detection limit
         dimmerTimer = millis();
         return;
@@ -272,22 +272,22 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         backlightDimActive = !backlightDimActive;
         EEPROM.put(EEPROM_DIM_ADDR, backlightDimActive);
         display(LCD_DIMMER_STATUS);
-        StatusDisplayTime = millis() + dimMessageTime;
+        statusDisplayTime = millis() + dimMessageTime;
         while (!digitalRead(setButton));
         setButtonClickCount = 0;
         dimmerTimer = millis();
     }
 
     // avoid that backlight turns off during message display if SET was not released timely and then restore main screen
-    if (millis() < StatusDisplayTime) {
+    if (millis() < statusDisplayTime) {
         buttonHoldStartTime = 0;
         return;
-    } else if (StatusDisplayTime != 0) {
+    } else if (statusDisplayTime != 0) {
         dimmerSetMode = false;
         dimmerTimer = millis();
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
-        StatusDisplayTime = 0;
+        statusDisplayTime = 0;
     }
 
     // gradual dimming after timeout
