@@ -83,7 +83,7 @@ const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
 const long PLL_XTAL_FREQ = 3200000; // crystal frequency (Hz)
 const int PLL_XTAL_DIVISOR = 512; // crystal divisor
 const int PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
-const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; // reference frequency (Hz), also equals the minimum possible VCO frequency and step size
+const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; // reference frequency (Hz), also equals the minimum VCO frequency and step size
 const int PLL_LOCK_BIT = 6; // lock flag bit
 
 // VCO frequency and step size settings
