@@ -4,11 +4,11 @@ DESCRIPTION
   Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
   The practical lower and upper limits will be much tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
   Using any other crystal frequency (as far as the TSA5511 may support), valid frequency step size and divisor bytes for the TSA5511 are calculated automatically.
-  It has a built-in station name editor and the station name and last set frequency are stored in EEPROM.
+  It has a built-in station name editor and LCD backlight control. The station name, backlight dimmer setting and the last operating frequency are stored in EEPROM.
 
 HARDWARE
   • The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three
-    pushbuttons (DOWN/SET/UP, each with a 100 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status
+    pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status
     is also shown on the LCD display.
   • LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital
     pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards. The brightness level settings and
@@ -16,7 +16,7 @@ HARDWARE
   • Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication,
     like 1 or 2 kΩ.
   • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the
-    TSA5511 will cause a few ppm XTAL frequency deviation accordingly.
+    TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
 
 USE
   • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" and change if necessary.
@@ -25,7 +25,7 @@ USE
     EEPROM after the last character has been confirmed and the main screen will be displayed.
   • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
     to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
-  • During normal operation (PLL locked) the LCD backlight will dim after a preset time. Double-click on SET toggles this function ON/OFF and stores the setting to
+  • In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and saves the setting to
     EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
   • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times
     before alerting an error.
@@ -114,7 +114,7 @@ const long charScrollInterval = 300; // display character scrolling interval
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
 long freq;
 long currentFreq;
-int nameEditPos;
+uint8_t nameEditPos;
 bool initialized = false;
 bool dimmerSetMode = false;
 bool nameEditMode = false;
@@ -180,33 +180,6 @@ void initialize(bool fullInit) { // full initialization at startup
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
         initialized = true;
-    }
-}
-
-void handleButtonInput(bool buttonState, bool& buttonPressed, int direction, void (*action)(int)) {
-    static unsigned long pressStartTime = 0, lastPressTime = 0;
-    unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
-
-    // disallow any combination of DOWN/SET/UP
-    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
-
-    if (buttonState) {
-        // change on first button press, or - when holding button - continuously after initialPressDelay
-        if (!buttonPressed) { pressStartTime = millis(); }
-        if (totalPressTime >= initialPressDelay) {
-            if (!nameEditMode) {
-                // gradual acceleration
-                long postDelayTime = totalPressTime - initialPressDelay;
-                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
-            }
-        }
-        if (!buttonPressed || (totalPressTime >= initialPressDelay && millis() - lastPressTime >= fastPressInterval)) {
-            lastPressTime = millis();
-            buttonPressed = true;
-            action(direction);
-        }
-    } else {
-        buttonPressed = false;
     }
 }
 
@@ -311,23 +284,50 @@ void readDimmerStatus() {
     }
 }
 
+void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
+    static unsigned long pressStartTime = 0, lastPressTime = 0;
+    unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
+
+    // disallow any combination of DOWN/SET/UP
+    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
+
+    if (buttonState) {
+        // change on first button press, or - when holding button - continuously after initialPressDelay
+        if (!buttonPressed) { pressStartTime = millis(); }
+        if (totalPressTime >= initialPressDelay) {
+            if (!nameEditMode) {
+                // gradual acceleration
+                long postDelayTime = totalPressTime - initialPressDelay;
+                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
+            }
+        }
+        if (!buttonPressed || (totalPressTime >= initialPressDelay && millis() - lastPressTime >= fastPressInterval)) {
+            lastPressTime = millis();
+            buttonPressed = true;
+            action(direction);
+        }
+    } else {
+        buttonPressed = false;
+    }
+}
+
 void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
     if (nameEditMode) {
         // select character
-        auto nameChange = [](int direction) { nameEditorAction(0, direction); };
+        auto nameChange = [](int8_t direction) { nameEditorAction(true, direction); };
         handleButtonInput(buttonDownState, buttonDownPressed, -1, nameChange);
         handleButtonInput(buttonUpState, buttonUpPressed, 1, nameChange);
         // confirm selection
-        handleButtonInput(buttonSetState, buttonSetPressed, 0, [](int direction) { nameEditorAction(1, direction); });
+        handleButtonInput(buttonSetState, buttonSetPressed, 0, [](int8_t direction) { nameEditorAction(false, direction); });
     } else {
         if (!initialized) { initialize(false); } // finalize initialization
     }
 }
 
-void nameEditorAction(int action, int direction) {
-    if (action == 0) {
+void nameEditorAction(bool nameChange, int8_t direction) {
+    if (nameChange) {
         // UP/DOWN action
-        int charRange = 127 - 32 + 1; // allowed ASCII character range
+        uint8_t charRange = 127 - 32 + 1; // allowed ASCII character range
         stationName[nameEditPos] = (stationName[nameEditPos] - 32 + direction + charRange) % charRange + 32;
         display(STATION_NAME_EDITOR);
     } else {
@@ -374,7 +374,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
 
     if (initialized && !dimmerSetMode && !nameEditMode) {
         // change frequency
-        auto freqChange = [](int direction) { frequencyChangeAction(0, &freq, direction); };
+        auto freqChange = [](int8_t direction) { frequencyChangeAction(true, &freq, direction); };
         handleButtonInput(buttonDownState, buttonDownPressed, -1, freqChange);
         handleButtonInput(buttonUpState, buttonUpPressed, 1, freqChange);
         if (buttonDownState || buttonUpState) {
@@ -383,7 +383,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
         }
         // confirm frequency
         if (freqSetMode && buttonSetState) {
-            frequencyChangeAction(1, &freq, 0);
+            frequencyChangeAction(false, &freq, 0);
         } else if (millis() - inactivityTimer > freqSetTimeout) { // inactivity timeout
             freqSetMode = false;
             if (!timedOut) { // restore initial status
@@ -395,8 +395,8 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
     }
 }
 
-void frequencyChangeAction(int action, long* newFreq, int direction) {
-    if (action == 0) {
+void frequencyChangeAction(bool freqChange, long* newFreq, int8_t direction) {
+    if (freqChange) {
         // UP/DOWN action
         if (freqSetMode) { *newFreq += (direction * freqStep); }
         *newFreq = (*newFreq < lowerFreq) ? upperFreq : (*newFreq > upperFreq) ? lowerFreq : *newFreq;
@@ -505,7 +505,7 @@ void display(int mode) {
         lcd.print(" MHz");
     };
 
-    switch(mode){
+    switch(mode) {
         case SPLASH_SCREEN:
             lcd.clear();
             lcd.setCursor(0, 0);
