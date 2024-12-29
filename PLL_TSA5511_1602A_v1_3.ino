@@ -25,7 +25,7 @@ USE
     EEPROM after the last character has been confirmed and the main screen will be displayed.
   • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
     to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
-  • In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and saves the setting to
+  • In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and stores the setting in
     EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
   • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times
     before alerting an error.
@@ -42,34 +42,34 @@ USE
 #include <LiquidCrystal.h>
 
 // buttons pin mapping
-const int downButton = 2; // DOWN button to ground
-const int setButton = 3; // SET button to ground
-const int upButton = 4; // UP button to ground
+const uint8_t downButton = 2; // DOWN button to ground
+const uint8_t setButton = 3; // SET button to ground
+const uint8_t upButton = 4; // UP button to ground
 
 // lock LED pin mapping
-const int pllLockOutput = 5; // LED anode
+const uint8_t pllLockOutput = 5; // LED anode
 
 // LCD display pin mapping
-const int backlightOutput = 6; // backlight anode
+const uint8_t backlightOutput = 6; // backlight anode
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // backlight turn-off delay after holding SET
 const long dimMessageTime = 2500; // time to show dimmer status message
 const long dimDelay = 2500; // brightness dimmer delay
-const int dimStepDelay = 7; // gradual brightness dimming speed
-const int maxBrightness = 255; // maximum brightness
-const int lowBrightness = 50; // dimmed brightness
+const uint8_t dimStepDelay = 7; // gradual brightness dimming speed
+const uint8_t maxBrightness = 255; // maximum brightness
+const uint8_t lowBrightness = 50; // dimmed brightness
 
 // EEPROM storage
-const int EEPROM_FREQ_ADDR = 0; // VCO frequency
-const int EEPROM_NAME_ADDR = 10; // station name
-const int EEPROM_DIM_ADDR = 30; // backlight dimmer status
+const uint16_t EEPROM_FREQ_ADDR = 0; // VCO frequency
+const uint16_t EEPROM_NAME_ADDR = 10; // station name
+const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer status
 
 // I²C settings
 const long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
 const long wireTimeout = 5000; // I²C transmission timeout, avoiding I²C bus crash in some cases
-const int maxRetries = 10; // maximum number of retries in case of a failed I²C transmission
+const uint8_t maxRetries = 10; // maximum number of retries in case of a failed I²C transmission
 
 // PLL settings
 const byte PLL_ADDR = 0x30; // 7-bit I²C address
@@ -81,15 +81,15 @@ const byte PLL_ALL_LOW = 0x00; // all outputs (P0-P7) low
 const byte PLL_P2_HIGH = 0x04; // P2 high
 const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
 const long PLL_XTAL_FREQ = 3200000; // crystal frequency (Hz)
-const int PLL_XTAL_DIVISOR = 512; // crystal divisor
-const int PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
+const uint16_t PLL_XTAL_DIVISOR = 512; // crystal divisor
+const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
 const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; // reference frequency (Hz), also equals the minimum VCO frequency and step size
-const int PLL_LOCK_BIT = 6; // lock flag bit
+const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
 // VCO frequency and step size settings
 float lowerBandEdge = 80000000; // lower band edge frequency (Hz)
 float upperBandEdge = 108000000; // upper band edge frequency (Hz)
-int stepSizeMultiplier = 1; // frequency step size multiplier (frequency step size will be 50 kHz at 3,2 MHz crystal frequency)
+uint8_t stepSizeMultiplier = 1; // frequency step size multiplier (frequency step size will be 50 kHz at 3,2 MHz crystal frequency)
 
 // VCO frequency and step size validation
 long validateFreq(float frequency) {
@@ -102,7 +102,7 @@ const long upperFreq = validateFreq(max(lowerBandEdge, upperBandEdge)); // valid
 const long freqStep = min(max(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ), upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
 
 // station name settings
-const int maxNameLength = 16; // maximum station name length
+const uint8_t maxNameLength = 16; // maximum station name length
 const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null terminator
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
@@ -190,8 +190,8 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static unsigned long statusDisplayTime = 0;
     static unsigned long postClickTime = 0;
     static unsigned long lastSetButtonClickTime = 0;
-    static int setButtonClickCount = 0;
-    static int currentBrightness = maxBrightness;
+    static uint8_t setButtonClickCount = 0;
+    static uint8_t currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
     static bool backlightOff = false;
 
@@ -231,7 +231,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // toggle dimmer function, store to EEPROM and show dimmer status screen
+    // toggle dimmer function, store in EEPROM and show dimmer status screen
     if (buttonSetState) {
         if (millis() - lastSetButtonClickTime >= 30 && millis() - lastSetButtonClickTime < 300) { // detect SET double-click (30 ms debounce period)
             setButtonClickCount++;
@@ -438,7 +438,7 @@ void configurePll() {
     data[1] = divisor & 0x00FF; // extract low divisor byte
     data[2] = PLL_CP_HIGH; // set charge pump
     data[3] = PLL_ALL_LOW; // set output ports
-    for (int i = maxRetries; i > 0; i--) {
+    for (uint8_t i = maxRetries; i > 0; i--) {
         Wire.beginTransmission(PLL_ADDR_WRITE);
         Wire.write(data, 4);
         if (Wire.endTransmission() == 0) {
@@ -454,7 +454,7 @@ void configurePll() {
 
 void checkPll() {
     if (!pllWatchdog) return;
-    for (int i = maxRetries; i > 0; i--) {
+    for (uint8_t i = maxRetries; i > 0; i--) {
         Wire.requestFrom(PLL_ADDR_READ, (byte)1);
         if (Wire.available()) {
             byte readByte = Wire.read();
@@ -469,7 +469,7 @@ void checkPll() {
         byte data[2]; // partial programming, starting with byte 4
         data[0] = PLL_CP_HIGH; // set charge pump
         data[1] = PLL_P2_P5_HIGH; // set output ports
-        for (int i = maxRetries; i > 0; i--) {
+        for (uint8_t i = maxRetries; i > 0; i--) {
             Wire.beginTransmission(PLL_ADDR_WRITE);
             Wire.write(data, 2);
             if (Wire.endTransmission() == 0) {
@@ -497,7 +497,7 @@ void i2cErrHandler() {
     }
 }
 
-void display(int mode) {
+void display(uint8_t mode) {
     // show and right-align frequency on display
     auto printFreq = []() {
         lcd.print(freq < 10000000 ? "   " : (freq < 100000000 ? "  " : (freq < 1000000000 ? " " : "")));
@@ -548,7 +548,7 @@ void display(int mode) {
             } else {
                 // animation if unlocked
                 static unsigned long lastCharScrollTime = 0;
-                static int charPos = 0;
+                static uint8_t charPos = 0;
                 static bool movingRight = true;
                 if (millis() - lastCharScrollTime >= charScrollInterval) {
                     lastCharScrollTime = millis();
