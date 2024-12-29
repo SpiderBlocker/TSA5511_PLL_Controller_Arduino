@@ -2,7 +2,7 @@
 
 # Description
 My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
-I think this attempt actually succeeded quite well. Did a lot of testing and fault simulations, including I²C verifications using an I²C decoder. The thing now seems to be quite fool-proof :-)
+I think this attempt actually succeeded quite well. Did a lot of testing and fault simulations, including I²C verifications using an I²C decoder. The thing now seems to be quite foolproof :-)
 
 Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
 The practical lower and upper limits will be much tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
@@ -20,5 +20,5 @@ It has a built-in station name editor and LCD backlight control. The station nam
 - The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "_checkPll()_" set "_data[0] = PLL_CP_LOW_" if required.
 - Hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
 - Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
-- In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and saves the setting to EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
+- In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and stores the setting in EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
