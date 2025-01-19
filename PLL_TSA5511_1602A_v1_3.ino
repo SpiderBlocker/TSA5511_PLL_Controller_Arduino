@@ -243,7 +243,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     if (setButtonClickCount == 2) {
         dimmerSetMode = true;
         backlightDimActive = !backlightDimActive;
-        EEPROM.put(EEPROM_DIM_ADDR, backlightDimActive);
+        EEPROM.write(EEPROM_DIM_ADDR, backlightDimActive);
         display(LCD_DIMMER_STATUS);
         statusDisplayTime = millis() + dimMessageTime;
         while (!digitalRead(setButton));
@@ -274,14 +274,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
 }
 
 void readDimmerStatus() {
-  byte storedSetting;
-
-    EEPROM.get(EEPROM_DIM_ADDR, storedSetting);
-    if (storedSetting <= 1) {
-        backlightDimActive = storedSetting;
-    } else {
-        backlightDimActive = true; // set dimmer active if stored value is invalid
-    }
+    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value, as any non-zero value will be read as true
 }
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
