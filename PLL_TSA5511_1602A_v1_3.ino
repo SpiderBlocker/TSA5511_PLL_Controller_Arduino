@@ -25,7 +25,7 @@ USE
     EEPROM after the last character has been confirmed and the main screen will be displayed.
   • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
     to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration.
-  • In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and stores the setting in
+  • In quiescent condition (PLL locked) the LCD backlight will dim after a preset period. Double-clicking SET toggles this function ON/OFF and stores the setting in
     EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
   • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times
     before alerting an error.
@@ -55,7 +55,7 @@ LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
 const long backlightOffDelay = 1500; // backlight turn-off delay after holding SET
-const long dimMessageTime = 2500; // time to show dimmer status message
+const long dimMessageTime = 2500; // period to show dimmer status message
 const long dimDelay = 2500; // brightness dimmer delay
 const uint8_t dimStepDelay = 7; // gradual brightness dimming speed
 const uint8_t maxBrightness = 255; // maximum brightness
@@ -68,7 +68,7 @@ const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer status
 
 // I²C settings
 const long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
-const long wireTimeout = 5000; // I²C transmission timeout, avoiding I²C bus crash in some cases
+const long wireTimeout = 5000; // I²C transmission timeout, preventing I²C bus crash in some cases
 const uint8_t maxRetries = 10; // maximum number of retries in case of a failed I²C transmission
 
 // PLL settings
@@ -107,7 +107,7 @@ const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null termi
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
 // other definitions
-const long splashDelay = 2500; // time to show splash screen
+const long splashDelay = 2500; // period to show splash screen
 const long initialPressDelay = 1000; // delay before continuous change when holding button
 const long initialPressInterval = 80; // continuous change interval when holding button
 const long charScrollInterval = 300; // display character scrolling interval
@@ -215,7 +215,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
             analogWrite(backlightOutput, 0);
             backlightOff = true;
-            while (!digitalRead(setButton)); // avoid that backlight turns on again if SET was not released timely
+            while (!digitalRead(setButton)); // prevent backlight from turning on again if SET was not released in time
             return;
         }
     } else {
@@ -226,7 +226,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     if (buttonDownState || buttonSetState || buttonUpState) {
         currentBrightness = maxBrightness;
         analogWrite(backlightOutput, currentBrightness);
-        if (backlightOff) { while (!digitalRead(setButton)); } // avoid that backlight turns off again if SET was not released timely
+        if (backlightOff) { while (!digitalRead(setButton)); } // prevent backlight from turning off again if SET was not released in time
         backlightOff = false;
         dimmerTimer = millis();
     }
@@ -251,7 +251,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // avoid that backlight turns off during message display if SET was not released timely and then restore main screen
+    // prevent backlight from turning off during message display if SET was not released in time, then restore main screen
     if (millis() < statusDisplayTime) {
         buttonHoldStartTime = 0;
         return;
@@ -274,7 +274,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
 }
 
 void readDimmerStatus() {
-    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value, as any non-zero value will be read as true
+    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // No check for invalid stored value required; any non-zero value reads as true.
 }
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
@@ -426,7 +426,7 @@ void storeFrequency(long frequency) {
 void configurePll() {
     if (freq == currentFreq) return;
     long divisor = (freq / PLL_REF_FREQ); // calculate divisor
-    byte data[4];
+    byte data[4]; // full programming (TSA 5511 datasheet, table 1)
     data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
     data[1] = divisor & 0x00FF; // extract low divisor byte
     data[2] = PLL_CP_HIGH; // set charge pump
@@ -459,7 +459,7 @@ void checkPll() {
         if (i == 1) { i2cErrHandler(); }
     }
     if (pllLock) {
-        byte data[2]; // partial programming, starting with byte 4
+        byte data[2]; // partial programming, starting with byte 4 (TSA 5511 datasheet, table 1)
         data[0] = PLL_CP_HIGH; // set charge pump
         data[1] = PLL_P2_P5_HIGH; // set output ports
         for (uint8_t i = maxRetries; i > 0; i--) {
@@ -501,7 +501,6 @@ void display(uint8_t mode) {
     switch(mode) {
         case SPLASH_SCREEN:
             lcd.clear();
-            lcd.setCursor(0, 0);
             lcd.print(description);
             lcd.print(" ");
             lcd.print(version);
@@ -511,7 +510,6 @@ void display(uint8_t mode) {
 
         case STATION_NAME_EDITOR:
             lcd.clear();
-            lcd.setCursor(0, 0);
             lcd.print("SET Station Name");
             lcd.setCursor(0, 1);
             lcd.print(stationName);
@@ -520,7 +518,7 @@ void display(uint8_t mode) {
             break;
 
         case MAIN_INTERFACE:
-            lcd.noCursor(); // required when returning from case STATION_NAME_EDITOR
+            lcd.noCursor(); // required when returning from station name editor
             lcd.setCursor(5, 0);
             printFreq();
             lcd.setCursor(0, 1);
@@ -556,16 +554,14 @@ void display(uint8_t mode) {
 
         case LCD_DIMMER_STATUS:
             lcd.clear();
-            lcd.setCursor(0, 0);
             lcd.print("Backlight Dimmer");
             lcd.setCursor(0, 1);
             lcd.print(backlightDimActive ? "ON" : "OFF");
             break;
 
         case I2C_ERROR:
-            lcd.noCursor(); // required when returning from case STATION_NAME_EDITOR
+            lcd.noCursor(); // required when returning from station name editor
             lcd.clear();
-            lcd.setCursor(0, 0);
             lcd.print("I2C ERROR");
             lcd.setCursor(0, 1);
             lcd.print("SET to restart");
