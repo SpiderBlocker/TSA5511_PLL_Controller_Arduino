@@ -485,7 +485,10 @@ void i2cErrHandler() {
     while (true) {
         if (!digitalRead(setButton)) {
             delay(30); // alleviate processor loading
-            if (!digitalRead(setButton)) asm volatile ("jmp 0"); // soft reset
+            if (!digitalRead(setButton)) {
+                while (!digitalRead(setButton)); // reset on SET release, to prevent starting station name editor
+                asm volatile ("jmp 0"); // soft reset
+            }
         }
     }
 }
