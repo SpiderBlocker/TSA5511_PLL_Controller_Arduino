@@ -338,12 +338,12 @@ void nameEditorAction(bool nameChange, int8_t direction) {
 
 void readStationName() {
     EEPROM.get(EEPROM_NAME_ADDR, stationName);
-    stationName[maxNameLength] = '\0'; // null terminator
+    stationName[maxNameLength] = '\0'; // ensure null terminator
 
     // set standard station name if string is invalid
     size_t length = strnlen(stationName, maxNameLength);
     for (size_t i = 0; i < length; i++) {
-        if (stationName[i] < 32 || stationName[i] > 127 || stationName[i] == 0xFF) { // no invalid ASCII-character, no 0xFF
+        if (!isprint(stationName[i]) || stationName[i] == 0xFF) { // reject non-printable character, no 0xFF
             strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
             memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // fill remaining positions with spaces (ASCII 32)
             break;
@@ -352,7 +352,7 @@ void readStationName() {
 }
 
 void storeStationName() {
-    char storedStationName[maxNameLength + 1];
+    char storedStationName[maxNameLength + 1]; // +1 for null terminator
     EEPROM.get(EEPROM_NAME_ADDR, storedStationName);
 
     // avoid unnecessary write operations to protect EEPROM
