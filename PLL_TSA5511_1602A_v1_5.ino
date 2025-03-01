@@ -265,8 +265,8 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
 
     // gradual dimming after timeout
-    if (backlightDimActive && (millis() - dimmerTimer > dimDelay) && !backlightOff) {
-        if (millis() - lastDimmerUpdateTime >= dimStepDelay && currentBrightness > lowBrightness) {
+    if (backlightDimActive && (millis() - dimmerTimer > dimDelay) && !backlightOff && currentBrightness > lowBrightness) {
+        if (millis() - lastDimmerUpdateTime >= dimStepDelay) {
             currentBrightness--;
             analogWrite(backlightOutput, currentBrightness);
             lastDimmerUpdateTime = millis();
