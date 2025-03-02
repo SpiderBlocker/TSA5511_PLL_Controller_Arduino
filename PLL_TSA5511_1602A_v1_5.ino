@@ -366,7 +366,7 @@ void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool butto
     static unsigned long inactivityTimer = 0;
     static bool timedOut = true;
 
-    if ((buttonDownState | buttonSetState | buttonUpState) == 0 && timedOut) return; // avoid redundant processing
+    if (!(buttonDownState || buttonSetState || buttonUpState) && timedOut) return; // avoid redundant processing
     if (initialized && !dimmerSetMode && !nameEditMode) {
         // change frequency
         auto freqChange = [](int8_t direction) { frequencyChangeAction(true, &freq, direction); };
