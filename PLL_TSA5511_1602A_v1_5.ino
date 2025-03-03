@@ -188,24 +188,23 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static unsigned long lastDimmerUpdateTime = 0;
     static unsigned long buttonHoldStartTime = 0;
     static unsigned long statusDisplayTime = 0;
-    static unsigned long postClickTime = 0;
     static unsigned long lastSetButtonClickTime = 0;
     static uint8_t setButtonClickCount = 0;
     static uint8_t currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
     static bool backlightOff = false;
 
-    // no LCD backlight control in station name editor until SET release
-    if (!backlightControlActive) {
-        if (nameEditMode || buttonSetState) return;
-        backlightControlActive = true;
-        dimmerTimer = millis();
+    // no LCD backlight control in station name edit mode, frequency set mode or if unlocked
+    if (nameEditMode || freqSetMode || !pllLock) {
+        backlightControlActive = false;
+        return;
     }
 
-    // no LCD backlight control in frequency set mode and its post-click period or if unlocked
-    if (freqSetMode && (postClickTime = millis()) || (millis() - postClickTime < 350) || !pllLock) { // period must exceed SET double-click upper detection limit
+    // enable LCD backlight control after SET release
+    if (!backlightControlActive) {
+        while (!digitalRead(setButton));
+        backlightControlActive = true;
         dimmerTimer = millis();
-        return;
     }
 
     // turn off background lighting by pressing and holding SET
@@ -215,7 +214,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
             analogWrite(backlightOutput, 0);
             backlightOff = true;
-            while (!digitalRead(setButton)); // prevent backlight from turning on again if SET was not released in time
+            while (!digitalRead(setButton)); // ensure that SET is released, to prevent backlight from being turned on again
             return;
         }
     } else {
@@ -226,7 +225,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     if (buttonDownState || buttonSetState || buttonUpState) {
         currentBrightness = maxBrightness;
         analogWrite(backlightOutput, currentBrightness);
-        if (backlightOff) { while (!digitalRead(setButton)); } // prevent backlight from turning off again if SET was not released in time
+        if (backlightOff) { while (!digitalRead(setButton)); } // ensure that SET is released, to prevent backlight from being turned off again
         backlightOff = false;
         dimmerTimer = millis();
     }
@@ -251,11 +250,13 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = millis();
     }
 
-    // prevent backlight from turning off during message display if SET was not released in time, then restore main screen
+    // prevent backlight from being turned off during message display
     if (millis() < statusDisplayTime && !buttonDownState && !buttonUpState) { // allow UP/DOWN to bypass return
         buttonHoldStartTime = 0;
         return;
     }
+
+    // end dimmer message display and restore main screen
     if (statusDisplayTime != 0 || buttonDownState || buttonUpState) { // allow UP/DOWN to end message display
         dimmerSetMode = false;
         dimmerTimer = millis();
