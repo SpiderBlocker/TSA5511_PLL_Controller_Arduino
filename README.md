@@ -23,4 +23,4 @@ It has a built-in station name editor and LCD backlight control. The station nam
 - In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and stores the setting in EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
 
-[Visit my repository here: ](https://github.com/jouw-gebruikersnaam/repo)
+[Visit my repository here](https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino)
