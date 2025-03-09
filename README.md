@@ -22,3 +22,5 @@ It has a built-in station name editor and LCD backlight control. The station nam
 - Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
 - In quiescent condition (PLL locked) the LCD backlight will dim after a preset time. Double-clicking SET toggles this function ON/OFF and stores the setting in EEPROM. Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
+
+[Visit my repository here: ](https://github.com/jouw-gebruikersnaam/repo)
