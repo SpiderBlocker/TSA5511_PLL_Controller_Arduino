@@ -4,11 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TSA5511 PLL Controller for Arduino</title>
+    <meta name="description" content="An Arduino-based TSA5511 PLL controller, designed to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop. Includes LCD backlight control, EEPROM storage, and I²C error handling.">
+    <meta name="keywords" content="TSA5511, PLL controller, Arduino, DRFS06 exciter, LCD backlight control, I2C communication">
+    <meta name="robots" content="index, follow">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareSourceCode",
+      "name": "TSA5511 PLL Controller",
+      "url": "https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino",
+      "description": "Arduino-based PLL controller for TSA5511.",
+      "programmingLanguage": "C++",
+      "author": {
+        "@type": "Loenie",
+        "name": "SpiderBlocker"
+      }
+    }
+    </script>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; padding: 20px; background-color: #f4f4f4; }
         h1, h2 { color: #333; }
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         a { color: #007BFF; text-decoration: none; }
+        footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; }
     </style>
 </head>
 <body>
@@ -42,7 +60,10 @@
             <li>In case of an I²C communication error, verify the hardware and press SET to restart.</li>
         </ul>
         
-        <p><a href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino" target="_blank">Visit my repository here</a></p>
+        <footer>
+            <p>For more details and source code, visit the official repository:</p>
+            <p><a href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino" target="_blank">TSA5511 PLL Controller on GitHub</a></p>
+        </footer>
     </div>
 </body>
 </html>
