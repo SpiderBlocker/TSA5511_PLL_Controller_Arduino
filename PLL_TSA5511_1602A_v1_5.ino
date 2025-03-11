@@ -47,7 +47,7 @@ const uint8_t setButton = 3; // SET button to ground
 const uint8_t upButton = 4; // UP button to ground
 
 // lock LED pin mapping
-const uint8_t pllLockOutput = 5; // LED anode
+const uint8_t pllLockOutput = 5; // lock LED anode
 
 // LCD display pin mapping
 const uint8_t backlightOutput = 6; // backlight anode
@@ -59,7 +59,7 @@ const long dimMessageTime = 2500; // period to show dimmer status message
 const long dimDelay = 2500; // brightness dimmer delay
 const uint8_t dimStepDelay = 7; // gradual brightness dimming speed
 const uint8_t maxBrightness = 255; // maximum brightness
-const uint8_t lowBrightness = 30; // dimmed brightness
+const uint8_t lowBrightness = 20; // dimmed brightness
 
 // EEPROM storage
 const uint16_t EEPROM_FREQ_ADDR = 0; // VCO frequency
