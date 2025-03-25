@@ -1,7 +1,7 @@
 # TSA5511 PLL Controller for Arduino
 
 # Description
-My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop.
+My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511 based exciter.
 I think this attempt actually succeeded quite well. Did a lot of testing and fault simulations, including I²C verifications using an I²C decoder. The thing now seems to be quite foolproof :-)
 
 Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
@@ -10,7 +10,7 @@ Using any other crystal frequency (as far as the TSA5511 may support), valid fre
 It has a built-in station name editor and LCD backlight control. The station name, backlight dimmer setting and the last operating frequency are stored in EEPROM.
 
 # Hardware
-- The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED with adequate series resistor. The lock status is also shown on the LCD display.
+- The hardware comprises of an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
 - LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards. The brightness level settings and timings for the LCD backlight can be adjusted as you wish under "_// LCD brightness and dimmer settings_". 
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
