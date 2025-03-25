@@ -118,13 +118,13 @@ long currentFreq;
 uint8_t nameEditPos;
 bool initialized = false;
 bool dimmerSetMode = false;
-bool backlightOff = false;
 bool nameEditMode = false;
 bool freqSetMode = false;
 bool buttonDownPressed = false;
 bool buttonSetPressed = false;
 bool buttonUpPressed = false;
 bool backlightDimActive = false;
+bool backlightOff = false;
 bool pllLock = false;
 bool pllWatchdog = false;
 
