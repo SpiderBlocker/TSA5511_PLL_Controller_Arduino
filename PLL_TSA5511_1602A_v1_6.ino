@@ -118,6 +118,7 @@ long currentFreq;
 uint8_t nameEditPos;
 bool initialized = false;
 bool dimmerSetMode = false;
+bool backlightOff = false;
 bool nameEditMode = false;
 bool freqSetMode = false;
 bool buttonDownPressed = false;
@@ -135,6 +136,7 @@ enum {
     SET_FREQUENCY_INTERFACE,
     PLL_LOCK_STATUS,
     LCD_DIMMER_STATUS,
+    LCD_HIBERNATE,
     I2C_ERROR
 };
 
@@ -194,7 +196,6 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     static uint8_t setButtonClickCount = 0;
     static uint8_t currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
-    static bool backlightOff = false;
 
     // no LCD backlight control in station name edit mode, frequency set mode or if unlocked
     if (nameEditMode || freqSetMode || !pllLock) {
@@ -216,6 +217,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
             analogWrite(backlightOutput, 0);
             backlightOff = true;
+            display(LCD_HIBERNATE);
             while (!digitalRead(setButton)); // ensure that SET is released, to prevent backlight from being turned on again
             return;
         }
@@ -227,8 +229,11 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     if (buttonDownState || buttonSetState || buttonUpState) {
         currentBrightness = maxBrightness;
         analogWrite(backlightOutput, currentBrightness);
-        if (backlightOff) { while (!digitalRead(setButton)); } // ensure that SET is released, to prevent backlight from being turned off again
-        backlightOff = false;
+        if (backlightOff) {
+            backlightOff = false;
+            display(LCD_HIBERNATE);
+            while (!digitalRead(setButton)); // ensure that SET is released, to prevent backlight from being turned off again
+        }
         dimmerTimer = millis();
     }
 
@@ -590,6 +595,10 @@ void display(uint8_t mode) {
             lcd.print("Backlight Dimmer");
             lcd.setCursor(0, 1);
             lcd.print(backlightDimActive ? "ON" : "OFF");
+            break;
+
+        case LCD_HIBERNATE:
+            backlightOff ? lcd.clear() : (display(MAIN_INTERFACE), display(PLL_LOCK_STATUS));
             break;
 
         case I2C_ERROR:
