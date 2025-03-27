@@ -511,7 +511,10 @@ void i2cErrHandler() {
     display(I2C_ERROR);
     while (true) {
         while (!digitalRead(setButton)) { blinkLed(pllLockOutput, 250); } // ensure that SET is released, to prevent premature reset
-        do { blinkLed(pllLockOutput, 250); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
+        do {
+            blinkLed(pllLockOutput, 250);
+            delay(10); // alleviate CPU load
+        } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
         while (!digitalRead(setButton)) blinkLed(pllLockOutput, 250); // continue blinking error indicator while SET is pressed
         digitalWrite(pllLockOutput, LOW);
         asm volatile ("jmp 0"); // Soft reset
@@ -525,7 +528,7 @@ void blinkLed(uint8_t ledPin, unsigned long interval) {
     if (millis() - lastBlinkTime >= interval) {
         lastBlinkTime = millis();
         ledState = !ledState;
-        digitalWrite(pllLockOutput, ledState);
+        digitalWrite(ledPin, ledState);
     }
 }
 
