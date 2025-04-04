@@ -19,7 +19,7 @@ HARDWARE
   • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the
     TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
 
-USE
+USAGE
   • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" and change if necessary.
   • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
   • Press and hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in
@@ -68,10 +68,10 @@ const uint16_t EEPROM_NAME_ADDR = 10; // station name
 const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer status
 
 // I²C settings
-const long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
 const long wireTimeout = 5000; // I²C transmission timeout, preventing I²C bus crash in some cases
+const long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
 const long i2cHealthCheckInterval = 2000; // I²C health check interval
-const uint8_t maxRetries = 10; // maximum number of retries in case of a failed I²C transmission
+const uint8_t i2cMaxRetries = 10; // maximum number of retries in case of a failed I²C transmission
 
 // PLL settings
 const byte PLL_ADDR = 0x30; // 7-bit I²C address
@@ -443,7 +443,7 @@ void configurePll() {
     data[1] = divisor & 0x00FF; // extract low divisor byte
     data[2] = PLL_CP_HIGH; // set charge pump
     data[3] = PLL_ALL_LOW; // set output ports
-    for (uint8_t i = maxRetries; i > 0; i--) {
+    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
         Wire.beginTransmission(PLL_ADDR_WRITE);
         Wire.write(data, 4);
         if (Wire.endTransmission() == 0) {
@@ -459,7 +459,7 @@ void configurePll() {
 
 void checkPll() {
     if (!pllWatchdog) return;
-    for (uint8_t i = maxRetries; i > 0; i--) {
+    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
         Wire.requestFrom(PLL_ADDR_READ, (byte)1);
         if (Wire.available()) {
             byte readByte = Wire.read();
@@ -474,7 +474,7 @@ void checkPll() {
         byte data[2]; // partial programming, starting with byte 4 (TSA 5511 datasheet, table 1)
         data[0] = PLL_CP_HIGH; // set charge pump
         data[1] = PLL_P2_P5_HIGH; // set output ports
-        for (uint8_t i = maxRetries; i > 0; i--) {
+        for (uint8_t i = i2cMaxRetries; i > 0; i--) {
             Wire.beginTransmission(PLL_ADDR_WRITE);
             Wire.write(data, 2);
             if (Wire.endTransmission() == 0) {
@@ -496,7 +496,7 @@ void checkI2c() {
     
     if (millis() - lastI2cCheckTime >= i2cHealthCheckInterval) {
         lastI2cCheckTime = millis();
-        for (uint8_t i = maxRetries; i > 0; i--) {
+        for (uint8_t i = i2cMaxRetries; i > 0; i--) {
             Wire.beginTransmission(PLL_ADDR_WRITE);
             if (Wire.endTransmission() == 0) {
                 return; // I²C bus is operational, no further action 
