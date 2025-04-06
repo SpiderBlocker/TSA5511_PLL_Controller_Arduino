@@ -1,8 +1,7 @@
 # TSA5511 PLL Controller for Arduino
 
 # Description
-My very first Arduino project, being a controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511 based exciter.
-I think this attempt actually succeeded quite well. Did a lot of testing and fault simulations, including I²C verifications using an I²C decoder. The thing now seems to be quite foolproof :-)
+Controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511 based exciter.
 
 Using a 3,2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof.
 The practical lower and upper limits will be much tighter, as the TSA5511 is rated from 64 MHz up to 1.300 MHz.
