@@ -109,11 +109,12 @@ const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null termi
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
 // other definitions
-const long splashDelay = 2500; // period to show splash screen
-const long initialPressDelay = 1000; // delay before continuous change when holding button
-const long initialPressInterval = 80; // continuous change interval when holding button
-const long charScrollInterval = 300; // display character scrolling interval
+const long splashDelay = 2500; // duration to show splash screen
+const long initialPressDelay = 1000; // delay before auto-repeat when holding button
+const long initialPressInterval = 80; // auto-repeat interval when holding button
+const long charScrollInterval = 300; // interval between character scroll steps
 const long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
+const long errBlinkRate = 250; // error indicator blink interval
 long freq;
 long currentFreq;
 uint8_t nameEditPos;
@@ -510,9 +511,9 @@ void checkI2c() {
 void i2cErrHandler() {
     display(I2C_ERROR);
     while (true) {
-        while (!digitalRead(setButton)) { blinkLed(pllLockOutput, 250); } // ensure that SET is released, to prevent premature reset
-        do { blinkLed(pllLockOutput, 250); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
-        while (!digitalRead(setButton)) blinkLed(pllLockOutput, 250); // continue blinking error indicator while SET is pressed
+        while (!digitalRead(setButton)) { blinkLed(pllLockOutput, errBlinkRate); } // ensure that SET is released, to prevent premature reset
+        do { blinkLed(pllLockOutput, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
+        while (!digitalRead(setButton)) blinkLed(pllLockOutput, errBlinkRate); // continue blinking error indicator while SET is pressed
         digitalWrite(pllLockOutput, LOW);
         asm volatile ("jmp 0"); // Soft reset
     }
