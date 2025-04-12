@@ -89,18 +89,16 @@ const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIV
 const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
 // VCO frequency and step size settings
-float lowerBandEdge = 80000000; // lower band edge frequency (Hz)
-float upperBandEdge = 108000000; // upper band edge frequency (Hz)
+float freqBand[2] = {80000000, 108000000}; // frequency band edges (Hz)
 uint8_t stepSizeMultiplier = 1; // frequency step size multiplier (frequency step size will be 50 kHz at 3,2 MHz crystal frequency)
 
 // VCO frequency and step size validation
 long validateFreq(float frequency) {
-    frequency = max(frequency, PLL_REF_FREQ); // ensure that minimum frequency is not lower than PLL_REF_FREQ
-    frequency = min(frequency, 0x7FFF * PLL_REF_FREQ); // ensure that PLL divisor does not exceed 15 bits, as 1st bit of first PLL divisor byte must be 0
+    frequency = constrain(frequency, PLL_REF_FREQ, 0x7FFF * PLL_REF_FREQ); // minimum frequency ≥ PLL_REF_FREQ, cap divisor at 15 bits (MSB of first byte must be zero)
     return round(frequency / PLL_REF_FREQ) * PLL_REF_FREQ; // ensure that frequency equals or is an exact multiple of PLL_REF_FREQ
 }
-const long lowerFreq = validateFreq(min(lowerBandEdge, upperBandEdge)); // validated lower band edge frequency
-const long upperFreq = validateFreq(max(lowerBandEdge, upperBandEdge)); // validated upper band edge frequency
+const long lowerFreq = validateFreq(min(freqBand[0], freqBand[1])); // validated lower band edge frequency
+const long upperFreq = validateFreq(max(freqBand[0], freqBand[1])); // validated upper band edge frequency
 const long freqStep = min(max(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ), upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
 
 // station name settings
