@@ -189,13 +189,6 @@ void initialize(bool fullInit) { // full initialization at startup
 }
 
 void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static unsigned long dimmerTimer = 0;
-    static unsigned long lastDimmerUpdateTime = 0;
-    static unsigned long buttonHoldStartTime = 0;
-    static unsigned long statusDisplayTime = 0;
-    static unsigned long lastSetButtonClickTime = 0;
-    static uint8_t setButtonClickCount = 0;
-    static uint8_t currentBrightness = maxBrightness;
     static bool backlightControlActive = false;
 
     // no LCD backlight control in station name edit mode, frequency set mode or if unlocked
@@ -204,18 +197,27 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         return;
     }
 
+    static unsigned long dimmerTimer = 0;
+    static unsigned long lastDimmerUpdateTime = 0;
+    static unsigned long buttonHoldStartTime = 0;
+    static unsigned long statusDisplayTime = 0;
+    static unsigned long lastSetButtonClickTime = 0;
+    unsigned long currentMillis = millis();
+    static uint8_t setButtonClickCount = 0;
+    static uint8_t currentBrightness = maxBrightness;
+
     // enable LCD backlight control after SET release
     if (!backlightControlActive) {
         while (!digitalRead(setButton));
         backlightControlActive = true;
-        dimmerTimer = millis();
+        dimmerTimer = currentMillis;
     }
 
     // turn off background lighting by pressing and holding SET
     if (buttonSetState) {
         if (buttonHoldStartTime == 0) {
-            buttonHoldStartTime = millis();
-        } else if (millis() - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
+            buttonHoldStartTime = currentMillis;
+        } else if (currentMillis - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
             analogWrite(backlightOutput, 0);
             backlightOff = true;
             display(LCD_HIBERNATE);
@@ -235,31 +237,31 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
             display(LCD_HIBERNATE);
             while (!digitalRead(setButton)); // ensure that SET is released, to prevent backlight from being turned off again
         }
-        dimmerTimer = millis();
+        dimmerTimer = currentMillis;
     }
 
     // toggle dimmer function, store in EEPROM and show dimmer status screen
     if (buttonSetState) {
-        if (millis() - lastSetButtonClickTime >= 30 && millis() - lastSetButtonClickTime < 300) { // detect SET double-click (30 ms debounce period)
+        if (currentMillis - lastSetButtonClickTime >= 30 && currentMillis - lastSetButtonClickTime < 300) { // detect SET double-click (30 ms debounce period)
             setButtonClickCount++;
         } else {
             setButtonClickCount = 1;
         }
-        lastSetButtonClickTime = millis();
+        lastSetButtonClickTime = currentMillis;
     }
     if (setButtonClickCount == 2) {
         dimmerSetMode = true;
         backlightDimActive = !backlightDimActive;
         EEPROM.write(EEPROM_DIM_ADDR, backlightDimActive);
         display(LCD_DIMMER_STATUS);
-        statusDisplayTime = millis() + dimMessageTime;
+        statusDisplayTime = currentMillis + dimMessageTime;
         while (!digitalRead(setButton));
         setButtonClickCount = 0;
-        dimmerTimer = millis();
+        dimmerTimer = currentMillis;
     }
 
     // prevent backlight from being turned off during message display
-    if (millis() < statusDisplayTime && !buttonDownState && !buttonUpState) { // allow UP/DOWN to bypass return
+    if (currentMillis < statusDisplayTime && !buttonDownState && !buttonUpState) { // allow UP/DOWN to bypass return
         buttonHoldStartTime = 0;
         return;
     }
@@ -267,18 +269,18 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     // end dimmer message display and restore main screen
     if (statusDisplayTime != 0 || buttonDownState || buttonUpState) { // allow UP/DOWN to end message display
         dimmerSetMode = false;
-        dimmerTimer = millis();
+        dimmerTimer = currentMillis;
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
         statusDisplayTime = 0;
     }
 
     // gradual dimming after timeout
-    if (backlightDimActive && (millis() - dimmerTimer > dimDelay) && !backlightOff && currentBrightness > lowBrightness) {
-        if (millis() - lastDimmerUpdateTime >= dimStepDelay) {
+    if (backlightDimActive && (currentMillis - dimmerTimer > dimDelay) && !backlightOff && currentBrightness > lowBrightness) {
+        if (currentMillis - lastDimmerUpdateTime >= dimStepDelay) {
             currentBrightness--;
             analogWrite(backlightOutput, currentBrightness);
-            lastDimmerUpdateTime = millis();
+            lastDimmerUpdateTime = currentMillis;
         }
     }
 }
@@ -289,14 +291,15 @@ void readDimmerStatus() {
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
     static unsigned long pressStartTime = 0, lastPressTime = 0;
-    unsigned long totalPressTime = millis() - pressStartTime, fastPressInterval = initialPressInterval;
+    unsigned long currentMillis = millis();
+    unsigned long totalPressTime = currentMillis - pressStartTime, fastPressInterval = initialPressInterval;
 
     // disallow any combination of DOWN/SET/UP
     if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
 
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay
-        if (!buttonPressed) { pressStartTime = millis(); }
+        if (!buttonPressed) { pressStartTime = currentMillis; }
         if (totalPressTime >= initialPressDelay) {
             if (!nameEditMode) {
                 // gradual acceleration
@@ -304,8 +307,8 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, 
                 fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
             }
         }
-        if (!buttonPressed || (totalPressTime >= initialPressDelay && millis() - lastPressTime >= fastPressInterval)) {
-            lastPressTime = millis();
+        if (!buttonPressed || (totalPressTime >= initialPressDelay && currentMillis - lastPressTime >= fastPressInterval)) {
+            lastPressTime = currentMillis;
             buttonPressed = true;
             action(direction);
         }
@@ -372,24 +375,26 @@ void storeStationName() {
 }
 
 void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
-    static unsigned long inactivityTimer = 0;
     static bool timedOut = true;
-
     if (!(buttonDownState || buttonSetState || buttonUpState) && timedOut) return; // avoid redundant processing
+
+    static unsigned long inactivityTimer = 0;
+    unsigned long currentMillis = millis();
+
     if (initialized && !dimmerSetMode && !nameEditMode) {
         // change frequency
         auto freqChange = [](int8_t direction) { frequencyChangeAction(true, &freq, direction); };
         handleButtonInput(buttonDownState, buttonDownPressed, -1, freqChange);
         handleButtonInput(buttonUpState, buttonUpPressed, 1, freqChange);
         if (buttonDownState || buttonUpState) {
-            inactivityTimer = millis();
+            inactivityTimer = currentMillis;
             timedOut = false;
         }
         // confirm frequency
         if (freqSetMode && buttonSetState) {
             frequencyChangeAction(false, &freq, 0);
             timedOut = true;
-        } else if (millis() - inactivityTimer > freqSetTimeout) { // inactivity timeout
+        } else if (currentMillis - inactivityTimer > freqSetTimeout) { // inactivity timeout
             freqSetMode = false;
             if (!timedOut) { // restore initial status
                 freq = currentFreq;
@@ -493,9 +498,10 @@ void checkPll() {
 void checkI2c() {
     if (nameEditMode) return;
     static unsigned long lastI2cCheckTime = 0;
-    
-    if (millis() - lastI2cCheckTime >= i2cHealthCheckInterval) {
-        lastI2cCheckTime = millis();
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
+        lastI2cCheckTime = currentMillis;
         for (uint8_t i = i2cMaxRetries; i > 0; i--) {
             Wire.beginTransmission(PLL_ADDR_WRITE);
             if (Wire.endTransmission() == 0) {
@@ -519,11 +525,12 @@ void i2cErrHandler() {
 }
 
 void blinkLed(uint8_t ledPin, unsigned long interval) {
-    static unsigned long lastBlinkTime = millis();
+    static unsigned long lastBlinkTime = 0;
+    unsigned long currentMillis = millis();
     static bool ledState = false;
 
-    if (millis() - lastBlinkTime >= interval) {
-        lastBlinkTime = millis();
+    if (currentMillis - lastBlinkTime >= interval) {
+        lastBlinkTime = currentMillis;
         ledState = !ledState;
         digitalWrite(ledPin, ledState);
     }
@@ -578,10 +585,11 @@ void display(uint8_t mode) {
             } else {
                 // animation if unlocked
                 static unsigned long lastCharScrollTime = 0;
+                unsigned long currentMillis = millis();
                 static uint8_t charPos = 0;
                 static bool movingRight = true;
-                if (millis() - lastCharScrollTime >= charScrollInterval) {
-                    lastCharScrollTime = millis();
+                if (currentMillis - lastCharScrollTime >= charScrollInterval) {
+                    lastCharScrollTime = currentMillis;
                     lcd.print("     ");
                     lcd.setCursor(charPos, 0);
                     lcd.print(movingRight ? ">>" : "<<");
