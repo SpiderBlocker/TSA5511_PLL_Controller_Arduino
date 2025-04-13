@@ -1,4 +1,4 @@
-/*crystal
+/*
 DESCRIPTION
   PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other
   TSA5511 based exciter.
