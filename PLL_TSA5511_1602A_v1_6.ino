@@ -1,4 +1,4 @@
-/*
+/*crystal
 DESCRIPTION
   PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other
   TSA5511 based exciter.
@@ -20,7 +20,8 @@ HARDWARE
     TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
 
 USAGE
-  • Verify the actual XTAL frequency and required band edge frequencies under "// PLL settings" and "// VCO frequency settings" and change if necessary.
+  • Verify the actual XTAL frequency and frequency band edges under "// PLL settings" and "// VCO frequency and step size validation" respectively and update them if
+    necessary.
   • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
   • Press and hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in
     EEPROM after the last character has been confirmed and the main screen will be displayed.
