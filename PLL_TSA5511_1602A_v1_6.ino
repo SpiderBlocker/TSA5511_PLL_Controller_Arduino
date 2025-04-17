@@ -53,7 +53,7 @@ const uint8_t lockIndicator = 5; // lock indicator LED anode
 const uint8_t errIndicator = 5; // error indicator LED anode
 
 // LCD display pin mapping
-const uint8_t backlightOutput = 6; // backlight anode
+const uint8_t lcdBacklight = 6; // LCD backlight anode
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
@@ -148,7 +148,7 @@ void setup() {
     pinMode(upButton, INPUT_PULLUP);
     pinMode(lockIndicator, OUTPUT);
     pinMode(errIndicator, OUTPUT);
-    pinMode(backlightOutput, OUTPUT);
+    pinMode(lcdBacklight, OUTPUT);
 
     Wire.begin();
     Wire.setClock(i2cClock);
@@ -171,7 +171,7 @@ void loop() {
 
 void initialize(bool fullInit) { // full initialization at startup
     if (fullInit) {
-        analogWrite(backlightOutput, maxBrightness);
+        analogWrite(lcdBacklight, maxBrightness);
         display(SPLASH_SCREEN);
         delay(splashDelay);
         readDimmerStatus();
@@ -220,7 +220,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         if (buttonHoldStartTime == 0) {
             buttonHoldStartTime = currentMillis;
         } else if (currentMillis - buttonHoldStartTime > backlightOffDelay && !backlightOff) {
-            analogWrite(backlightOutput, 0);
+            analogWrite(lcdBacklight, 0);
             backlightOff = true;
             display(LCD_HIBERNATE);
             while (!digitalRead(setButton)); // ensure that SET is released, to prevent backlight from being turned on again
@@ -233,7 +233,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     // restore brightness by pressing any button
     if (buttonDownState || buttonSetState || buttonUpState) {
         currentBrightness = maxBrightness;
-        analogWrite(backlightOutput, currentBrightness);
+        analogWrite(lcdBacklight, currentBrightness);
         if (backlightOff) {
             backlightOff = false;
             display(LCD_HIBERNATE);
@@ -281,7 +281,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     if (backlightDimActive && (currentMillis - dimmerTimer > dimDelay) && !backlightOff && currentBrightness > lowBrightness) {
         if (currentMillis - lastDimmerUpdateTime >= dimStepDelay) {
             currentBrightness--;
-            analogWrite(backlightOutput, currentBrightness);
+            analogWrite(lcdBacklight, currentBrightness);
             lastDimmerUpdateTime = currentMillis;
         }
     }
@@ -613,7 +613,7 @@ void display(uint8_t mode) {
             break;
 
         case I2C_ERROR:
-            digitalWrite(backlightOutput, HIGH);
+            digitalWrite(lcdBacklight, HIGH);
             lcd.noCursor(); // required when returning from station name editor
             lcd.clear();
             lcd.print("I2C ERROR");
