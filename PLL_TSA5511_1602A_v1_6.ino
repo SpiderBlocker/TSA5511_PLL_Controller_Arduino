@@ -286,7 +286,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
 }
 
 void readDimmerStatus() {
-    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // No check for invalid stored value required; any non-zero value reads as true.
+    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value required; any non-zero value reads as true.
 }
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
@@ -377,7 +377,6 @@ void storeStationName() {
 void handleFrequencyChange(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
     static bool timedOut = true;
     if (!(buttonDownState || buttonSetState || buttonUpState) && timedOut) return; // avoid redundant processing
-
     static unsigned long inactivityTimer = 0;
     unsigned long currentMillis = millis();
 
@@ -520,7 +519,7 @@ void i2cErrHandler() {
         do { blinkLed(pllLockOutput, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
         while (!digitalRead(setButton)) blinkLed(pllLockOutput, errBlinkRate); // continue blinking error indicator while SET is pressed
         digitalWrite(pllLockOutput, LOW);
-        asm volatile ("jmp 0"); // Soft reset
+        asm volatile ("jmp 0"); // soft reset
     }
 }
 
