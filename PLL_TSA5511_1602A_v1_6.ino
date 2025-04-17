@@ -48,8 +48,9 @@ const uint8_t downButton = 2; // DOWN button to ground
 const uint8_t setButton = 3; // SET button to ground
 const uint8_t upButton = 4; // UP button to ground
 
-// lock LED pin mapping
-const uint8_t pllLockOutput = 5; // lock LED anode
+// indicators pin mapping
+const uint8_t lockIndicator = 5; // lock indicator LED anode
+const uint8_t errIndicator = 5; // error indicator LED anode
 
 // LCD display pin mapping
 const uint8_t backlightOutput = 6; // backlight anode
@@ -63,7 +64,7 @@ const uint8_t dimStepDelay = 7; // gradual brightness dimming speed
 const uint8_t maxBrightness = 255; // maximum brightness
 const uint8_t lowBrightness = 30; // dimmed brightness
 
-// EEPROM storage
+// EEPROM storage locations
 const uint16_t EEPROM_FREQ_ADDR = 0; // VCO frequency
 const uint16_t EEPROM_NAME_ADDR = 10; // station name
 const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer status
@@ -145,7 +146,8 @@ void setup() {
     pinMode(downButton, INPUT_PULLUP);
     pinMode(setButton, INPUT_PULLUP);
     pinMode(upButton, INPUT_PULLUP);
-    pinMode(pllLockOutput, OUTPUT);
+    pinMode(lockIndicator, OUTPUT);
+    pinMode(errIndicator, OUTPUT);
     pinMode(backlightOutput, OUTPUT);
 
     Wire.begin();
@@ -488,9 +490,9 @@ void checkPll() {
             delay(50);
             if (i == 1) { i2cErrHandler(); }
         }
-        digitalWrite(pllLockOutput, HIGH);
+        digitalWrite(lockIndicator, HIGH);
     } else {
-        digitalWrite(pllLockOutput, LOW);
+        digitalWrite(lockIndicator, LOW);
     }
 }
 
@@ -514,11 +516,12 @@ void checkI2c() {
 
 void i2cErrHandler() {
     display(I2C_ERROR);
+    digitalWrite(lockIndicator, LOW);
     while (true) {
-        while (!digitalRead(setButton)) { blinkLed(pllLockOutput, errBlinkRate); } // ensure that SET is released, to prevent premature reset
-        do { blinkLed(pllLockOutput, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
-        while (!digitalRead(setButton)) blinkLed(pllLockOutput, errBlinkRate); // continue blinking error indicator while SET is pressed
-        digitalWrite(pllLockOutput, LOW);
+        while (!digitalRead(setButton)) { blinkLed(errIndicator, errBlinkRate); } // ensure that SET is released, to prevent premature reset
+        do { blinkLed(errIndicator, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
+        while (!digitalRead(setButton)) blinkLed(errIndicator, errBlinkRate); // continue blinking error indicator while SET is pressed
+        digitalWrite(errIndicator, LOW); // reset error indicator 
         asm volatile ("jmp 0"); // soft reset
     }
 }
