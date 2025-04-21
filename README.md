@@ -15,7 +15,7 @@ It has a built-in station name editor and LCD backlight control. The station nam
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
 
 # Usage
-- Verify the actual XTAL frequency and frequency band edges under "// PLL settings" and "// VCO frequency and step size validation" respectively and update them if necessary.
+- Verify the actual XTAL frequency and frequency band edges under "// PLL settings" and "// VCO frequency and step size settings" respectively and update them if necessary.
 - The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "_checkPll()_" set "_data[0] = PLL_CP_LOW_" if required.
 - Hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in EEPROM after the last character has been confirmed and the main screen will be displayed.
 - Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the frequency band with gradual acceleration. 
