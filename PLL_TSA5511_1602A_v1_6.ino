@@ -20,7 +20,7 @@ HARDWARE
     TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
 
 USAGE
-  • Verify the actual XTAL frequency and frequency band edges under "// PLL settings" and "// VCO frequency and step size validation" respectively and update them if
+  • Verify the actual XTAL frequency and frequency band edges under "// PLL settings" and "// VCO frequency and step size settings" respectively and update them if
     necessary.
   • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
   • Press and hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in
