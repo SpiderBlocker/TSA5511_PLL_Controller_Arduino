@@ -39,6 +39,7 @@ USAGE
 #define credits "(C)2025 Loenie"
 
 // required libraries
+#include <avr/wdt.h>
 #include <EEPROM.h>
 #include <Wire.h>
 #include <LiquidCrystal.h>
@@ -85,7 +86,7 @@ const byte PLL_ALL_LOW = 0x00; // all outputs (P0-P7) low
 const byte PLL_P2_HIGH = 0x04; // P2 high
 const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
 const long PLL_XTAL_FREQ = 3200000; // crystal frequency (Hz)
-const uint16_t PLL_XTAL_DIVISOR = 512; // crystal divisor
+const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
 const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
 const long PLL_REF_FREQ = (PLL_XTAL_FREQ / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; // reference frequency (Hz), also equals the minimum VCO frequency and step size
 const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
@@ -143,6 +144,7 @@ enum {
 };
 
 void setup() {
+    wdt_disable(); // disable watchdog to prevent reset loop
     pinMode(downButton, INPUT_PULLUP);
     pinMode(setButton, INPUT_PULLUP);
     pinMode(upButton, INPUT_PULLUP);
@@ -288,7 +290,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
 }
 
 void readDimmerStatus() {
-    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value required; any non-zero value reads as true.
+    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value required; any non-zero value reads as true
 }
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
@@ -506,7 +508,7 @@ void checkI2c() {
         for (uint8_t i = i2cMaxRetries; i > 0; i--) {
             Wire.beginTransmission(PLL_ADDR_WRITE);
             if (Wire.endTransmission() == 0) {
-                return; // I²C bus is operational, no further action 
+                return; // I²C bus is operational, no further action
             }
             delay(50);
             if (i == 1) { i2cErrHandler(); }
@@ -521,8 +523,9 @@ void i2cErrHandler() {
         while (!digitalRead(setButton)) { blinkLed(errIndicator, errBlinkRate); } // ensure that SET is released, to prevent premature reset
         do { blinkLed(errIndicator, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
         while (!digitalRead(setButton)) blinkLed(errIndicator, errBlinkRate); // continue blinking error indicator while SET is pressed
-        digitalWrite(errIndicator, LOW); // reset error indicator 
-        asm volatile ("jmp 0"); // soft reset
+        digitalWrite(errIndicator, LOW); // reset error indicator
+        wdt_enable(WDTO_15MS); // enable watchdog with 15ms timeout
+        while (true) {} // wait for watchdog to expire and reset system
     }
 }
 
@@ -539,10 +542,10 @@ void blinkLed(uint8_t ledPin, unsigned long interval) {
 }
 
 void display(uint8_t mode) {
-    // show and right-align frequency on display
+    // show and right-align frequency with two decimals on display
     auto printFreq = []() {
         lcd.print(freq < 10000000 ? "   " : (freq < 100000000 ? "  " : (freq < 1000000000 ? " " : "")));
-        lcd.print(freq / 1000000.0);
+        lcd.print(static_cast<float>(freq) / 1000000.0f, 2);
         lcd.print(" MHz");
     };
 
