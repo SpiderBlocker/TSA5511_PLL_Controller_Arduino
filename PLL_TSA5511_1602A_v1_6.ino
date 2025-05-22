@@ -22,7 +22,7 @@ HARDWARE
 USAGE
   • Verify the actual XTAL frequency and frequency band edges under "// PLL settings" and "// VCO frequency and step size settings" respectively and update them if
     necessary.
-  • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPll()" set "data[0] = PLL_CP_LOW" if required.
+  • The TSA5511 charge pump is kept high at all times for the DRFS06 exciter. For other platforms, in function "checkPLL()" set "data[0] = PLL_CP_LOW" if required.
   • Press and hold SET during startup to enable the station name editor. Select characters using UP/DOWN and confirm with SET. The new station name will be stored in
     EEPROM after the last character has been confirmed and the main screen will be displayed.
   • Change frequency using UP/DOWN and confirm with SET. The new frequency will be stored in EEPROM. Changing frequency without confirmation will timeout and return
@@ -49,7 +49,7 @@ const uint8_t downButton = 2; // DOWN button to ground
 const uint8_t setButton = 3; // SET button to ground
 const uint8_t upButton = 4; // UP button to ground
 
-// indicators pin mapping
+// indicators pin mapping (currently sharing same LED for both indicators)
 const uint8_t lockIndicator = 5; // lock indicator LED anode
 const uint8_t errIndicator = 5; // error indicator LED anode
 
@@ -102,7 +102,7 @@ long validateFreq(float frequency) {
 }
 const long lowerFreq = validateFreq(min(freqBand[0], freqBand[1])); // validated lower band edge frequency
 const long upperFreq = validateFreq(max(freqBand[0], freqBand[1])); // validated upper band edge frequency
-const long freqStep = min(max(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ), upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
+const long freqStep = constrain(stepSizeMultiplier * PLL_REF_FREQ, PLL_REF_FREQ, upperFreq - lowerFreq); // constrain step size to multiple of PLL_REF_FREQ and within range
 
 // station name settings
 const uint8_t maxNameLength = 16; // maximum station name length
@@ -167,8 +167,8 @@ void loop() {
     handleBacklightControl(buttonDownState, buttonSetState, buttonUpState);
     handleNameEditor(buttonDownState, buttonSetState, buttonUpState);
     handleFrequencyChange(buttonDownState, buttonSetState, buttonUpState);
-    checkPll();
-    checkI2c();
+    checkPLL();
+    checkI2C();
 }
 
 void initialize(bool fullInit) { // full initialization at startup
@@ -185,7 +185,7 @@ void initialize(bool fullInit) { // full initialization at startup
             nameEditMode = true;
         }
     } else { // finalize initialization after returning from station name editor
-        configurePll();
+        configurePLL();
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
         initialized = true;
@@ -244,7 +244,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
         dimmerTimer = currentMillis;
     }
 
-    // toggle dimmer function, store in EEPROM and show dimmer status screen
+    // toggle dimmer function, store setting in EEPROM and show dimmer status screen
     if (buttonSetState) {
         if (currentMillis - lastSetButtonClickTime >= 30 && currentMillis - lastSetButtonClickTime < 300) { // detect SET double-click (30 ms debounce period)
             setButtonClickCount++;
@@ -417,7 +417,7 @@ void frequencyChangeAction(bool freqChange, long* newFreq, int8_t direction) {
         display(SET_FREQUENCY_INTERFACE);
     } else {
         // SET action
-        configurePll();
+        configurePLL();
         freqSetMode = false;
         display(MAIN_INTERFACE);
     }
@@ -443,76 +443,15 @@ void storeFrequency(long frequency) {
     if (initialized) { EEPROM.put(EEPROM_FREQ_ADDR, frequency); }
 }
 
-void configurePll() {
-    if (freq == currentFreq) return;
-    long divisor = (freq / PLL_REF_FREQ); // calculate divisor
-    byte data[4]; // full programming (TSA 5511 datasheet, table 1)
-    data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
-    data[1] = divisor & 0x00FF; // extract low divisor byte
-    data[2] = PLL_CP_HIGH; // set charge pump
-    data[3] = PLL_ALL_LOW; // set output ports
-    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
-        Wire.beginTransmission(PLL_ADDR_WRITE);
-        Wire.write(data, 4);
-        if (Wire.endTransmission() == 0) {
-            storeFrequency(freq);
-            currentFreq = freq;
-            pllWatchdog = true;
-            break;
-        }
-        delay(50);
-        if (i == 1) { i2cErrHandler(); }
-    }
-}
-
-void checkPll() {
-    if (!pllWatchdog) return;
-    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
-        Wire.requestFrom(PLL_ADDR_READ, (byte)1);
-        if (Wire.available()) {
-            byte readByte = Wire.read();
-            pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
-            display(PLL_LOCK_STATUS);
-            break;
-        }
-        delay(50);
-        if (i == 1) { i2cErrHandler(); }
-    }
-    if (pllLock) {
-        byte data[2]; // partial programming, starting with byte 4 (TSA 5511 datasheet, table 1)
-        data[0] = PLL_CP_HIGH; // set charge pump
-        data[1] = PLL_P2_P5_HIGH; // set output ports
-        for (uint8_t i = i2cMaxRetries; i > 0; i--) {
-            Wire.beginTransmission(PLL_ADDR_WRITE);
-            Wire.write(data, 2);
-            if (Wire.endTransmission() == 0) {
-                pllWatchdog = false; // PLL watchdog not used after lock, as PLL lock flag may flicker due to FM modulation
-                break;
-            }
-            delay(50);
-            if (i == 1) { i2cErrHandler(); }
-        }
-        digitalWrite(lockIndicator, HIGH);
-    } else {
-        digitalWrite(lockIndicator, LOW);
-    }
-}
-
-void checkI2c() {
-    if (nameEditMode) return;
-    static unsigned long lastI2cCheckTime = 0;
+void blinkLed(uint8_t ledPin, unsigned long interval) {
+    static unsigned long lastBlinkTime = 0;
     unsigned long currentMillis = millis();
+    static bool ledState = false;
 
-    if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
-        lastI2cCheckTime = currentMillis;
-        for (uint8_t i = i2cMaxRetries; i > 0; i--) {
-            Wire.beginTransmission(PLL_ADDR_WRITE);
-            if (Wire.endTransmission() == 0) {
-                return; // I²C bus is operational, no further action
-            }
-            delay(50);
-            if (i == 1) { i2cErrHandler(); }
-        }
+    if (currentMillis - lastBlinkTime >= interval) {
+        lastBlinkTime = currentMillis;
+        ledState = !ledState;
+        digitalWrite(ledPin, ledState);
     }
 }
 
@@ -529,15 +468,68 @@ void i2cErrHandler() {
     }
 }
 
-void blinkLed(uint8_t ledPin, unsigned long interval) {
-    static unsigned long lastBlinkTime = 0;
-    unsigned long currentMillis = millis();
-    static bool ledState = false;
+bool attemptI2C(bool isRead, byte address, byte* buffer, byte length) {
+    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
+        if (isRead) {
+            if (Wire.requestFrom(address, length) == length) {
+                for (byte j = 0; j < length; j++) buffer[j] = Wire.read();
+                return true;
+            }
+        } else {
+            Wire.beginTransmission(address);
+            if (length > 0) Wire.write(buffer, length);
+            if (Wire.endTransmission() == 0) return true;
+        }
+        delay(50);
+    }
+    i2cErrHandler();
+    return false;
+}
 
-    if (currentMillis - lastBlinkTime >= interval) {
-        lastBlinkTime = currentMillis;
-        ledState = !ledState;
-        digitalWrite(ledPin, ledState);
+void configurePLL() {
+    if (freq == currentFreq) return;
+    long divisor = (freq / PLL_REF_FREQ); // calculate divisor
+    byte data[4]; // full programming (TSA 5511 datasheet, table 1)
+    data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
+    data[1] = divisor & 0x00FF; // extract low divisor byte
+    data[2] = PLL_CP_HIGH; // set charge pump
+    data[3] = PLL_ALL_LOW; // set output ports
+    if (attemptI2C(false, PLL_ADDR_WRITE, data, 4)) { // I²C transmission with i2cMaxRetries
+        storeFrequency(freq);
+        currentFreq = freq;
+        pllWatchdog = true;
+    }
+}
+
+void checkPLL() {
+    if (!pllWatchdog) return;
+    byte readByte;
+    if (attemptI2C(true, PLL_ADDR_READ, &readByte, 1)) {
+        pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
+        display(PLL_LOCK_STATUS);
+        if (pllLock) {
+            byte data[2]; // partial programming, starting with byte 4 (TSA 5511 datasheet, table 1)
+            data[0] = PLL_CP_HIGH; // set charge pump
+            data[1] = PLL_P2_P5_HIGH; // set output ports
+            if (attemptI2C(false, PLL_ADDR_WRITE, data, 2)) { // I²C transmission with i2cMaxRetries
+                pllWatchdog = false; // PLL watchdog not used after lock, as PLL lock flag may flicker due to FM modulation
+            }
+            digitalWrite(lockIndicator, HIGH);
+        } else {
+            digitalWrite(lockIndicator, LOW);
+        }
+    }
+}
+
+void checkI2C() {
+    if (nameEditMode) return;
+    static unsigned long lastI2cCheckTime = 0;
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
+        lastI2cCheckTime = currentMillis;
+        byte dummy;
+        attemptI2C(false, PLL_ADDR_WRITE, &dummy, 0); // I²C bus is operational if transmission succeeds
     }
 }
 
