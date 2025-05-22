@@ -528,8 +528,7 @@ void checkI2C() {
 
     if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
         lastI2cCheckTime = currentMillis;
-        byte dummy;
-        attemptI2C(false, PLL_ADDR_WRITE, &dummy, 0); // I²C bus is operational if transmission succeeds
+        attemptI2C(false, PLL_ADDR_WRITE, nullptr, 0); // I²C bus is operational if transmission succeeds
     }
 }
 
