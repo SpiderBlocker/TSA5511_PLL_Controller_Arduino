@@ -192,6 +192,40 @@ void initialize(bool fullInit) { // full initialization at startup
     }
 }
 
+void readDimmerStatus() {
+    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value required; any non-zero value reads as true
+}
+
+void readStationName() {
+    EEPROM.get(EEPROM_NAME_ADDR, stationName);
+    stationName[maxNameLength] = '\0'; // ensure null terminator
+
+    // set standard station name if string is invalid
+    size_t length = strnlen(stationName, maxNameLength);
+    for (size_t i = 0; i < length; i++) {
+        if (!isprint(stationName[i]) || stationName[i] == 0xFF) { // reject non-printable character, no 0xFF
+            strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
+            memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // fill remaining positions with spaces (ASCII 32)
+            break;
+        }
+    }
+}
+
+void readFrequency() {
+    if (!freqSetMode) {
+        // get last stored frequency from EEPROM
+        long storedFreq;
+        EEPROM.get(EEPROM_FREQ_ADDR, storedFreq);
+
+        // check if storedFreq lies within valid range (lowerFreq to upperFreq)
+        if (storedFreq < lowerFreq || storedFreq > upperFreq) {
+            freq = lowerFreq; // default initial frequency
+        } else {
+            freq = round(storedFreq / PLL_REF_FREQ) * PLL_REF_FREQ; // round to closest multiple of PLL_REF_FREQ
+        }
+    }
+}
+
 void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
     static bool backlightControlActive = false;
 
@@ -256,7 +290,7 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     if (setButtonClickCount == 2) {
         dimmerSetMode = true;
         backlightDimActive = !backlightDimActive;
-        EEPROM.write(EEPROM_DIM_ADDR, backlightDimActive);
+        storeDimmerStatus();
         display(LCD_DIMMER_STATUS);
         statusDisplayTime = currentMillis + dimMessageTime;
         while (!digitalRead(setButton));
@@ -289,36 +323,8 @@ void handleBacklightControl(bool buttonDownState, bool buttonSetState, bool butt
     }
 }
 
-void readDimmerStatus() {
-    backlightDimActive = EEPROM.read(EEPROM_DIM_ADDR); // no check for invalid stored value required; any non-zero value reads as true
-}
-
-void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
-    static unsigned long pressStartTime = 0, lastPressTime = 0;
-    unsigned long currentMillis = millis();
-    unsigned long totalPressTime = currentMillis - pressStartTime, fastPressInterval = initialPressInterval;
-
-    // disallow any combination of DOWN/SET/UP
-    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
-
-    if (buttonState) {
-        // change on first button press, or - when holding button - continuously after initialPressDelay
-        if (!buttonPressed) { pressStartTime = currentMillis; }
-        if (totalPressTime >= initialPressDelay) {
-            if (!nameEditMode) {
-                // gradual acceleration
-                long postDelayTime = totalPressTime - initialPressDelay;
-                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
-            }
-        }
-        if (!buttonPressed || (totalPressTime >= initialPressDelay && currentMillis - lastPressTime >= fastPressInterval)) {
-            lastPressTime = currentMillis;
-            buttonPressed = true;
-            action(direction);
-        }
-    } else {
-        buttonPressed = false;
-    }
+void storeDimmerStatus() {
+    EEPROM.write(EEPROM_DIM_ADDR, backlightDimActive);
 }
 
 void handleNameEditor(bool buttonDownState, bool buttonSetState, bool buttonUpState) {
@@ -349,21 +355,6 @@ void nameEditorAction(bool nameChange, int8_t direction) {
             nameEditPos++; // move to next cursor position
             display(STATION_NAME_EDITOR);
             delay(charScrollInterval);
-        }
-    }
-}
-
-void readStationName() {
-    EEPROM.get(EEPROM_NAME_ADDR, stationName);
-    stationName[maxNameLength] = '\0'; // ensure null terminator
-
-    // set standard station name if string is invalid
-    size_t length = strnlen(stationName, maxNameLength);
-    for (size_t i = 0; i < length; i++) {
-        if (!isprint(stationName[i]) || stationName[i] == 0xFF) { // reject non-printable character, no 0xFF
-            strncpy(stationName, defaultName, maxNameLength); // copy default station name to array
-            memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // fill remaining positions with spaces (ASCII 32)
-            break;
         }
     }
 }
@@ -423,67 +414,37 @@ void frequencyChangeAction(bool freqChange, long* newFreq, int8_t direction) {
     }
 }
 
-void readFrequency() {
-    if (!freqSetMode) {
-        // get last stored frequency from EEPROM
-        long storedFreq;
-        EEPROM.get(EEPROM_FREQ_ADDR, storedFreq);
-
-        // check if storedFreq lies within valid range (lowerFreq to upperFreq)
-        if (storedFreq < lowerFreq || storedFreq > upperFreq) {
-            freq = lowerFreq; // default initial frequency
-        } else {
-            freq = round(storedFreq / PLL_REF_FREQ) * PLL_REF_FREQ; // round to closest multiple of PLL_REF_FREQ
-        }
-    }
-}
-
 void storeFrequency(long frequency) {
     // avoid unnecessary write operations during startup to protect EEPROM
     if (initialized) { EEPROM.put(EEPROM_FREQ_ADDR, frequency); }
 }
 
-void blinkLed(uint8_t ledPin, unsigned long interval) {
-    static unsigned long lastBlinkTime = 0;
+void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
+    static unsigned long pressStartTime = 0, lastPressTime = 0;
     unsigned long currentMillis = millis();
-    static bool ledState = false;
+    unsigned long totalPressTime = currentMillis - pressStartTime, fastPressInterval = initialPressInterval;
 
-    if (currentMillis - lastBlinkTime >= interval) {
-        lastBlinkTime = currentMillis;
-        ledState = !ledState;
-        digitalWrite(ledPin, ledState);
-    }
-}
+    // disallow any combination of DOWN/SET/UP
+    if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
 
-void i2cErrHandler() {
-    display(I2C_ERROR);
-    digitalWrite(lockIndicator, LOW);
-    while (true) {
-        while (!digitalRead(setButton)) { blinkLed(errIndicator, errBlinkRate); } // ensure that SET is released, to prevent premature reset
-        do { blinkLed(errIndicator, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
-        while (!digitalRead(setButton)) blinkLed(errIndicator, errBlinkRate); // continue blinking error indicator while SET is pressed
-        digitalWrite(errIndicator, LOW); // reset error indicator
-        wdt_enable(WDTO_15MS); // enable watchdog with 15ms timeout
-        while (true) {} // wait for watchdog to expire and reset system
-    }
-}
-
-bool attemptI2C(bool isRead, byte address, byte* buffer, byte length) {
-    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
-        if (isRead) {
-            if (Wire.requestFrom(address, length) == length) {
-                for (byte j = 0; j < length; j++) buffer[j] = Wire.read();
-                return true;
+    if (buttonState) {
+        // change on first button press, or - when holding button - continuously after initialPressDelay
+        if (!buttonPressed) { pressStartTime = currentMillis; }
+        if (totalPressTime >= initialPressDelay) {
+            if (!nameEditMode) {
+                // gradual acceleration
+                long postDelayTime = totalPressTime - initialPressDelay;
+                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
             }
-        } else {
-            Wire.beginTransmission(address);
-            if (length > 0) Wire.write(buffer, length);
-            if (Wire.endTransmission() == 0) return true;
         }
-        delay(50);
+        if (!buttonPressed || (totalPressTime >= initialPressDelay && currentMillis - lastPressTime >= fastPressInterval)) {
+            lastPressTime = currentMillis;
+            buttonPressed = true;
+            action(direction);
+        }
+    } else {
+        buttonPressed = false;
     }
-    i2cErrHandler();
-    return false;
 }
 
 void configurePLL() {
@@ -529,6 +490,49 @@ void checkI2C() {
     if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
         lastI2cCheckTime = currentMillis;
         attemptI2C(false, PLL_ADDR_WRITE, nullptr, 0); // I²C bus is operational if transmission succeeds
+    }
+}
+
+bool attemptI2C(bool isRead, byte address, byte* buffer, byte length) {
+    for (uint8_t i = i2cMaxRetries; i > 0; i--) {
+        if (isRead) {
+            if (Wire.requestFrom(address, length) == length) {
+                for (byte j = 0; j < length; j++) buffer[j] = Wire.read();
+                return true;
+            }
+        } else {
+            Wire.beginTransmission(address);
+            if (length > 0) Wire.write(buffer, length);
+            if (Wire.endTransmission() == 0) return true;
+        }
+        delay(50);
+    }
+    i2cErrHandler();
+    return false;
+}
+
+void i2cErrHandler() {
+    display(I2C_ERROR);
+    digitalWrite(lockIndicator, LOW);
+    while (true) {
+        while (!digitalRead(setButton)) { blinkLed(errIndicator, errBlinkRate); } // ensure that SET is released, to prevent premature reset
+        do { blinkLed(errIndicator, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
+        while (!digitalRead(setButton)) blinkLed(errIndicator, errBlinkRate); // continue blinking error indicator while SET is pressed
+        digitalWrite(errIndicator, LOW); // reset error indicator
+        wdt_enable(WDTO_15MS); // enable watchdog with 15ms timeout
+        while (true) {} // wait for watchdog to expire and reset system
+    }
+}
+
+void blinkLed(uint8_t ledPin, unsigned long interval) {
+    static unsigned long lastBlinkTime = 0;
+    unsigned long currentMillis = millis();
+    static bool ledState = false;
+
+    if (currentMillis - lastBlinkTime >= interval) {
+        lastBlinkTime = currentMillis;
+        ledState = !ledState;
+        digitalWrite(ledPin, ledState);
     }
 }
 
