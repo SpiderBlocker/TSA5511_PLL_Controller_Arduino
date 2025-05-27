@@ -354,7 +354,6 @@ void nameEditorAction(bool nameChange, int8_t direction) {
         } else {
             nameEditPos++; // move to next cursor position
             display(STATION_NAME_EDITOR);
-            delay(charScrollInterval);
         }
     }
 }
@@ -422,7 +421,8 @@ void storeFrequency(long frequency) {
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
     static unsigned long pressStartTime = 0, lastPressTime = 0;
     unsigned long currentMillis = millis();
-    unsigned long totalPressTime = currentMillis - pressStartTime, fastPressInterval = initialPressInterval;
+    unsigned long totalPressTime = currentMillis - pressStartTime;
+    unsigned long fastPressInterval = initialPressInterval;
 
     // disallow any combination of DOWN/SET/UP
     if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
@@ -432,12 +432,18 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, 
         if (!buttonPressed) { pressStartTime = currentMillis; }
         if (totalPressTime >= initialPressDelay) {
             if (!nameEditMode) {
-                // gradual acceleration
+                // gradual acceleration in frequency SET mode
                 long postDelayTime = totalPressTime - initialPressDelay;
                 fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
             }
-        }
-        if (!buttonPressed || (totalPressTime >= initialPressDelay && currentMillis - lastPressTime >= fastPressInterval)) {
+            if (!buttonPressed || currentMillis - lastPressTime >= fastPressInterval) {
+                lastPressTime = currentMillis;
+                buttonPressed = true;
+                action(direction);
+                if (nameEditMode) delay(charScrollInterval); // fixed scroll speed in station name editor
+            }
+        } else if (!buttonPressed) {
+            // immediate response at first short press
             lastPressTime = currentMillis;
             buttonPressed = true;
             action(direction);
