@@ -428,25 +428,22 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, 
     if (!digitalRead(downButton) + !digitalRead(setButton) + !digitalRead(upButton) > 1) return;
 
     if (buttonState) {
-        // change on first button press, or - when holding button - continuously after initialPressDelay
-        if (!buttonPressed) { pressStartTime = currentMillis; }
-        if (totalPressTime >= initialPressDelay) {
-            if (!nameEditMode) {
-                // gradual acceleration in frequency SET mode
-                long postDelayTime = totalPressTime - initialPressDelay;
-                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
-            }
-            if (!buttonPressed || currentMillis - lastPressTime >= fastPressInterval) {
-                lastPressTime = currentMillis;
-                buttonPressed = true;
-                action(direction);
-                if (nameEditMode) delay(charScrollInterval); // fixed scroll speed in station name editor
-            }
-        } else if (!buttonPressed) {
-            // immediate response at first short press
+        if (!buttonPressed) pressStartTime = currentMillis;
+        // gradual acceleration in frequency SET mode
+        if (totalPressTime >= initialPressDelay && !nameEditMode) {
+            long postDelayTime = totalPressTime - initialPressDelay;
+            fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
+        }
+        // handle short press, or hold with delayed repeat
+        if ((totalPressTime < initialPressDelay && !buttonPressed) ||
+            (totalPressTime >= initialPressDelay &&
+             (!buttonPressed || currentMillis - lastPressTime >= fastPressInterval))) {
             lastPressTime = currentMillis;
             buttonPressed = true;
             action(direction);
+            if (nameEditMode && totalPressTime >= initialPressDelay) {
+                delay(charScrollInterval); // fixed scroll speed in station name editor
+            }
         }
     } else {
         buttonPressed = false;
