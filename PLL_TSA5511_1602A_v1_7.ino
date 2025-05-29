@@ -186,7 +186,7 @@ void setupHardware() {
     pinMode(errIndicator, OUTPUT);
     pinMode(lcdBacklight, OUTPUT);
 
-    //I²C
+    // I²C
     Wire.begin();
     Wire.setClock(i2cClock);
     Wire.setWireTimeout(wireTimeout, true);
