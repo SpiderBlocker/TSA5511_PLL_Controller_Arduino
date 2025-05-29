@@ -136,7 +136,7 @@ bool buttonUpPressed = false; // static state of UP button
 
 // station name editor
 bool stationNameEditMode = false; // true if station name editor is active
-uint8_t stationNameEditPos = 0;   // actual cursor position in station name editor
+uint8_t stationNameEditPos = 0; // actual cursor position in station name editor
 
 // LCD backlight control
 bool dimmerSetMode = false; // true if dimmer setting mode is active
