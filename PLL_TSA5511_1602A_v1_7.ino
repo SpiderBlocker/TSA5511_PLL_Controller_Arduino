@@ -121,6 +121,8 @@ const unsigned long errBlinkRate = 250; // error indicator blink interval
 unsigned long lastMultiButtonPressTime = 0; // timestamp of last multi-button press
 const uint16_t doubleClickThreshold = 300; // double-click detection threshold
 const uint8_t buttonTimingTolerance = 50; // minimum time window to suppress unwanted button event
+const float pressAccelerationBase = 0.7; // base auto-repeat acceleration when holding UP/DOWN
+const uint8_t pressAccelerationLimit = 7; // maximum auto-repeat acceleration when holding UP/DOWN
 
 // === RUNTIME STATE VARIABLES ===
 // initialization
@@ -482,7 +484,10 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, 
             // gradual acceleration in frequency SET mode
             if (totalPressTime >= initialPressDelay && freqSetMode) {
                 long postDelayTime = totalPressTime - initialPressDelay;
-                fastPressInterval = max(initialPressInterval / (0.7 + (postDelayTime / initialPressDelay)), initialPressInterval / 7);
+                fastPressInterval = max(
+                    initialPressInterval / (pressAccelerationBase + (postDelayTime / initialPressDelay)),
+                    initialPressInterval / pressAccelerationLimit
+                );
             }
             // auto-repeat action after initialPressDelay
             if (totalPressTime >= initialPressDelay &&
