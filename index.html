@@ -29,43 +29,68 @@
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         a { color: #007BFF; text-decoration: none; }
         footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; }
+        ul.submenu { list-style-type: square; margin-left: 20px; }
+        ul.submenu li { margin-bottom: 4px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>TSA5511 PLL Controller for Arduino</h1>
-        
+
         <h2>Description</h2>
-        <p>Controller for the TSA5511 PLL, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511 based exciter.</p
-        <p>Using a 3.2 MHz crystal on the TSA5511, the control ranges from 50 kHz up to 1.638,35 MHz, with a step size of 50 kHz or any multiple thereof. The practical limits are 64 MHz to 1,300 MHz.</p>
-        <p>It has a built-in station name editor and LCD backlight control. The station name, backlight dimmer setting, and last operating frequency are stored in EEPROM.</p>
-        
+        <p>PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511 based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511. It features an intuitive menu interface for making various system settings as explained in detail below. All configurable settings are stored in EEPROM and automatically recalled upon restart.</p>
+
         <h2>Hardware</h2>
         <ul>
             <li>Arduino Nano or compatible</li>
-            <li>Standard 16x2 LCD display in 4-bit mode</li>
-            <li>Three pushbuttons (DOWN/SET/UP) with 470 nF debouncing capacitors</li>
-            <li>Optional PLL lock / error indicator LED with series resistor</li>
-            <li>LCD backlight control (PWM-capable pin, default pin 6)</li>
-            <li>Pull-up resistors required on SDA/SCL (recommended 1-2 kΩ if RF decoupling is used)</li>
-            <li>Recommended separate power supply for controller if used with DRFS06</li>
+            <li>Standard 16x2 LCD display (4-bit mode) with backlight and contrast adjustment</li>
+            <li>Three pushbuttons (DOWN/SET/UP), each with a 470 nF debouncing capacitor</li>
+            <li>Optional PLL lock LED, also acts as blinking fault indicator</li>
+            <li>LCD backlight control via PWM (default pin 6)</li>
+            <li>Pull-up resistors required on SDA/SCL; 1–2 kΩ recommended if RF decoupling is used</li>
+            <li>Recommended to power controller separately from TSA5511 when used with DRFS06</li>
         </ul>
-        
+
         <h2>Usage</h2>
         <ul>
-            <li>Verify and adjust XTAL frequency and band edge frequencies in code.</li>
-            <li>Hold SET during startup to enable the station name editor.</li>
-            <li>Change frequency using UP/DOWN and confirm with SET.</li>
-            <li>LCD backlight dims after inactivity; double-click SET to toggle this feature.</li>
-            <li>Press and hold SET to turn off the backlight completely.</li>
-            <li>In case of an I²C communication error, verify the hardware and press SET to restart.</li>
+            <li><strong>Double-click SET</strong> to open the main configuration menu. Options include:
+                <ul class="submenu">
+                    <li><strong>VCO SUBMENU</strong>
+                        <ul class="submenu">
+                            <li><strong>VCO FREQ. BAND</strong> – Select from predefined bands. Each remembers last used frequency.</li>
+                            <li><strong>FREQ. PRECISION</strong> – Set VCO frequency decimal precision. Lower precision will round current frequency accordingly. Max resolution: 3 decimals @ 1.6 MHz XTAL, 2 decimals @ 3.2 MHz XTAL.</li>
+                            <li><strong>EXIT SUBMENU</strong> – Return to main menu.</li>
+                        </ul>
+                    </li>
+                    <li><strong>PLL SUBMENU</strong>
+                        <ul class="submenu">
+                            <li><strong>PLL CHARGE PUMP</strong> – Set locked-state current (HIGH = 220 µA, LOW = 50 µA). Use HIGH for DRFS06.</li>
+                            <li><strong>PLL XTAL FREQ.</strong> – Select 1.6 MHz or 3.2 MHz XTAL. Affects maximum VCO range. 1.6 MHz is unofficially supported but works reliably.</li>
+                            <li><strong>EXIT SUBMENU</strong> – Return to main menu.</li>
+                        </ul>
+                    </li>
+                    <li><strong>STATION NAME</strong> – Edit station name displayed when PLL is locked. Use UP/DOWN/SET. Auto-scroll supported.</li>
+                    <li><strong>BACKLIGHT DIMMER</strong> – Toggle auto-dimming of the LCD backlight.</li>
+                    <li><strong>EXIT MENU</strong>
+                        <ul class="submenu">
+                            <li><strong>SAVE & EXIT</strong> – Save changes to EEPROM and return to main screen.</li>
+                            <li><strong>DISCARD & EXIT</strong> – Ignore changes and return to main screen.</li>
+                            <li><strong>CANCEL</strong> – Return to first main menu option.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li>VCO frequency can be adjusted with UP/DOWN and confirmed with SET. Inactivity reverts to main screen without changes.</li>
+            <li>Hold UP/DOWN to auto-scroll with acceleration.</li>
+            <li>Backlight dims automatically in idle mode (PLL locked). Hold SET to turn off completely. Press any key to restore.</li>
+            <li>On I²C error: check wiring and press SET to retry. Multiple retries occur before showing an error.</li>
         </ul>
-        
+
         <footer>
-    	    <p>For more details and source code, visit the official repository:</p>
-    	    <p><a href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino" target="_blank">TSA5511 PLL Controller on GitHub</a></p>
-   	    <p style="font-size: 0.8em; color: #777;">©2025 Loenie</p>
-	</footer>
+            <p>For more details and source code, visit the official repository:</p>
+            <p><a href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino" target="_blank">TSA5511 PLL Controller on GitHub</a></p>
+            <p style="font-size: 0.8em; color: #777;">©2025 Loenie</p>
+        </footer>
     </div>
 </body>
 </html>
