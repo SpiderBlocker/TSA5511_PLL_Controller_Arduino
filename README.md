@@ -40,7 +40,7 @@ It features an intuitive menu interface for making various system settings as ex
   ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (ON or OFF).
 
   ■ EXIT MENU        => • save changes    > Stores any changes to EEPROM and returns to the main interface.
-                        • revert changes  > Discards any changes and returns to the main interface.
+                        • discard         > Discards any changes and returns to the main interface.
                         • cancel          > Returns to the first index of the main menu.
 ```
 
