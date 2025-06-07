@@ -24,7 +24,7 @@ USAGE
                           • FREQ. PRECISION > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
                                               a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
-                                              PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz at 3.2 kHz), the actual frequency precision will default to the
+                                              PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz at 3.2 MHz), the actual frequency precision will default to the
                                               highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can
                                               be changed to a lower value if so desired. Refer to additional explanation at PLL SUBMENU > PLL XTAL FREQ below.
                           • EXIT SUBMENMU   > Returns to the main menu.
@@ -45,7 +45,7 @@ USAGE
     ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (ON or OFF).
 
     ■ EXIT MENU        => • save changes    > Stores any changes to EEPROM and returns to the main interface.
-                          • revert changes  > Discards any changes and returns to the main interface.
+                          • discard         > Discards any changes and returns to the main interface.
                           • cancel          > Returns to the first index of the main menu.
 
     The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the
@@ -121,7 +121,7 @@ const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
 const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
 const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
 long getPLLRefFreq() { return (xtalOptions[xtalFreqIndex] / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; } // reference frequency (Hz), also equals the minimum VCO frequency and step size
-const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits; MSB of high byte must remain zero
+const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits (MSB of high byte must remain zero)
 const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
 // VCO frequency band settings
