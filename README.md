@@ -38,9 +38,9 @@ It features an intuitive menu interface for making various system settings as ex
 
     ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (ON or OFF).
 
-    ■ EXIT MENU        => • SAVE & EXIT     > Stores any changes to EEPROM and returns to the main interface.
-                          • DISCARD & EXIT  > Discards any changes and returns to the main interface.
-                          • CANCEL          > Returns to the first index of the main menu.
+    ■ EXIT MENU        => • save changes    > Stores any changes to EEPROM and returns to the main interface.
+                          • revert changes  > Discards any changes and returns to the main interface.
+                          • cancel          > Returns to the first index of the main menu.
 
 - The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the exit menu is active, which requires explicit user confirmation.
 - Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.
