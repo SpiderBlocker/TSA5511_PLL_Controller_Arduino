@@ -481,7 +481,6 @@ void applyFrequencyChange(bool freqChange, long* targetFreq, int8_t direction) {
 void handleMenu() {
     static unsigned long lastShortClickTime = 0;
     static unsigned long clickStartTime = 0;
-    static bool menuTimedOut = true;
     static uint8_t prevMainMenuIndex = 0; // store previous main menu index when entering submenu
     unsigned long currentMillis = millis();
 
@@ -519,7 +518,6 @@ void handleMenu() {
                     stationNameBuffer[maxNameLength] = '\0';
                     display(MENU_INTERFACE);
                     ignoreFirstSetInMenu = true; // skip until SET release
-                    menuTimedOut = false;
                     menuInactivityTimer = currentMillis;
                     return;
                 }
@@ -546,7 +544,6 @@ void handleMenu() {
         menuLevel = 0;
         display(MAIN_INTERFACE);
         display(PLL_LOCK_STATUS);
-        menuTimedOut = true;
         return;
     }
 
@@ -605,7 +602,6 @@ void handleMenu() {
             }
         });
         menuInactivityTimer = currentMillis;
-        menuTimedOut = false;
         return;
     }
 
@@ -729,7 +725,6 @@ void handleMenu() {
     // reset timeout timer on any valid input
     if (buttonDownState || buttonUpState || buttonSetState) {
         menuInactivityTimer = currentMillis;
-        menuTimedOut = false;
     }
 }
 
