@@ -126,7 +126,7 @@ const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
 // VCO frequency band settings
 const float freqBands[][2] = {
-    {65700000, 74000000}, // OIRT FM broadcast (Russia)
+    {65700000, 74000000}, // OIRT FM broadcast
     {76000000, 95000000}, // FM broadcast - Japan
     {87000000, 108000000}, // FM broadcast - ITU R1/R2/R3
     {174000000, 240000000}, // DAB/DVB-T - ITU R1/R2/R3
