@@ -39,8 +39,8 @@ USAGE
                                                empirically confirmed to work.
                           • EXIT SUBMENMU   >  Returns to the main menu.
 
-    ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (PLL locked). Select characters using UP/DOWN and
-                          confirm each character with SET. Auto-scroll is available when holding DOWN/UP or SET.
+    ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (PLL locked). Select characters using UP/DOWN and confirm each
+                          character with SET. Auto-scroll is available when holding DOWN/UP or SET.
 
     ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (ON or OFF).
 
@@ -419,7 +419,6 @@ void handleBacklightControl() {
             else if (btn == upButton) buttonUpState = buttonUpPressed = false;
             else buttonSetState = buttonSetPressed = false;
         }
-
         dimmerTimer = currentMillis;
     }
 
@@ -440,26 +439,24 @@ void handleFrequencyChange() {
     static unsigned long freqSetInactivityTimer = 0;
     unsigned long currentMillis = millis();
 
-    if (initialized) {
-        // change VCO frequency
-        auto freqChange = [](int8_t direction) { applyFrequencyChange(true, &targetFreq, direction); };
-        handleButtonInput(buttonDownState, buttonDownPressed, -1, freqChange);
-        handleButtonInput(buttonUpState, buttonUpPressed, 1, freqChange);
-        if (buttonDownState || buttonUpState) {
-            freqSetInactivityTimer = currentMillis;
-            timedOut = false;
-        }
-        // confirm VCO frequency
-        if (freqSetMode && buttonSetState) {
-            applyFrequencyChange(false, &targetFreq, 0);
+    // change VCO frequency
+    auto freqChange = [](int8_t direction) { applyFrequencyChange(true, &targetFreq, direction); };
+    handleButtonInput(buttonDownState, buttonDownPressed, -1, freqChange);
+    handleButtonInput(buttonUpState, buttonUpPressed, 1, freqChange);
+    if (buttonDownState || buttonUpState) {
+        freqSetInactivityTimer = currentMillis;
+        timedOut = false;
+    }
+    // confirm VCO frequency
+    if (freqSetMode && buttonSetState) {
+        applyFrequencyChange(false, &targetFreq, 0);
+        timedOut = true;
+    } else if (currentMillis - freqSetInactivityTimer > freqSetTimeout) { // inactivity timeout
+        freqSetMode = false;
+        if (!timedOut) { // restore initial status
+            targetFreq = currentFreq;
+            display(MAIN_INTERFACE);
             timedOut = true;
-        } else if (currentMillis - freqSetInactivityTimer > freqSetTimeout) { // inactivity timeout
-            freqSetMode = false;
-            if (!timedOut) { // restore initial status
-                targetFreq = currentFreq;
-                display(MAIN_INTERFACE);
-                timedOut = true;
-            }
         }
     }
 }
@@ -478,12 +475,6 @@ void applyFrequencyChange(bool freqChange, long* targetFreq, int8_t direction) {
         freqSetMode = false;
         menuUnlockTime = currentMillis + setClickInterval; // block menu entry immediately after freqSetMode
         display(MAIN_INTERFACE);
-    }
-}
-
-void storeFrequency(long frequency) {
-    if (initialized) {
-        storeBandFrequency(selectedFreqBandIndex, frequency);
     }
 }
 
@@ -590,9 +581,6 @@ void handleMenu() {
                 upperFreq = validateFreq(freqBands[selectedFreqBandIndex][1], true);
                 long storedFreq = readBandFrequency(selectedFreqBandIndex);
                 targetFreq = (storedFreq >= lowerFreq && storedFreq <= upperFreq) ? validateFreq(storedFreq, true) : lowerFreq;
-                storeBandFrequency(selectedFreqBandIndex, targetFreq);
-                targetFreq = validateFreq(targetFreq, true);
-                storeFrequency(targetFreq);
                 configurePLL(); // apply updated charge pump and XTAL setting
                 menuExitConfirmMode = false;
                 menuMode = false;
@@ -752,7 +740,7 @@ void storeBandIndex() {
 }
 
 void storeBandFrequency(byte bandIndex, long frequency) {
-    if (bandIndex < numFreqBands) {
+    if (initialized && bandIndex < numFreqBands) { // avoid unnecessary write operation during startup to protect EEPROM
         EEPROM.put(EEPROM_BAND_FREQ_BASE_ADDR + bandIndex * sizeof(long), frequency);
     }
 }
@@ -896,7 +884,7 @@ void configurePLL() {
     data[2] = PLL_CP_HIGH; // set charge pump
     data[3] = PLL_ALL_LOW; // set output ports
     if (attemptI2C(false, PLL_ADDR_WRITE, data, 4)) { // I²C transmission with i2cMaxRetries
-        storeFrequency(targetFreq);
+        storeBandFrequency(selectedFreqBandIndex, targetFreq);
         currentFreq = targetFreq;
         pllCheckPending = true;
     }
@@ -1016,13 +1004,13 @@ void display(uint8_t mode) {
             lcd.clear();
             if (menuExitConfirmMode) {
                 lcd.setCursor(0, 0);
-                switch (menuIndex) {
-                    case 0: lcd.print("SAVE & EXIT"); break;
-                    case 1: lcd.print("DISCARD & EXIT"); break;
-                    case 2: lcd.print("CANCEL"); break;
-                }
+                lcd.print("EXIT MENU");
                 lcd.setCursor(0, 1);
-                lcd.print("SET to confirm");
+                switch (menuIndex) {
+                    case 0: lcd.print("> save changes"); break;
+                    case 1: lcd.print("> discard"); break;
+                    case 2: lcd.print("> cancel"); break;
+                }
                 break;
             }
             if (menuLevel == 0) {
@@ -1055,7 +1043,7 @@ void display(uint8_t mode) {
                     case 4:
                         lcd.print("EXIT MENU");
                         lcd.setCursor(0, 1);
-                        lcd.print("SET to enter");
+                        lcd.print("SET to confirm");
                         break;
                 }
             } else if (menuLevel == 1) {
