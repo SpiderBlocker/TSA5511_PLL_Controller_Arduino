@@ -84,9 +84,8 @@ const uint8_t lcdBacklight = 6; // LCD backlight anode
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
-const long backlightOffDelay = 1500; // backlight turn-off delay after holding SET
-const long dimMessageTime = 2500; // period to show dimmer status message
-const long dimDelay = 2500; // brightness dimmer delay
+const unsigned long backlightOffDelay = 1500; // backlight turn-off delay after holding SET
+const unsigned long dimDelay = 2500; // brightness dimmer delay
 const uint8_t dimStepDelay = 7; // gradual brightness dimming speed
 const uint8_t maxBrightness = 255; // maximum brightness
 const uint8_t lowBrightness = 30; // dimmed brightness
@@ -101,14 +100,14 @@ const uint16_t EEPROM_XTAL_ADDR = 70; // 0 = 3.2 MHz, 1 = 1.6 MHz
 const uint16_t EEPROM_BAND_FREQ_BASE_ADDR = 80; // VCO frequency per-band (4 bytes per band)
 
 // I²C settings
-const long wireTimeout = 5000; // I²C transmission timeout, preventing I²C bus crash in some cases
-const long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
-const long i2cHealthCheckInterval = 2000; // I²C health check interval
+const unsigned long wireTimeout = 5000; // I²C transmission timeout, preventing I²C bus crash in some cases
+const unsigned long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31,25 kHz for 16 MHz ATmega328P)
+const unsigned long i2cHealthCheckInterval = 2000; // I²C health check interval
 const uint8_t i2cMaxRetries = 10; // maximum number of I²C transmission retries
 const uint8_t i2cRetryDelay = 50; // delay between I²C retries
 
 // PLL settings
-const long xtalOptions[] = {1600000, 3200000}; // 0 = 1.6 MHz, 1 = 3.2 MHz
+const unsigned long xtalOptions[] = {1600000, 3200000}; // 0 = 1.6 MHz, 1 = 3.2 MHz
 uint8_t xtalFreqIndex = 1; // default = 3.2 MHz
 const byte PLL_ADDR = 0x30; // 7-bit I²C address
 const byte PLL_ADDR_WRITE = (PLL_ADDR << 1); // 8-bit write address
@@ -120,7 +119,7 @@ const byte PLL_P2_HIGH = 0x04; // P2 high
 const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
 const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
 const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
-long getPLLRefFreq() { return (xtalOptions[xtalFreqIndex] / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; } // reference frequency (Hz), also equals the minimum VCO frequency and step size
+unsigned long getPLLRefFreq() { return (xtalOptions[xtalFreqIndex] / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; } // reference frequency (Hz), also equals the minimum VCO frequency and step size
 const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits (MSB of high byte must remain zero)
 const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
@@ -148,13 +147,13 @@ uint8_t getStepSizeMultiplier() {
 }
 
 // VCO frequency validation
-long validateFreq(float frequency, bool alignToStepSize = false) {
-    frequency = constrain(frequency, getPLLRefFreq(), PLL_DIVISOR_LIMIT * getPLLRefFreq()); // constrain VCO frequency within valid PLL divisor range
-    long step = alignToStepSize ? getPLLRefFreq() * getStepSizeMultiplier() : getPLLRefFreq(); // select step size (base PLL step size or visible step size)
+unsigned long validateFreq(float frequency, bool alignToStepSize = false) {
+    frequency = constrain(frequency, getPLLRefFreq(), (unsigned long)PLL_DIVISOR_LIMIT * getPLLRefFreq()); // constrain VCO frequency within valid PLL divisor range
+    unsigned long step = getPLLRefFreq() * (alignToStepSize ? getStepSizeMultiplier() : 1); // select step size (base PLL step size or visible step size)
     return round(frequency / step) * step; // round to nearest valid VCO frequency step size
 }
-long lowerFreq = 0;
-long upperFreq = 0;
+unsigned long lowerFreq = 0;
+unsigned long upperFreq = 0;
 
 // station name settings
 const uint8_t maxNameLength = 16; // maximum station name length
@@ -508,9 +507,7 @@ void handleMenu() {
             if (clickDuration < setClickInterval) {
                 bool validDoubleClick = currentMillis - lastShortClickTime < setClickInterval &&
                                         currentMillis - lastShortClickTime >= buttonTimingTolerance;
-
                 lastShortClickTime = currentMillis;
-
                 if (validDoubleClick) { // valid double-click detected: enter main menu
                     menuMode = true;
                     menuLevel = 0;
