@@ -286,10 +286,11 @@ void readButtons() {
     buttonSetState  = !digitalRead(setButton);
     buttonUpState   = !digitalRead(upButton);
 
-    if ((buttonDownState + buttonSetState + buttonUpState) > 1 ||
-        currentMillis - lastMultiButtonTime < buttonTimingTolerance) {
+    if ((buttonDownState + buttonSetState + buttonUpState) > 1) {
         buttonDownState = buttonSetState = buttonUpState = false;
         lastMultiButtonTime = currentMillis;
+    } else if (currentMillis - lastMultiButtonTime < buttonTimingTolerance) {
+        buttonDownState = buttonSetState = buttonUpState = false;
     }
 }
 
