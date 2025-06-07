@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TSA5511 PLL Controller for Arduino</title>
-    <meta name="description" content="Arduino-based TSA5511 PLL controller. Features include LCD backlight dimming control, station name editor, EEPROM storage, and I²C error handling.">
-    <meta name="keywords" content="Arduino, TSA5511, PLL, controller, GitHub, FM transmitter, Loenie, I2C, LCD, DRFS06, frequency control">
+    <meta name="description" content="Arduino-based TSA5511 PLL controller. Features include LCD backlight dimming control, menu interface with various VCO and PLL subsettings, station name editor, EEPROM storage, and I²C error handling.">
+    <meta name="keywords" content="Arduino, TSA5511, PLL, controller, PLL controller, GitHub, FM transmitter, Loenie, I2C, LCD, DRFS06, frequency control">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino">
     <script type="application/ld+json">
@@ -42,48 +42,45 @@
 
         <h2>Hardware</h2>
         <ul>
-            <li>Arduino Nano or compatible</li>
-            <li>Standard 16x2 LCD display (4-bit mode) with backlight and contrast adjustment</li>
-            <li>Three pushbuttons (DOWN/SET/UP), each with a 470 nF debouncing capacitor</li>
-            <li>Optional PLL lock LED, also acts as blinking fault indicator</li>
-            <li>LCD backlight control via PWM (default pin 6)</li>
-            <li>Pull-up resistors required on SDA/SCL; 1–2 kΩ recommended if RF decoupling is used</li>
-            <li>Recommended to power controller separately from TSA5511 when used with DRFS06</li>
+            <li>The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.</li>
+            <li>LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards.</li>
+            <li>Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.</li>
+            <li>If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.</li>
         </ul>
 
         <h2>Usage</h2>
         <ul>
-            <li><strong>Double-click SET</strong> to open the main configuration menu. Options include:
+            <li><strong>Double-clicking SET opens the main configuration menu, in which system settings can be made as follows:
                 <ul class="submenu">
                     <li><strong>VCO SUBMENU</strong>
                         <ul class="submenu">
-                            <li><strong>VCO FREQ. BAND</strong> – Select from predefined bands. Each remembers last used frequency.</li>
-                            <li><strong>FREQ. PRECISION</strong> – Set VCO frequency decimal precision. Lower precision will round current frequency accordingly. Max resolution: 3 decimals @ 1.6 MHz XTAL, 2 decimals @ 3.2 MHz XTAL.</li>
-                            <li><strong>EXIT SUBMENU</strong> – Return to main menu.</li>
+                            <li><strong>VCO FREQ. BAND</strong> – Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM for each VCO frequency band separately.</li>
+                            <li><strong>FREQ. PRECISION</strong> – This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz at 3.2 kHz), the actual frequency precision will default to the highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can be changed to a lower value if so desired. Refer to additional explanation at PLL SUBMENU > PLL XTAL FREQ below.</li>
+                            <li><strong>EXIT SUBMENU</strong> – Returns to the main menu.</li>
                         </ul>
                     </li>
                     <li><strong>PLL SUBMENU</strong>
                         <ul class="submenu">
-                            <li><strong>PLL CHARGE PUMP</strong> – Set locked-state current (HIGH = 220 µA, LOW = 50 µA). Use HIGH for DRFS06.</li>
-                            <li><strong>PLL XTAL FREQ.</strong> – Select 1.6 MHz or 3.2 MHz XTAL. Affects maximum VCO range. 1.6 MHz is unofficially supported but works reliably.</li>
-                            <li><strong>EXIT SUBMENU</strong> – Return to main menu.</li>
+                            <li><strong>PLL CHARGE PUMP</strong> – This toggles the PLL charge current in locked state (HIGH or LOW, resp. 220 µA or 50 µA). It should set to HIGH for the DRFS06 exciter. For other platforms, set to LOW if required.</li>
+                            <li><strong>PLL XTAL FREQ.</strong> – This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper VCO frequency will be 819.175 MHz, in which case any upper band limit exceeding the maximum feasible value will be automatically adjusted accordingly. Note that compatibility of the TSA5511 with a 1.6 MHz crystal is not officially supported; however, it has been empirically confirmed to work.</li>
+                            <li><strong>EXIT SUBMENU</strong> – Returns to the main menu.</li>
                         </ul>
                     </li>
-                    <li><strong>STATION NAME</strong> – Edit station name displayed when PLL is locked. Use UP/DOWN/SET. Auto-scroll supported.</li>
-                    <li><strong>BACKLIGHT DIMMER</strong> – Toggle auto-dimming of the LCD backlight.</li>
+                    <li><strong>STATION NAME</strong> – This sets the radio station name that is shown in quiescent condition (PLL locked). Select characters using UP/DOWN and confirm each character with SET. Auto-scroll is available when holding DOWN/UP or SET.</li>
+                    <li><strong>BACKLIGHT DIMMER</strong> – This toggles the automatic LCD backlight dimmer function (ON or OFF).</li>
                     <li><strong>EXIT MENU</strong>
                         <ul class="submenu">
-                            <li><strong>SAVE & EXIT</strong> – Save changes to EEPROM and return to main screen.</li>
-                            <li><strong>DISCARD & EXIT</strong> – Ignore changes and return to main screen.</li>
-                            <li><strong>CANCEL</strong> – Return to first main menu option.</li>
+                            <li><strong>save changes</strong> – Stores any changes to EEPROM and returns to the main interface.</li>
+                            <li><strong>revert changes</strong> – Discards any changes and returns to the main interface. </li>
+                            <li><strong>cancel</strong> – Returns to the first index of the main menu.</li>
                         </ul>
                     </li>
                 </ul>
             </li>
-            <li>VCO frequency can be adjusted with UP/DOWN and confirmed with SET. Inactivity reverts to main screen without changes.</li>
-            <li>Hold UP/DOWN to auto-scroll with acceleration.</li>
-            <li>Backlight dims automatically in idle mode (PLL locked). Hold SET to turn off completely. Press any key to restore.</li>
-            <li>On I²C error: check wiring and press SET to retry. Multiple retries occur before showing an error.</li>
+            <li>The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the exit menu is active, which requires explicit user confirmation.</li>
+            <li>Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.</li>
+            <li>If enabled, the LCD backlight will dim after a preset period in quiescent condition (PLL locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.</li>
+            <li>In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.</li>
         </ul>
 
         <footer>
