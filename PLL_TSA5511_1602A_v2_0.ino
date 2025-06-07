@@ -217,7 +217,7 @@ long targetFreq; // target VCO frequency
 bool freqSetMode = false; // true if frequency set mode is active
 bool pllLock = false; // true if PLL is locked
 bool pllCheckPending = false; // true if new PLL divisor value is pending
-bool keepChargePumpHigh = true; // PLL charge pump state (high/low) in locked state
+bool chargePump = true; // PLL charge pump state (high/low) in locked state
 
 // menu
 bool menuMode = false; // true if menu session is active
@@ -327,7 +327,7 @@ void readNumDecimals() {
 }
 
 void readChargePump() {
-    keepChargePumpHigh = EEPROM.read(EEPROM_CP_ADDR); // no check for invalid stored value required; any non-zero value reads as true
+    chargePump = EEPROM.read(EEPROM_CP_ADDR); // no check for invalid stored value required; any non-zero value reads as true
 }
 
 void readXTALFreq() {
@@ -697,11 +697,11 @@ void handleMenu() {
             switch (menuIndex) {
                 case 0: // PLL charge pump setting
                     handleButtonInput(buttonDownState, buttonDownPressed, 0, [](int8_t) {
-                        keepChargePumpHigh = !keepChargePumpHigh;
+                        chargePump = !chargePump;
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 0, [](int8_t) {
-                        keepChargePumpHigh = !keepChargePumpHigh;
+                        chargePump = !chargePump;
                         display(MENU_INTERFACE);
                     });
                     break;
@@ -750,7 +750,7 @@ void storeNumDecimals() {
 }
 
 void storeChargePump() {
-    EEPROM.update(EEPROM_CP_ADDR, keepChargePumpHigh);
+    EEPROM.update(EEPROM_CP_ADDR, chargePump);
 }
 
 void storeXTALFreq() {
@@ -898,7 +898,7 @@ void checkPLL() {
         display(PLL_LOCK_STATUS);
         if (pllLock) {
             byte data[2]; // partial programming, starting with byte 4 (TSA 5511 datasheet, table 1)
-            data[0] = keepChargePumpHigh ? PLL_CP_HIGH : PLL_CP_LOW; // set charge pump
+            data[0] = chargePump ? PLL_CP_HIGH : PLL_CP_LOW; // set charge pump
             data[1] = PLL_P2_P5_HIGH; // set output ports
             if (attemptI2C(false, PLL_ADDR_WRITE, data, 2)) { // I²C transmission with i2cMaxRetries
                 pllCheckPending = false; // PLL lock state not monitored after lock, as PLL lock flag may flicker due to FM modulation
@@ -1035,7 +1035,7 @@ void display(uint8_t mode) {
                         lcd.setCursor(0, 1);
                         if (menuEditMode) {
                             lcd.print("> ");
-                            lcd.print(backlightDimActive ? "ON " : "OFF");
+                            lcd.print(backlightDimActive ? "on " : "off");
                         } else {
                             lcd.print("SET to edit");
                         }
@@ -1087,7 +1087,7 @@ void display(uint8_t mode) {
                         lcd.setCursor(0, 1);
                         if (menuEditMode) {
                             lcd.print("> ");
-                            lcd.print(keepChargePumpHigh ? "HIGH" : "LOW ");
+                            lcd.print(chargePump ? "high" : "low ");
                         } else {
                             lcd.print("SET to edit");
                         }
