@@ -44,7 +44,7 @@
         <ul>
             <li>The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.</li>
             <li>LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards.</li>
-            <li>Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.</li>
+            <li>Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.</li>
             <li>If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.</li>
         </ul>
 
@@ -53,9 +53,6 @@
             <li>
                 Double-clicking SET opens the main configuration menu, in which system settings can be made as follows:
                 <ul class="submenu">
-                    ...
-                </ul>
-            </li>
                     <li><strong>VCO SUBMENU</strong>
                         <ul class="submenu">
                             <li><strong>VCO FREQ. BAND</strong> – Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM for each VCO frequency band separately.</li>
@@ -81,10 +78,14 @@
                     </li>
                 </ul>
             </li>
-            <li>The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the exit menu is active, which requires explicit user confirmation.</li>
-            <li>Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.</li>
-            <li>If enabled, the LCD backlight will dim after a preset period in quiescent condition (PLL locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.</li>
-            <li>In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.</li>
+            <li>
+                <ul class="submenu">
+                    <li>The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the exit menu is active, which requires explicit user confirmation.</li>
+                    <li>Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.</li>
+                    <li>If enabled, the LCD backlight will dim after a preset period in quiescent condition (PLL locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.</li>
+                    <li>In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.</li>
+                </ul>
+            </li>
         </ul>
 
         <footer>
