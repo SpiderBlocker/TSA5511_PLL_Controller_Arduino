@@ -39,7 +39,7 @@
 
         <h2>Description</h2>
         <p>PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511 based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511. It features an intuitive menu interface for making various system settings as explained in detail below. All configurable settings are stored in EEPROM and automatically recalled upon restart.</p>
-        <br><br>
+
         <h2>Hardware</h2>
         <ul>
             <li>The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.</li>
@@ -78,7 +78,6 @@
             </li>
         </ul>
     </li>
-    <br><br>
     <li>The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the exit menu is active, which requires explicit user confirmation.</li>
     <li>Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.</li>
     <li>If enabled, the LCD backlight will dim after a preset period in quiescent condition (PLL locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.</li>
