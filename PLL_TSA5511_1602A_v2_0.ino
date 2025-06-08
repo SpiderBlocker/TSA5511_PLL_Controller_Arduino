@@ -162,20 +162,25 @@ const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null termi
 char stationName[maxNameLength + 1]; // +1 for null terminator
 
 // timing parameters
-const unsigned long splashDelay = 2500; // duration to show splash screen
-const unsigned long initialPressDelay = 1000; // delay before auto-repeat when holding button
-const unsigned long initialPressInterval = 80; // auto-repeat interval when holding button
-const unsigned long charScrollInterval = 200; // interval between character scroll steps
-const unsigned long animInterval = 350; // animation speed during PLL unlock status
-const unsigned long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
-const unsigned long menuTimeout = 20000; // inactivity timeout in menu navigation mode
-const unsigned long errBlinkRate = 250; // error indicator blink interval
-unsigned long menuUnlockTime = 0; // time after which menu double-click is allowed
-unsigned long menuInactivityTimer = 0; // tracks last interaction time in menu mode
-const uint16_t setClickInterval = 300; // double-click detection threshold
-const uint8_t buttonTimingTolerance = 50; // minimum time window to suppress unwanted button event
-const float pressAccelerationBase = 0.7; // initial auto-repeat acceleration when holding UP/DOWN
-const uint8_t pressAccelerationLimit = 7; // maximum auto-repeat acceleration when holding UP/DOWN
+    // UI delays and timeouts
+    const unsigned long splashDelay = 2500; // duration to show splash screen
+    const unsigned long animInterval = 350; // animation speed during PLL unlock status
+    const unsigned long errBlinkRate = 250; // error indicator blink interval
+    const unsigned long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
+    const unsigned long menuTimeout = 20000; // inactivity timeout in menu navigation mode
+
+    // button input timings and thresholds
+    const unsigned long initialPressDelay = 1000; // delay before auto-repeat when holding button
+    const unsigned long charScrollInterval = 200; // interval between character scroll steps
+    const unsigned long initialPressInterval = 80; // auto-repeat interval when holding button
+    const float pressAccelerationBase = 0.7; // initial auto-repeat acceleration when holding UP/DOWN
+    const float pressTargetSweepSpeed = 500.0; // target scroll speed (Hz per ms) - high speeds may be limited by loop/display latencies
+    const uint16_t setClickInterval = 300; // double-click detection threshold
+    const uint8_t buttonTimingTolerance = 50; // minimum time window to suppress unwanted button event
+
+    // runtime timers
+    unsigned long menuUnlockTime = 0; // time after which menu double-click is allowed
+    unsigned long menuInactivityTimer = 0; // tracks last interaction time in menu mode
 
 // display modes
 enum {
@@ -321,9 +326,7 @@ long readBandFrequency(byte bandIndex) {
 
 void readNumDecimals() {
     uint8_t val = EEPROM.read(EEPROM_DECIMAL_ADDR);
-    if (val <= 3) {
-        numDecimals = val;
-    }
+    if (val <= 3) numDecimals = val;
 }
 
 void readChargePump() {
@@ -341,9 +344,7 @@ void readStationName() {
 
     // check if EEPROM contains valid null terminator
     bool invalid = false;
-    if (EEPROM.read(EEPROM_NAME_ADDR + maxNameLength) != 0x00) {
-        invalid = true;
-    }
+    if (EEPROM.read(EEPROM_NAME_ADDR + maxNameLength) != 0x00) invalid = true;
 
     // check for invalid characters or uninitialized EEPROM content
     for (uint8_t i = 0; i < maxNameLength; i++) {
@@ -466,8 +467,8 @@ void applyFrequencyChange(bool freqChange, long* targetFreq, int8_t direction) {
         // UP/DOWN action
         if (freqSetMode) { *targetFreq += direction * (min(getStepSizeMultiplier() * getPLLRefFreq(), upperFreq - lowerFreq)); } // constrain step size within range
         *targetFreq = (*targetFreq < lowerFreq) ? upperFreq : (*targetFreq > upperFreq) ? lowerFreq : *targetFreq;
-        freqSetMode = true;
         display(SET_FREQUENCY_INTERFACE);
+        freqSetMode = true;
     } else {
         // SET action
         unsigned long currentMillis = millis();
@@ -486,9 +487,7 @@ void handleMenu() {
 
     // skip input until SET is released
     if (ignoreFirstSetInMenu) {
-        if (!buttonSetState) {
-            ignoreFirstSetInMenu = false;
-        }
+        if (!buttonSetState) ignoreFirstSetInMenu = false;
         return;
     }
 
@@ -497,9 +496,7 @@ void handleMenu() {
         if (stationNameEditMode || currentMillis < menuUnlockTime) return;
 
         // detect SET double-click
-        if (buttonSetState && clickStartTime == 0) {
-            clickStartTime = currentMillis;
-        }
+        if (buttonSetState && clickStartTime == 0) clickStartTime = currentMillis;
         if (!buttonSetState && clickStartTime != 0) {
             unsigned long clickDuration = currentMillis - clickStartTime;
             clickStartTime = 0;
@@ -723,35 +720,7 @@ void handleMenu() {
     }
 
     // reset timeout timer on any valid input
-    if (buttonDownState || buttonUpState || buttonSetState) {
-        menuInactivityTimer = currentMillis;
-    }
-}
-
-void storeBandIndex() {
-    EEPROM.put(EEPROM_FREQBAND_ADDR, selectedFreqBandIndex);
-}
-
-void storeBandFrequency(byte bandIndex, long frequency) {
-    if (initialized && bandIndex < numFreqBands) { // avoid unnecessary write operation during startup to protect EEPROM
-        EEPROM.put(EEPROM_BAND_FREQ_BASE_ADDR + bandIndex * sizeof(long), frequency);
-    }
-}
-
-void storeNumDecimals() {
-    EEPROM.update(EEPROM_DECIMAL_ADDR, numDecimals);
-}
-
-void storeChargePump() {
-    EEPROM.update(EEPROM_CP_ADDR, chargePump);
-}
-
-void storeXTALFreq() {
-    EEPROM.update(EEPROM_XTAL_ADDR, xtalFreqIndex);
-}
-
-void storeDimmerStatus() {
-    EEPROM.update(EEPROM_DIM_ADDR, backlightDimActive);
+    if (buttonDownState || buttonUpState || buttonSetState) menuInactivityTimer = currentMillis;
 }
 
 void handleStationNameEdit() {
@@ -761,7 +730,7 @@ void handleStationNameEdit() {
     auto editCharacter = [](int8_t direction) { applyStationNameEdit(true, direction); };
     handleButtonInput(buttonDownState, buttonDownPressed, -1, editCharacter);
     handleButtonInput(buttonUpState, buttonUpPressed, 1, editCharacter);
-    
+
     // confirm selection
     handleButtonInput(buttonSetState, buttonSetPressed, 0, [](int8_t direction) {
         applyStationNameEdit(false, direction);
@@ -796,35 +765,6 @@ void applyStationNameEdit(bool editCharacter, int8_t direction) {
     }
 }
 
-void storeStationName() {
-    // ensure null terminator
-    stationName[maxNameLength] = '\0';
-
-    // validate characters before storing
-    bool valid = true;
-    for (uint8_t i = 0; i < maxNameLength; i++) {
-        char c = stationName[i];
-        if (c < asciiRange[0] || c > asciiRange[1] || c == 0xFF) {
-            valid = false;
-            break;
-        }
-    }
-
-    // fall back to default name if invalid
-    if (!valid) {
-        strncpy(stationName, defaultName, maxNameLength); // copy default station name
-        memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // pad with spaces
-        stationName[maxNameLength] = '\0';
-    }
-    char storedStationName[maxNameLength + 1]; // +1 for null terminator
-    EEPROM.get(EEPROM_NAME_ADDR, storedStationName);
-
-    // avoid unnecessary write operations to protect EEPROM
-    if (strncmp(stationName, storedStationName, maxNameLength + 1) != 0) {
-        EEPROM.put(EEPROM_NAME_ADDR, stationName);
-    }
-}
-
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
     static unsigned long pressStartTime = 0, lastPressTime = 0;
     static unsigned long lastCharEditTime = 0; // for station name editor scroll speed
@@ -841,20 +781,16 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, 
             buttonPressed = true;
             action(direction);
         } else {
-            if (totalPressTime >= initialPressDelay && freqSetMode) {
-                // gradual acceleration in frequency SET mode
-                long postDelayTime = totalPressTime - initialPressDelay;
-                fastPressInterval = max(
-                    initialPressInterval / (pressAccelerationBase + (postDelayTime / initialPressDelay)),
-                    initialPressInterval / pressAccelerationLimit
-                );
+            // adaptive gradual acceleration in frequency SET mode
+            if (freqSetMode && totalPressTime >= initialPressDelay) {
+                fastPressInterval =
+                    (getStepSizeMultiplier() * getPLLRefFreq() / pressTargetSweepSpeed) /
+                    (pressAccelerationBase + ((totalPressTime - initialPressDelay) / initialPressDelay));
             }
-
             // auto-repeat action after initialPressDelay
             if (totalPressTime >= initialPressDelay &&
                 currentMillis - lastPressTime >= fastPressInterval &&
                 (!menuMode || stationNameEditMode)) {
-
                 // fixed scroll speed in station name editor
                 if (!stationNameEditMode || currentMillis - lastCharEditTime >= charScrollInterval) {
                     lastPressTime = currentMillis;
@@ -884,11 +820,11 @@ void configurePLL() {
 }
 
 void checkPLL() {
-    if (!pllCheckPending || menuMode) return;
+    if (!pllCheckPending) return;
     byte readByte;
     if (attemptI2C(true, PLL_ADDR_READ, &readByte, 1)) {
         pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
-        display(PLL_LOCK_STATUS);
+        if (!menuMode) display(PLL_LOCK_STATUS);
         if (pllLock) {
             byte data[2]; // partial programming, starting with byte 4 (TSA 5511 datasheet, table 1)
             data[0] = chargePump ? PLL_CP_HIGH : PLL_CP_LOW; // set charge pump
@@ -903,8 +839,63 @@ void checkPLL() {
     }
 }
 
+void storeBandIndex() {
+    EEPROM.update(EEPROM_FREQBAND_ADDR, selectedFreqBandIndex);
+}
+
+void storeBandFrequency(byte bandIndex, long frequency) {
+    if (initialized && bandIndex < numFreqBands && frequency != currentFreq) { // avoid unnecessary EEPROM writes
+        EEPROM.put(EEPROM_BAND_FREQ_BASE_ADDR + bandIndex * sizeof(long), frequency);
+    }
+}
+
+void storeNumDecimals() {
+    EEPROM.update(EEPROM_DECIMAL_ADDR, numDecimals);
+}
+
+void storeChargePump() {
+    EEPROM.update(EEPROM_CP_ADDR, chargePump);
+}
+
+void storeXTALFreq() {
+    EEPROM.update(EEPROM_XTAL_ADDR, xtalFreqIndex);
+}
+
+void storeStationName() {
+    // ensure null terminator
+    stationName[maxNameLength] = '\0';
+
+    // validate characters before storing
+    bool valid = true;
+    for (uint8_t i = 0; i < maxNameLength; i++) {
+        char c = stationName[i];
+        if (c < asciiRange[0] || c > asciiRange[1] || c == 0xFF) {
+            valid = false;
+            break;
+        }
+    }
+
+    // fall back to default name if invalid
+    if (!valid) {
+        strncpy(stationName, defaultName, maxNameLength); // copy default station name
+        memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // pad with spaces
+        stationName[maxNameLength] = '\0';
+    }
+    char storedStationName[maxNameLength + 1]; // +1 for null terminator
+    EEPROM.get(EEPROM_NAME_ADDR, storedStationName);
+
+    // avoid unnecessary write operations to protect EEPROM
+    if (strncmp(stationName, storedStationName, maxNameLength + 1) != 0) {
+        EEPROM.put(EEPROM_NAME_ADDR, stationName);
+    }
+}
+
+void storeDimmerStatus() {
+    EEPROM.update(EEPROM_DIM_ADDR, backlightDimActive);
+}
+
 void checkI2C() {
-    if (menuMode) { return; } // no interference allowed with menu session
+    if (menuMode) return; // no interference allowed with menu session
     static unsigned long lastI2cCheckTime = 0;
     unsigned long currentMillis = millis();
 
@@ -987,8 +978,10 @@ void display(uint8_t mode) {
             break;
 
         case SET_FREQUENCY_INTERFACE:
-            lcd.setCursor(0, 1);
-            lcd.print("SET ");
+            if (!freqSetMode) { // avoid time-consuming repeated LCD instructions during auto-repeat VCO frequency change
+                lcd.setCursor(0, 1);
+                lcd.print("SET ");
+            }
             printFreq(1);
             break;
 
@@ -1129,7 +1122,7 @@ void display(uint8_t mode) {
                     lcd.setCursor(charPos, 0);
                     lcd.print(movingRight ? ">>" : "<<");
                     charPos += movingRight ? 1 : -1;
-                    if (charPos == 3 || charPos == 0) { movingRight = !movingRight; }
+                    if (charPos == 3 || charPos == 0) movingRight = !movingRight;
                 }
             }
             break;
