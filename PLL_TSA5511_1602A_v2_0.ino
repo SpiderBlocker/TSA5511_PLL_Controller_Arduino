@@ -136,7 +136,7 @@ const float freqBands[][2] = {
 };
 const byte defaultFreqBandIndex = 2; // default VCO frequency band
 const byte numFreqBands = sizeof(freqBands) / sizeof(freqBands[0]); // total number of selectable VCO frequency bands
-byte selectedFreqBandIndex; // currently selected VCO frequency band index
+byte freqBandIndex; // currently selected VCO frequency band index
 
 // VCO frequency step size multiplier determination (auto-adjusted for visibility, based on XTAL and display precision)
 uint8_t numDecimals = 2; // VCO frequency decimal precision [0, 3]
@@ -152,8 +152,6 @@ unsigned long validateFreq(float frequency, bool alignToStepSize = false) {
     unsigned long step = getPLLRefFreq() * (alignToStepSize ? getStepSizeMultiplier() : 1); // select step size (base PLL step size or visible step size)
     return round(frequency / step) * step; // round to nearest valid VCO frequency step size
 }
-unsigned long lowerFreq = 0;
-unsigned long upperFreq = 0;
 
 // station name settings
 const uint8_t maxNameLength = 16; // maximum station name length
@@ -216,6 +214,8 @@ bool backlightDimActive = false; // true if dimmer function is enabled
 bool backlightOff = false; // true if backlight is off
 
 // frequency control
+unsigned long lowerFreq = 0; // lower VCO frequency band edge
+unsigned long upperFreq = 0; // upper VCO frequency band edge
 long currentFreq; // operational VCO frequency
 long targetFreq; // target VCO frequency
 bool freqSetMode = false; // true if frequency set mode is active
@@ -270,7 +270,7 @@ void initialize() {
     analogWrite(lcdBacklight, maxBrightness);
     display(SPLASH_SCREEN);
     delay(splashDelay);
-    readBandIndex();
+    readLastFrequencyBand();
     readNumDecimals();
     readChargePump();
     readXTALFreq();
@@ -298,15 +298,15 @@ void readButtons() {
     }
 }
 
-// read selected VCO frequency band index from EEPROM and apply new range
-void readBandIndex() {
-    EEPROM.get(EEPROM_FREQBAND_ADDR, selectedFreqBandIndex);
-    if (selectedFreqBandIndex >= numFreqBands) selectedFreqBandIndex = defaultFreqBandIndex; // fallback to default band index
-    lowerFreq = validateFreq(freqBands[selectedFreqBandIndex][0], true);
-    upperFreq = validateFreq(freqBands[selectedFreqBandIndex][1], true);
+// read selected VCO frequency band from EEPROM and apply new range
+void readLastFrequencyBand() {
+    EEPROM.get(EEPROM_FREQBAND_ADDR, freqBandIndex);
+    if (freqBandIndex >= numFreqBands) freqBandIndex = defaultFreqBandIndex; // fallback to default band index
+    lowerFreq = validateFreq(freqBands[freqBandIndex][0], true);
+    upperFreq = validateFreq(freqBands[freqBandIndex][1], true);
 
-    // load last-used frequency for this band if valid
-    long storedFreq = readBandFrequency(selectedFreqBandIndex);
+    // load last-used frequency for this band if valid, else default to lower band edge
+    long storedFreq = readLastBandFrequency(freqBandIndex);
     if (storedFreq >= lowerFreq && storedFreq <= upperFreq) {
         targetFreq = validateFreq(storedFreq, true);
     } else {
@@ -314,8 +314,8 @@ void readBandIndex() {
     }
 }
 
-// read last-used VCO frequency for specific band index
-long readBandFrequency(byte bandIndex) {
+// read last-used VCO frequency for selected band index
+long readLastBandFrequency(byte bandIndex) {
     if (bandIndex < numFreqBands) {
         long freq;
         EEPROM.get(EEPROM_BAND_FREQ_BASE_ADDR + bandIndex * sizeof(long), freq);
@@ -410,7 +410,6 @@ void handleBacklightControl() {
         if (backlightOff) {
             backlightOff = false;
             display(LCD_HIBERNATE);
-
             // determine which button triggered the wake-up
             uint8_t btn = buttonDownState ? downButton : buttonUpState ? upButton : setButton;
             while (!digitalRead(btn)); // wait for release
@@ -501,8 +500,9 @@ void handleMenu() {
             unsigned long clickDuration = currentMillis - clickStartTime;
             clickStartTime = 0;
             if (clickDuration < setClickInterval) {
-                bool validDoubleClick = currentMillis - lastShortClickTime < setClickInterval &&
-                                        currentMillis - lastShortClickTime >= buttonTimingTolerance;
+                bool validDoubleClick =
+                    currentMillis - lastShortClickTime < setClickInterval &&
+                    currentMillis - lastShortClickTime >= buttonTimingTolerance;
                 lastShortClickTime = currentMillis;
                 if (validDoubleClick) { // valid double-click detected: enter main menu
                     menuMode = true;
@@ -569,9 +569,9 @@ void handleMenu() {
                 storeDimmerStatus();
                 storeChargePump();
                 storeXTALFreq();
-                lowerFreq = validateFreq(freqBands[selectedFreqBandIndex][0], true);
-                upperFreq = validateFreq(freqBands[selectedFreqBandIndex][1], true);
-                long storedFreq = readBandFrequency(selectedFreqBandIndex);
+                lowerFreq = validateFreq(freqBands[freqBandIndex][0], true);
+                upperFreq = validateFreq(freqBands[freqBandIndex][1], true);
+                long storedFreq = readLastBandFrequency(freqBandIndex);
                 targetFreq = (storedFreq >= lowerFreq && storedFreq <= upperFreq) ? validateFreq(storedFreq, true) : lowerFreq;
                 configurePLL(); // apply updated charge pump and XTAL setting
                 menuExitConfirmMode = false;
@@ -581,7 +581,7 @@ void handleMenu() {
                 display(PLL_LOCK_STATUS);
             } else if (menuIndex == 1) { // discard changes
                 readNumDecimals();
-                readBandIndex(); // restore original band setting
+                readLastFrequencyBand(); // restore original band setting
                 readDimmerStatus();
                 readChargePump();
                 readXTALFreq();
@@ -649,7 +649,7 @@ void handleMenu() {
             }
         });
     } else {
-        // edit mode: adjust setting
+        // menu edit mode: adjust settings
         if (menuLevel == 0 && menuIndex == 3) {
             // backlight dimmer toggle
             handleButtonInput(buttonDownState, buttonDownPressed, 0, [](int8_t) {
@@ -665,11 +665,11 @@ void handleMenu() {
             switch (menuIndex) {
                 case 0: // VCO frequency band selection
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
-                        if (selectedFreqBandIndex > 0) selectedFreqBandIndex--;
+                        if (freqBandIndex > 0) freqBandIndex--;
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 1, [](int8_t) {
-                        if (selectedFreqBandIndex < numFreqBands - 1) selectedFreqBandIndex++;
+                        if (freqBandIndex < numFreqBands - 1) freqBandIndex++;
                         display(MENU_INTERFACE);
                     });
                     break;
@@ -707,7 +707,6 @@ void handleMenu() {
                         numDecimals = 2; // enforce 2 decimals when switching to 3.2 MHz
                         display(MENU_INTERFACE);
                     });
-
                     break;
             }
         }
@@ -751,9 +750,9 @@ void applyStationNameEdit(bool editCharacter, int8_t direction) {
             editPosition = 0; // reset edit position after confirmation
             menuEditMode = false; // reset edit flag after editor exit
             menuExitConfirmMode = false; // reset exit submenu state
-            stationNameBuffer[maxNameLength] = '\0'; // ensure null terminator
+            stationNameBuffer[maxNameLength] = '\0'; // ensure null terminator in edit buffer
             strncpy(stationName, stationNameBuffer, maxNameLength); // update working copy for menu re-entry
-            stationName[maxNameLength] = '\0';
+            stationName[maxNameLength] = '\0'; // ensure null terminator in working copy
             menuInactivityTimer = currentMillis; // reset menu timeout
             display(MENU_INTERFACE); // show menu again
             menuUnlockTime = currentMillis + setClickInterval; // block menu entry immediately after exit
@@ -767,7 +766,7 @@ void applyStationNameEdit(bool editCharacter, int8_t direction) {
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
     static unsigned long pressStartTime = 0, lastPressTime = 0;
-    static unsigned long lastCharEditTime = 0; // for station name editor scroll speed
+    static unsigned long lastCharEditTime = 0;
     unsigned long currentMillis = millis();
     unsigned long totalPressTime = currentMillis - pressStartTime;
     unsigned long fastPressInterval = initialPressInterval;
@@ -813,7 +812,7 @@ void configurePLL() {
     data[2] = PLL_CP_HIGH; // set charge pump
     data[3] = PLL_ALL_LOW; // set output ports
     if (attemptI2C(false, PLL_ADDR_WRITE, data, 4)) { // I²C transmission with i2cMaxRetries
-        storeBandFrequency(selectedFreqBandIndex, targetFreq);
+        storeBandFrequency(freqBandIndex, targetFreq);
         currentFreq = targetFreq;
         pllCheckPending = true;
     }
@@ -840,7 +839,7 @@ void checkPLL() {
 }
 
 void storeBandIndex() {
-    EEPROM.update(EEPROM_FREQBAND_ADDR, selectedFreqBandIndex);
+    EEPROM.update(EEPROM_FREQBAND_ADDR, freqBandIndex);
 }
 
 void storeBandFrequency(byte bandIndex, long frequency) {
@@ -1038,8 +1037,8 @@ void display(uint8_t mode) {
                         lcd.print("VCO FREQ. BAND");
                         lcd.setCursor(0, 1);
                         if (menuEditMode) {
-                            long low = validateFreq(freqBands[selectedFreqBandIndex][0], true);
-                            long high = validateFreq(freqBands[selectedFreqBandIndex][1], true);
+                            long low = validateFreq(freqBands[freqBandIndex][0], true);
+                            long high = validateFreq(freqBands[freqBandIndex][1], true);
                             lcd.print("> ");
                             lcd.print(low / 1000000);
                             lcd.print("-");
