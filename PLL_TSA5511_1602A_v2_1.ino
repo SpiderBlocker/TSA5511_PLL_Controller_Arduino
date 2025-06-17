@@ -13,8 +13,8 @@ HARDWARE
     pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards.
   • Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication,
     like 1 or 2 kΩ.
-  • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the
-    TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
+  • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause
+    a few ppm XTAL frequency deviation.
 
 USAGE
   • Double-clicking SET opens the main configuration menu, in which system settings can be made as follows:
@@ -24,7 +24,7 @@ USAGE
                           • FREQ. PRECISION > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
                                               a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
-                                              PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz at 3.2 MHz), the actual frequency precision will default to the
+                                              PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the
                                               highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can
                                               be changed to a lower value if so desired. Refer to additional explanation below at PLL SUBMENU > XTAL FREQ.
                           • EXIT SUBMENU    > Returns to the main menu.
@@ -66,17 +66,19 @@ USAGE
     before alerting an error.
 */
 
-// === SYSTEM CONSTANTS ===
-// version & metadata
-#define description "PLL Control"
-#define version "V2.1"
-#define credits "(C)2025 Loenie"
-
-// libraries
+// === LIBRARIES ===
 #include <avr/wdt.h>
 #include <EEPROM.h>
 #include <Wire.h>
 #include <LiquidCrystal.h>
+
+
+// === SYSTEM CONSTANTS ===
+
+// version & metadata
+#define description "PLL Control"
+#define version "V2.1"
+#define credits "(C)2025 Loenie"
 
 // buttons pin mapping
 const uint8_t downButton = 2; // DOWN button to ground
@@ -118,19 +120,16 @@ const uint8_t i2cRetryDelay = 50; // delay between I²C retries
 
 // PLL settings
 const byte pllAddresses[] = { 0x60, 0x61, 0x62, 0x63 }; // depends on TSA5511 P3 configuration; refer to TSA511 datasheet table 4 (0x61 is always valid)
-uint8_t pllAddrIndex = 1; // default index = 0x61
-uint8_t tempPllAddrIndex = pllAddrIndex; // temporary index used for I²C address selection in menu edit mode
 const unsigned long xtalOptions[] = {1600000, 3200000}; // 0 = 1.6 MHz, 1 = 3.2 MHz
-uint8_t xtalFreqIndex = 1; // default index = 3.2 MHz
 const byte PLL_CP_LOW = 0x8E; // charge pump low
 const byte PLL_CP_HIGH = 0xCE; // charge pump high
 const byte PLL_ALL_LOW = 0x00; // all output ports (P0-P7) low
 const byte PLL_P2_HIGH = 0x04; // P2 high
 const byte PLL_P5_HIGH = 0x20; // P5 high
 const byte PLL_P2_P5_HIGH = 0x24; // P2/P5 high
+const uint8_t defaultOutputPorts = 3; // default: P2/P5 high
 const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
 const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
-unsigned long getPLLRefFreq() { return (xtalOptions[xtalFreqIndex] / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; } // reference frequency (Hz), also equals the minimum VCO frequency and step size
 const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits (MSB of high byte must remain zero)
 const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
@@ -142,33 +141,16 @@ const float freqBands[][2] = {
     {174000000, 240000000}, // DAB/DVB-T - ITU R1/R2/R3
     {144000000, 148000000}, // 2 m amateur band - ITU R1/R2/R3
     {420000000, 450000000}, // 70 cm amateur band - ITU R1/R2/R3
-    {470000000, 862000000}, // UHF band - ITU R1/R2/R3 (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz accordingly)
-    {64000000, 1300000000} // full range as per TSA5511 specification (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz accordingly)
+    {470000000, 862000000}, // UHF band - ITU R1/R2/R3 (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
+    {64000000, 1300000000} // full range as per TSA5511 specification (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
 };
 const byte defaultFreqBandIndex = 2; // default VCO frequency band
 const byte numFreqBands = sizeof(freqBands) / sizeof(freqBands[0]); // total number of selectable VCO frequency bands
-byte freqBandIndex; // currently selected VCO frequency band index
-
-// VCO frequency step size multiplier determination (auto-adjusted for visibility on LCD display, based on XTAL frequency and display precision)
-uint8_t numDecimals = 2; // VCO frequency decimal precision [0, 3]
-uint8_t getStepSizeMultiplier() {
-    float baseStepSizeMHz = (float)getPLLRefFreq() / 1e6; // base PLL step size in MHz
-    float displayStepSize = pow(10, -constrain(numDecimals, 0, 3)); // minimum step visible at selected VCO frequency decimal precision
-    return (uint8_t)ceil(displayStepSize / baseStepSizeMHz); // multiplier to ensure that display precision is met
-}
-
-// VCO frequency validation
-unsigned long validateFreq(float frequency, bool alignToStepSize = false) {
-    frequency = constrain(frequency, getPLLRefFreq(), (unsigned long)PLL_DIVISOR_LIMIT * getPLLRefFreq()); // constrain VCO frequency within valid PLL divisor range
-    unsigned long step = getPLLRefFreq() * (alignToStepSize ? getStepSizeMultiplier() : 1); // select step size (base PLL step size or visible step size)
-    return round(frequency / step) * step; // round to nearest valid VCO frequency step size
-}
 
 // station name settings
 const uint8_t maxNameLength = 16; // maximum station name length
 const uint8_t asciiRange[2] = {32, 127}; // allowed ASCII character range
 const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null terminator
-char stationName[maxNameLength + 1]; // +1 for null terminator
 
 // timing parameters
     // UI delays and timeouts
@@ -191,7 +173,8 @@ char stationName[maxNameLength + 1]; // +1 for null terminator
 // menu
 const uint8_t menuLength[] = {5, 3, 5}; // number of selectable menu items per level: 0 = main, 1 = VCO SETTINGS, 2 = PLL SETTINGS
 
-// display modes
+
+// === DISPLAY MODES ===
 enum {
     SPLASH_SCREEN,
     MAIN_INTERFACE,
@@ -203,14 +186,24 @@ enum {
     I2C_ERROR
 };
 
+
 // === RUNTIME STATE VARIABLES ===
+
 // initialization
 bool initialized = false; // true if initialization is completed
 
 // I²C
+uint8_t pllAddrIndex = 1; // default index = 0x61
+uint8_t tempPllAddrIndex = pllAddrIndex; // temporary index used for I²C address selection in menu edit mode
 byte PLL_ADDR = pllAddresses[pllAddrIndex]; // 7-bit I²C address (TSA5511 datasheet mislabels 8-bit values as 7-bit)
 bool i2cFallbackActive = false; // true if SET is pressed during startup (I²C address safe fallback)
-uint8_t pllOutputPorts = 3; // 0 = all output ports low, 1 = P2 high, 2 = P5 high, 3 = P2/P5 high (default)
+
+// PLL settings
+uint8_t xtalFreqIndex = 1; // default index = 3.2 MHz
+uint8_t pllOutputPorts = defaultOutputPorts; // 0 = all output ports low, 1 = P2 high, 2 = P5 high, 3 = P2/P5 high (default)
+bool chargePump = true; // PLL charge pump state (high/low) in locked state
+bool pllLock = false; // true if PLL is locked
+bool pllCheckPending = false; // true if new PLL divisor value is pending
 
 // buttons
 bool buttonDownState = false; // momentary state of DOWN button
@@ -221,23 +214,23 @@ bool buttonSetPressed = false; // static state of SET button
 bool buttonUpPressed = false; // static state of UP button
 
 // station name editor
+char stationName[maxNameLength + 1]; // current station name (null-terminated)
+char stationNameBuffer[maxNameLength + 1]; // buffer used during editing (null-terminated)
 bool stationNameEditMode = false; // true if station name editor is active
 uint8_t editPosition = 0; // actual cursor position in station name editor
-char stationNameBuffer[maxNameLength + 1]; // buffer used during editing
 
 // LCD backlight control
 bool backlightDimActive = false; // true if dimmer function is enabled
 bool backlightOff = false; // true if backlight is off
 
 // frequency control
+byte freqBandIndex; // currently selected VCO frequency band index
 unsigned long lowerFreq = 0; // lower VCO frequency band edge
 unsigned long upperFreq = 0; // upper VCO frequency band edge
 long currentFreq; // operational VCO frequency
 long targetFreq; // target VCO frequency
+uint8_t numDecimals = 2; // VCO frequency decimal precision (default: 2 decimals)
 bool freqSetMode = false; // true if frequency set mode is active
-bool pllLock = false; // true if PLL is locked
-bool pllCheckPending = false; // true if new PLL divisor value is pending
-bool chargePump = true; // PLL charge pump state (high/low) in locked state
 
 // menu
 unsigned long menuUnlockTime = 0; // time after which menu double-click is allowed
@@ -250,7 +243,28 @@ uint8_t menuIndex = 0; // 0=decimals, 1=dimmer, 2=save/exit
 uint8_t menuLevel = 0; // 0 = main menu, 1 = VCO submenu, 2 = PLL submenu
 
 
+// === FREQUENCY UTILITIES ===
+
+// PLL reference frequency in Hz (equals minimum VCO frequency and step size)
+unsigned long getPLLRefFreq() { return (xtalOptions[xtalFreqIndex] / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; }
+
+// Determine step size multiplier for current display precision and XTAL setting
+uint8_t getStepSizeMultiplier() {
+    float baseStepSizeMHz = (float)getPLLRefFreq() / 1e6; // base PLL step size in MHz
+    float displayStepSize = pow(10, -constrain(numDecimals, 0, 3)); // minimum step visible at selected VCO frequency decimal precision
+    return (uint8_t)ceil(displayStepSize / baseStepSizeMHz); // multiplier to ensure that display precision is met
+}
+
+// VCO frequency validation
+unsigned long validateFreq(float frequency, bool alignToStepSize = false) {
+    frequency = constrain(frequency, getPLLRefFreq(), (unsigned long)PLL_DIVISOR_LIMIT * getPLLRefFreq()); // constrain VCO frequency within valid PLL divisor range
+    unsigned long step = getPLLRefFreq() * (alignToStepSize ? getStepSizeMultiplier() : 1); // select step size (base PLL step size or visible step size)
+    return round(frequency / step) * step; // round to nearest valid VCO frequency step size
+}
+
+
 // === MAIN PROGRAM LOGIC ===
+
 void setup() {
     wdt_disable(); // disable watchdog to prevent reset loop
     setupHardware();
@@ -359,7 +373,7 @@ void readI2CAddress() {
 
 void readXTALFreq() {
     uint8_t val = EEPROM.read(EEPROM_XTAL_ADDR);
-    xtalFreqIndex = (val <= 1) ? val : 1; // default index 1
+    xtalFreqIndex = (val <= 1) ? val : 1;
 }
 
 void readChargePump() {
@@ -435,6 +449,7 @@ void handleBacklightControl() {
         backlightControlActive = true;
         dimmerTimer = currentMillis;
     }
+
     // turn off backlight by pressing and holding SET
     if (buttonSetState) {
         if (buttonHoldStartTime == 0) {
