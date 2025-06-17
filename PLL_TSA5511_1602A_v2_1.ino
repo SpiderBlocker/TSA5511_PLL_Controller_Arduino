@@ -35,7 +35,7 @@ USAGE
                                               Upon confirming a new I²C address, communication is automatically verified. If verification fails, the last known working
                                               I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is stored and can't be
                                               reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61). 
-                          • CHARGE PUMP     > This sets the PLL charge current in locked state (high or low, resp. 220 µA or 50 µA). It should set to high for the
+                          • CHARGE PUMP     > This sets the PLL charge current in locked state (high or low, resp. 220 µA or 50 µA). It should be set to high for the
                                               DRFS06 exciter. For other platforms, set to low if required.
                           • XTAL FREQ.      > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                               theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper
@@ -137,7 +137,6 @@ const float freqBands[][2] = {
     {65700000, 74000000}, // OIRT FM broadcast
     {76000000, 95000000}, // FM broadcast - Japan
     {87000000, 108000000}, // FM broadcast - ITU R1/R2/R3
-    {174000000, 240000000}, // DAB/DVB-T - ITU R1/R2/R3
     {144000000, 148000000}, // 2 m amateur band - ITU R1/R2/R3
     {420000000, 450000000}, // 70 cm amateur band - ITU R1/R2/R3
     {470000000, 862000000}, // UHF band - ITU R1/R2/R3 (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
