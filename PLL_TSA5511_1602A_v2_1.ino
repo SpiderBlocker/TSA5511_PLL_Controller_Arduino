@@ -21,7 +21,7 @@ USAGE
   
     ■ VCO SUBMENU      => • FREQUENCY BAND  > Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM
                                               for each VCO frequency band separately.
-                          • FREQ. PRECISION > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
+                          • RESOLUTION      > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
                                               a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
                                               PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the
@@ -37,7 +37,7 @@ USAGE
                                               reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61). 
                           • CHARGE PUMP     > This sets the PLL charge current in locked state (high or low, resp. 220 µA or 50 µA). It should be set to high for the
                                               DRFS06 exciter. For other platforms, set to low if required.
-                          • XTAL FREQ.      > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
+                          • XTAL FREQUENCY  > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                               theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper
                                               VCO frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
                                               adjusted accordingly.
@@ -50,13 +50,13 @@ USAGE
     ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and confirm each
                           character with SET. Auto-scroll is available when holding DOWN/UP or SET.
 
-    ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (ON or OFF).
+    ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (on or off).
 
     ■ EXIT MENU        => • save changes    > Stores any changes to EEPROM and returns to the main interface.
                           • discard         > Discards any changes and returns to the main interface.
                           • cancel          > Returns to the first index of the main menu.
 
-    The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the
+  • The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the
     exit menu is active, which requires explicit user confirmation.
   • Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.
     Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.
@@ -1140,7 +1140,7 @@ void display(uint8_t mode) {
                         }
                         break;
                     case 1:
-                        lcd.print("FREQ. PRECISION");
+                        lcd.print("RESOLUTION");
                         lcd.setCursor(0, 1);
                         if (menuEditMode) {
                             lcd.print("> ");
@@ -1169,7 +1169,7 @@ void display(uint8_t mode) {
                         }
                         break;
                     case 1:
-                        lcd.print("XTAL FREQ.");
+                        lcd.print("XTAL FREQUENCY");
                         lcd.setCursor(0, 1);
                         if (menuEditMode) {
                             lcd.print("> ");
