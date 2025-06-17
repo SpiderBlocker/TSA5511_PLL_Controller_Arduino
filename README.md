@@ -16,7 +16,7 @@ It features an intuitive menu interface for making various system settings as ex
 
     ■ VCO SUBMENU      => • FREQUENCY BAND  > Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM
                                               for each VCO frequency band separately.
-                          • RESOLUTION      > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
+                          • PRECISION       > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
                                               a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
                                               PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the
