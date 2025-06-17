@@ -74,7 +74,6 @@ USAGE
 
 
 // === SYSTEM CONSTANTS ===
-
 // version & metadata
 #define description "PLL Control"
 #define version "V2.1"
@@ -188,7 +187,6 @@ enum {
 
 
 // === RUNTIME STATE VARIABLES ===
-
 // initialization
 bool initialized = false; // true if initialization is completed
 
@@ -244,7 +242,6 @@ uint8_t menuLevel = 0; // 0 = main menu, 1 = VCO submenu, 2 = PLL submenu
 
 
 // === FREQUENCY UTILITIES ===
-
 // PLL reference frequency in Hz (equals minimum VCO frequency and step size)
 unsigned long getPLLRefFreq() { return (xtalOptions[xtalFreqIndex] / PLL_XTAL_DIVISOR) * PLL_PRESCALER_DIVISOR; }
 
@@ -264,7 +261,6 @@ unsigned long validateFreq(float frequency, bool alignToStepSize = false) {
 
 
 // === MAIN PROGRAM LOGIC ===
-
 void setup() {
     wdt_disable(); // disable watchdog to prevent reset loop
     setupHardware();
