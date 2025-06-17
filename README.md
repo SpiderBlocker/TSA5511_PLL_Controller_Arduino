@@ -8,7 +8,7 @@ It features an intuitive menu interface for making various system settings as ex
 - The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
 - LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards.
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.
-- If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as it has been proven that slight voltage fluctuations on the TSA5511 supply rail will cause a few ppm XTAL frequency deviation accordingly.
+- If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation.
 
 # Usage
 - Double-clicking SET opens the main configuration menu, in which system settings can be made as follows:
@@ -19,7 +19,7 @@ It features an intuitive menu interface for making various system settings as ex
                           • FREQ. PRECISION > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to
                                               a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
-                                              PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz at 3.2 MHz), the actual frequency precision will default to the
+                                              PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the
                                               highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can
                                               be changed to a lower value if so desired. Refer to additional explanation below at PLL SUBMENU > PLL XTAL FREQ.
                           • EXIT SUBMENU    > Returns to the main menu.
@@ -30,8 +30,8 @@ It features an intuitive menu interface for making various system settings as ex
                                               Upon confirming a new I²C address, communication is automatically verified. If verification fails, the last known working
                                               I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is stored and can't be
                                               reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61). 
-                          • CHARGE PUMP     > This sets the PLL charge current in locked state (high or low, resp. 220 µA or 50 µA). It should set to HIGH for the
-                                              DRFS06 exciter. For other platforms, set to LOW if required.
+                          • CHARGE PUMP     > This sets the PLL charge current in locked state (high or low, resp. 220 µA or 50 µA). It should set to high for the
+                                              DRFS06 exciter. For other platforms, set to low if required.
                           • XTAL FREQ.      > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                               theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper
                                               VCO frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
