@@ -21,7 +21,7 @@ It features an intuitive menu interface for making various system settings as ex
                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
                                               PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz at 3.2 MHz), the actual frequency precision will default to the
                                               highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can
-                                              be changed to a lower value if so desired. Refer to additional explanation at PLL SUBMENU > PLL XTAL FREQ below.
+                                              be changed to a lower value if so desired. Refer to additional explanation below at PLL SUBMENU > PLL XTAL FREQ.
                           • EXIT SUBMENU    > Returns to the main menu.
 
     ■ PLL SUBMENU      => • I2C ADDRESS     > This allows selecting the appropriate I²C address based on the actual hardware configuration of the TSA5511.
@@ -29,20 +29,20 @@ It features an intuitive menu interface for making various system settings as ex
                                               regardless of the hardware configuration. By default the I²C address is set to 0x61.
                                               Upon confirming a new I²C address, communication is automatically verified. If verification fails, the last known working
                                               I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is stored and can't be
-                                              reconfigured through the menu, restart the system while holding SET to restore the fail-safe I²C address (0x61). 
-                          • CHARGE PUMP     > This toggles the PLL charge current in locked state (HIGH or LOW, resp. 220 µA or 50 µA). It should set to HIGH for the
+                                              reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61). 
+                          • CHARGE PUMP     > This sets the PLL charge current in locked state (high or low, resp. 220 µA or 50 µA). It should set to HIGH for the
                                               DRFS06 exciter. For other platforms, set to LOW if required.
                           • XTAL FREQ.      > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                               theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper
-                                              VCO frequency will be 819.175 MHz, in which case any upper band limit exceeding the maximum feasible value will be
-                                              automatically adjusted accordingly.
-                                              Note that compatibility of the TSA5511 with a 1.6 MHz crystal is not officially supported; however, it has been
+                                              VCO frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
+                                              adjusted accordingly.
+                                              Note that compatibility of the TSA5511 with a 1.6 MHz crystal frequency is not officially supported; however, it has been
                                               empirically confirmed to work.
-                          • OUTPUT PORTS    > This setting controls the state of the output ports P2 and P5 in locked state. These ports can be used to toggle the
+                          • OUTPUT PORTS    > This setting controls the state of the output ports P2 and P5 in locked state. These ports can be used to control the
                                               RF output and an external lock indicator respectively. By default P2/P5 are set to high during locked state.
                           • EXIT SUBMENMU   > Returns to the main menu.
 
-    ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (PLL locked). Select characters using UP/DOWN and confirm each
+    ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and confirm each
                           character with SET. Auto-scroll is available when holding DOWN/UP or SET.
 
     ■ BACKLIGHT DIMMER => This toggles the automatic LCD backlight dimmer function (ON or OFF).
@@ -53,7 +53,7 @@ It features an intuitive menu interface for making various system settings as ex
 
 ```
 
-- The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen unchanged — except when the exit menu is active, which requires explicit user confirmation.
+- The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the exit menu is active, which requires explicit user confirmation.
 - Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.
-- If enabled, the LCD backlight will dim after a preset period in quiescent condition (PLL locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
+- If enabled, the LCD backlight will dim after a preset period in quiescent condition (locked state). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
