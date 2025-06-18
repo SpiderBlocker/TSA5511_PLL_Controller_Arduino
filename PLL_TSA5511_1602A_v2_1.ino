@@ -45,7 +45,7 @@ USAGE
                                               empirically confirmed to work.
                           • OUTPUT PORTS    > This setting controls the state of the output ports P2 and P5 in locked state. These ports can be used to control the
                                               RF output and an external lock indicator respectively. By default P2/P5 are set to high during locked state.
-                          • EXIT SUBMENMU   > Returns to the main menu.
+                          • EXIT SUBMENU    > Returns to the main menu.
 
     ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and confirm each
                           character with SET. Auto-scroll is available when holding DOWN/UP or SET.
@@ -89,7 +89,7 @@ const uint8_t lockIndicator = 5; // lock indicator LED anode
 const uint8_t errIndicator = 5; // error indicator LED anode
 
 // LCD display pin mapping
-const uint8_t lcdBacklight = 6; // LCD backlight anode
+const uint8_t lcdBacklight = 6; // LCD backlight LED anode
 LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
 
 // LCD brightness and dimmer settings
@@ -119,7 +119,7 @@ const uint8_t i2cRetryDelay = 50; // delay between I²C retries
 
 // PLL settings
 const byte pllAddresses[] = { 0x60, 0x61, 0x62, 0x63 }; // depends on TSA5511 P3 configuration; refer to TSA511 datasheet table 4 (0x61 is always valid)
-const unsigned long xtalOptions[] = {1600000, 3200000}; // 0 = 1.6 MHz, 1 = 3.2 MHz
+const unsigned long xtalOptions[] = { 1600000, 3200000 }; // 0 = 1.6 MHz, 1 = 3.2 MHz
 const byte PLL_CP_LOW = 0x8E; // charge pump low
 const byte PLL_CP_HIGH = 0xCE; // charge pump high
 const byte PLL_ALL_LOW = 0x00; // all output ports (P0-P7) low
@@ -134,20 +134,20 @@ const uint8_t PLL_LOCK_BIT = 6; // lock flag bit
 
 // VCO frequency band settings
 const float freqBands[][2] = {
-    {65700000, 74000000}, // OIRT FM broadcast
-    {76000000, 95000000}, // FM broadcast - Japan
-    {87000000, 108000000}, // FM broadcast - ITU R1/R2/R3
-    {144000000, 148000000}, // 2 m amateur band - ITU R1/R2/R3
-    {420000000, 450000000}, // 70 cm amateur band - ITU R1/R2/R3
-    {470000000, 862000000}, // UHF band - ITU R1/R2/R3 (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
-    {64000000, 1300000000} // full range as per TSA5511 specification (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
+    { 65700000,   74000000 }, // OIRT FM broadcast
+    { 76000000,   95000000 }, // FM broadcast - Japan
+    { 87000000,  108000000 }, // FM broadcast - ITU R1/R2/R3
+    { 144000000, 148000000 }, // 2 m amateur band - ITU R1/R2/R3
+    { 420000000, 450000000 }, // 70 cm amateur band - ITU R1/R2/R3
+    { 470000000, 862000000 }, // UHF band - ITU R1/R2/R3 (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
+    { 64000000, 1300000000 }  // full range as per TSA5511 specification (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
 };
 const byte defaultFreqBandIndex = 2; // default VCO frequency band
 const byte numFreqBands = sizeof(freqBands) / sizeof(freqBands[0]); // total number of selectable VCO frequency bands
 
 // station name settings
 const uint8_t maxNameLength = 16; // maximum station name length
-const uint8_t asciiRange[2] = {32, 127}; // allowed ASCII character range
+const uint8_t asciiRange[2] = { 32, 127 }; // allowed ASCII character range
 const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null terminator
 
 // timing parameters
@@ -169,7 +169,7 @@ const char defaultName[maxNameLength + 1] = "Station Name"; // +1 for null termi
     const uint8_t buttonTimingTolerance = 50; // minimum time window to suppress unwanted button event
 
 // menu
-const uint8_t menuLength[] = {5, 3, 5}; // number of selectable menu items per level: 0 = main, 1 = VCO SETTINGS, 2 = PLL SETTINGS
+const uint8_t menuLength[] = { 5, 3, 5 }; // number of selectable menu items per level: 0 = main, 1 = VCO SETTINGS, 2 = PLL SETTINGS
 
 
 // === DISPLAY MODES ===
@@ -338,11 +338,7 @@ void readLastFrequencyBand() {
 
     // load last-used frequency for this band if valid, else default to lower band edge
     long storedFreq = readLastBandFrequency(freqBandIndex);
-    if (storedFreq >= lowerFreq && storedFreq <= upperFreq) {
-        targetFreq = validateFreq(storedFreq, true);
-    } else {
-        targetFreq = lowerFreq;
-    }
+    targetFreq = (storedFreq >= lowerFreq && storedFreq <= upperFreq) ? validateFreq(storedFreq, true) : lowerFreq;
 }
 
 // read last-used VCO frequency for selected band index
@@ -425,6 +421,10 @@ void readButtons() {
 
 void handleBacklightControl() {
     static bool backlightControlActive = false;
+    static unsigned long buttonHoldStartTime = 0;
+    static unsigned long dimmerTimer = 0;
+    static unsigned long lastDimmerUpdateTime = 0;
+    static uint8_t currentBrightness = maxBrightness;
 
     // no LCD backlight control in frequency set mode, menu mode or if unlocked
     if (freqSetMode || menuMode || !pllLock) {
@@ -432,11 +432,7 @@ void handleBacklightControl() {
         return;
     }
 
-    static unsigned long buttonHoldStartTime = 0;
-    static unsigned long dimmerTimer = 0;
-    static unsigned long lastDimmerUpdateTime = 0;
     unsigned long currentMillis = millis();
-    static uint8_t currentBrightness = maxBrightness;
 
     // enable LCD backlight control after SET release
     if (!backlightControlActive) {
@@ -464,18 +460,16 @@ void handleBacklightControl() {
     if (buttonDownState || buttonSetState || buttonUpState) {
         currentBrightness = maxBrightness;
         analogWrite(lcdBacklight, currentBrightness);
-
         if (backlightOff) {
             backlightOff = false;
             display(LCD_HIBERNATE);
-            // determine which button triggered the wake-up
-            uint8_t btn = buttonDownState ? downButton : buttonUpState ? upButton : setButton;
+            uint8_t btn = buttonDownState ? downButton : buttonUpState ? upButton : setButton; // determine which button triggered the wake-up
             while (!digitalRead(btn)); // wait for release
-
-            // clear state and press flags to suppress immediate action
-            if (btn == downButton) buttonDownState = buttonDownPressed = false;
-            else if (btn == upButton) buttonUpState = buttonUpPressed = false;
-            else buttonSetState = buttonSetPressed = false;
+            switch (btn) { // clear button state and press flags to suppress immediate action
+                case downButton: buttonDownState = buttonDownPressed = false; break;
+                case upButton: buttonUpState = buttonUpPressed = false; break;
+                case setButton: buttonSetState = buttonSetPressed = false; break;
+            }
         }
         dimmerTimer = currentMillis;
     }
@@ -491,10 +485,12 @@ void handleBacklightControl() {
 }
 
 void handleFrequencyChange() {
-    if (menuMode) return;
     static bool timedOut = true;
-    if (!(buttonDownState || buttonSetState || buttonUpState) && timedOut) return; // avoid redundant processing
     static unsigned long freqSetInactivityTimer = 0;
+    
+    if (menuMode) return;
+    if (!(buttonDownState || buttonSetState || buttonUpState) && timedOut) return; // avoid redundant processing
+
     unsigned long currentMillis = millis();
 
     // change VCO frequency
@@ -505,13 +501,14 @@ void handleFrequencyChange() {
         freqSetInactivityTimer = currentMillis;
         timedOut = false;
     }
-    // confirm VCO frequency
+
+    // confirm new frequency on SET, or cancel after timeout
     if (freqSetMode && buttonSetState) {
         applyFrequencyChange(false, &targetFreq, 0);
         timedOut = true;
-    } else if (currentMillis - freqSetInactivityTimer > freqSetTimeout) { // inactivity timeout
+    } else if (currentMillis - freqSetInactivityTimer > freqSetTimeout) {
         freqSetMode = false;
-        if (!timedOut) { // restore initial status
+        if (!timedOut) {
             targetFreq = currentFreq;
             display(MAIN_INTERFACE);
             timedOut = true;
@@ -540,14 +537,14 @@ void handleMenu() {
     static unsigned long lastShortClickTime = 0;
     static unsigned long clickStartTime = 0;
     static uint8_t prevMainMenuIndex = 0; // store previous main menu index when entering submenu
-    unsigned long currentMillis = millis();
 
     // skip input until SET is released
     if (ignoreFirstSetInMenu) {
         if (!buttonSetState) ignoreFirstSetInMenu = false;
         return;
     }
-
+    
+    unsigned long currentMillis = millis();
     if (!menuMode) {
         // block menu if station name editor is active or still locked after exit
         if (stationNameEditMode || currentMillis < menuUnlockTime) return;
@@ -595,6 +592,7 @@ void handleMenu() {
         return;
     }
 
+    // handle user input in the exit confirmation submenu (save / discard / cancel)
     if (menuExitConfirmMode) {
         handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
             if (menuIndex > 0) {
@@ -707,7 +705,7 @@ void handleMenu() {
     } else {
         // menu edit mode: adjust settings
         if (menuLevel == 0 && menuIndex == 3) {
-            // backlight dimmer toggle
+            // backlight dimmer setting
             handleButtonInput(buttonDownState, buttonDownPressed, 0, [](int8_t) { toggleSetting(backlightDimActive); });
             handleButtonInput(buttonUpState, buttonUpPressed, 0, [](int8_t) { toggleSetting(backlightDimActive); });
         }
@@ -758,11 +756,11 @@ void handleMenu() {
                         display(MENU_INTERFACE);
                     });
                     break;
-                case 2: // PLL charge pump setting
+                case 2: // charge pump setting
                     handleButtonInput(buttonDownState, buttonDownPressed, 0, [](int8_t) { toggleSetting(chargePump); });
                     handleButtonInput(buttonUpState, buttonUpPressed, 0, [](int8_t) { toggleSetting(chargePump); });
                     break;
-                case 3: // PLL output ports setting
+                case 3: // output ports setting
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
                         if (pllOutputPorts > 0) pllOutputPorts--;
                         display(MENU_INTERFACE);
@@ -952,8 +950,7 @@ void storeOutputPortsSetting() {
 }
 
 void storeStationName() {
-    // ensure null terminator
-    stationName[maxNameLength] = '\0';
+    stationName[maxNameLength] = '\0'; // ensure null terminator
 
     // validate characters before storing
     bool valid = true;
@@ -985,10 +982,10 @@ void storeDimmerStatus() {
 }
 
 void checkI2C() {
-    if (menuMode) return; // no interference allowed with menu session
     static unsigned long lastI2cCheckTime = 0;
-    unsigned long currentMillis = millis();
+    if (menuMode) return; // no interference allowed with menu session
 
+    unsigned long currentMillis = millis();
     if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
         lastI2cCheckTime = currentMillis;
         attemptI2C(false, PLL_ADDR, nullptr, 0); // I²C bus is operational if transmission succeeds
@@ -1028,8 +1025,8 @@ void i2cErrHandler() {
 
 void blinkLed(uint8_t ledPin, unsigned long interval) {
     static unsigned long lastBlinkTime = 0;
-    unsigned long currentMillis = millis();
     static bool ledState = false;
+    unsigned long currentMillis = millis();
 
     if (currentMillis - lastBlinkTime >= interval) {
         lastBlinkTime = currentMillis;
@@ -1042,7 +1039,7 @@ void display(uint8_t mode) {
     // right-align VCO frequency with dynamic precision, and suffix on LCD display
     auto printFreq = [](uint8_t row) {
         uint8_t validatedNumDecimals = constrain(numDecimals, 0, 3); // constrain number of decimals to valid range [0, 3]
-        const char* suffix = (validatedNumDecimals == 3) ? "MHz" : " MHz"; // omit leading space if space is tight to fit 16 columns
+        const char* suffix = (validatedNumDecimals == 3) ? "MHz" : " MHz"; // omit leading space for 3 decimals to fit within 16 columns
         uint8_t col = 16 - ((validatedNumDecimals == 3 ? 9 : 8) + strlen(suffix)); // compute starting column for right-alignment
         char buffer[10]; // buffer for max 9 chars and null terminator
         dtostrf(targetFreq / 1000000.0, (validatedNumDecimals == 3 ? 9 : 8), validatedNumDecimals, buffer); // format VCO frequency as right-aligned string
@@ -1222,15 +1219,16 @@ void display(uint8_t mode) {
             break;
 
         case PLL_LOCK_STATUS:
+            static unsigned long lastCharScrollTime = 0;
+            static uint8_t charPos = 0;
+            static bool movingRight = true;
+
             lcd.setCursor(0, 0);
             if (pllLock){
                 lcd.print("LOCK ");
             } else {
                 // animation if unlocked
-                static unsigned long lastCharScrollTime = 0;
                 unsigned long currentMillis = millis();
-                static uint8_t charPos = 0;
-                static bool movingRight = true;
                 if (currentMillis - lastCharScrollTime >= animInterval) {
                     lastCharScrollTime = currentMillis;
                     lcd.print("     ");
