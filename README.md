@@ -40,7 +40,7 @@ It features an intuitive menu interface for making various system settings as ex
                                               empirically confirmed to work.
                           • OUTPUT PORTS    > This setting controls the state of the output ports P2 and P5 in locked state. These ports can be used to control the
                                               RF output and an external lock indicator respectively. By default P2/P5 are set to high during locked state.
-                          • EXIT SUBMENMU   > Returns to the main menu.
+                          • EXIT SUBMENU    > Returns to the main menu.
 
     ■ STATION NAME     => This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and confirm each
                           character with SET. Auto-scroll is available when holding DOWN/UP or SET.
