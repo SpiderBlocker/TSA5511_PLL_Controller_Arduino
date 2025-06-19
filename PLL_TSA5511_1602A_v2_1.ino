@@ -1052,6 +1052,10 @@ void display(uint8_t mode) {
         lcd.print(suffix);
     };
 
+    // cursor only active in station name editor
+    if (mode != STATION_NAME_EDITOR) lcd.noCursor();
+
+    // display modes
     switch(mode) {
         case SPLASH_SCREEN:
             lcd.clear();
@@ -1077,7 +1081,6 @@ void display(uint8_t mode) {
             break;
 
         case MENU_INTERFACE:
-            lcd.noCursor();
             lcd.clear();
             if (menuExitConfirmMode) {
                 lcd.setCursor(0, 0);
