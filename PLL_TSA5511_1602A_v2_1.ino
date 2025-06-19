@@ -538,13 +538,24 @@ void handleMenu() {
     static unsigned long clickStartTime = 0;
     static uint8_t prevMainMenuIndex = 0; // store previous main menu index when entering submenu
 
+    unsigned long currentMillis = millis();
+
+    // discard changes and exit menu on timeout if inactive (excluding exit menu)
+    if (menuMode && !menuExitConfirmMode && currentMillis - menuInactivityTimer > menuTimeout) {
+        stationNameEditMode = false;
+        display(PLL_LOCK_STATUS);
+        restoreSettings();
+        menuUnlockTime = currentMillis + setClickInterval;
+        ignoreFirstSetInMenu = true;
+        return;
+    }
+
     // skip input until SET is released
     if (ignoreFirstSetInMenu) {
         if (!buttonSetState) ignoreFirstSetInMenu = false;
         return;
     }
     
-    unsigned long currentMillis = millis();
     if (!menuMode) {
         // block menu if station name editor is active or still locked after exit
         if (stationNameEditMode || currentMillis < menuUnlockTime) return;
@@ -582,13 +593,6 @@ void handleMenu() {
     if (stationNameEditMode) {
         // station name editor active as submenu
         handleStationNameEdit();
-        return;
-    }
-
-    // discard changes and exit menu on timeout if inactive (excluding exit menu)
-    if (!menuExitConfirmMode && currentMillis - menuInactivityTimer > menuTimeout) {
-        display(PLL_LOCK_STATUS);
-        restoreSettings();
         return;
     }
 
@@ -1257,4 +1261,4 @@ void display(uint8_t mode) {
             }
             break;
     }
-} 
+}
