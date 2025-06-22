@@ -1042,11 +1042,10 @@ void blinkLed(uint8_t ledPin, unsigned long interval) {
 void display(uint8_t mode) {
     // right-align VCO frequency with dynamic precision, and suffix on LCD display
     auto printFreq = [](uint8_t row) {
-        uint8_t validatedNumDecimals = constrain(numDecimals, 0, 3); // constrain number of decimals to valid range [0, 3]
-        const char* suffix = (validatedNumDecimals == 3) ? "MHz" : " MHz"; // omit leading space for 3 decimals to fit within 16 columns
-        uint8_t col = 16 - ((validatedNumDecimals == 3 ? 9 : 8) + strlen(suffix)); // compute starting column for right-alignment
-        char buffer[10]; // buffer for max 9 chars and null terminator
-        dtostrf(targetFreq / 1000000.0, (validatedNumDecimals == 3 ? 9 : 8), validatedNumDecimals, buffer); // format VCO frequency as right-aligned string
+        const char* suffix = " MHz";
+        char buffer[9]; // buffer for max. 8-character frequency string (incl. decimal point) and null terminator
+        dtostrf(targetFreq / 1000000.0, 8, numDecimals, buffer); // format VCO frequency as right-aligned string
+        uint8_t col = 16 - (strlen(buffer) + strlen(suffix)); // compute starting column for right-alignment
         lcd.setCursor(col, row);
         lcd.print(buffer);
         lcd.print(suffix);
