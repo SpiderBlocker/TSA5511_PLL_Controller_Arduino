@@ -54,6 +54,6 @@ It features an intuitive menu interface for making various system settings as ex
 ```
 
 - The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the exit menu is active, which requires explicit user confirmation.
-- Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.
+- Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.
 - If enabled, the LCD backlight will dim after a preset period in quiescent condition (locked state). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
