@@ -58,8 +58,8 @@ USAGE
 
   • The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the
     exit menu is active, which requires explicit user confirmation.
-  • Change VCO frequency using UP/DOWN and confirm with SET. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.
-    Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration.
+  • Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration. Changing the
+    VCO frequency without confirmation will time out and return to the main screen unchanged.
   • If enabled, the LCD backlight will dim after a preset period in quiescent condition (locked state). Press and hold SET to turn off the backlight completely.
     The LCD backlight will be restored by pressing any button.
   • In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times
@@ -118,7 +118,7 @@ const uint8_t i2cMaxRetries = 10; // maximum number of I²C transmission retries
 const uint8_t i2cRetryDelay = 50; // delay between I²C retries
 
 // PLL settings
-const byte pllAddresses[] = { 0x60, 0x61, 0x62, 0x63 }; // depends on TSA5511 P3 configuration; refer to TSA511 datasheet table 4 (0x61 is always valid)
+const byte pllAddresses[] = { 0x60, 0x61, 0x62, 0x63 }; // optional I²C addressing by P3-biasing; refer to TSA5511 datasheet, table 4 (0x61 is always valid)
 const unsigned long xtalOptions[] = { 1600000, 3200000 }; // 0 = 1.6 MHz, 1 = 3.2 MHz
 const byte PLL_CP_LOW = 0x8E; // charge pump low
 const byte PLL_CP_HIGH = 0xCE; // charge pump high
@@ -1019,7 +1019,7 @@ void i2cErrHandler() {
     display(I2C_ERROR);
     while (true) {
         while (!digitalRead(setButton)) { blinkLed(errIndicator, errBlinkRate); } // ensure that SET is released, to prevent premature reset
-        do { blinkLed(errIndicator, errBlinkRate); } while (digitalRead(setButton)); // reset on SET release, to prevent starting station name editor on restart
+        do { blinkLed(errIndicator, errBlinkRate); } while (digitalRead(setButton)); // initiate system reset after confirmation with SET
         while (!digitalRead(setButton)) blinkLed(errIndicator, errBlinkRate); // continue blinking error indicator while SET is pressed
         digitalWrite(errIndicator, LOW); // reset error indicator
         wdt_enable(WDTO_15MS); // reset system via watchdog
@@ -1040,7 +1040,7 @@ void blinkLed(uint8_t ledPin, unsigned long interval) {
 }
 
 void display(uint8_t mode) {
-    // right-align VCO frequency with dynamic precision, and suffix on LCD display
+    // format right-aligned VCO frequency with dynamic decimal precision
     auto printFreq = [](uint8_t row) {
         const char* suffix = " MHz";
         char buffer[9]; // buffer for max. 8-character frequency string (incl. decimal point) and null terminator
