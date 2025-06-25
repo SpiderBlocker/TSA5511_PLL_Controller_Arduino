@@ -540,6 +540,9 @@ void handleMenu() {
 
     unsigned long currentMillis = millis();
 
+    // reset menu timeout on any button press
+    if (buttonDownState || buttonUpState || buttonSetState) menuInactivityTimer = currentMillis;
+
     // discard changes and exit menu on timeout if inactive (excluding exit menu)
     if (menuMode && !menuExitConfirmMode && currentMillis - menuInactivityTimer > menuTimeout) {
         stationNameEditMode = false;
@@ -657,7 +660,6 @@ void handleMenu() {
                 display(MENU_INTERFACE);
             }
         });
-        menuInactivityTimer = currentMillis;
         return;
     }
 
@@ -783,7 +785,6 @@ void handleMenu() {
             display(MENU_INTERFACE);
         });
     }
-    if (buttonDownState || buttonUpState || buttonSetState) menuInactivityTimer = currentMillis; // reset timeout timer on any valid input
 }
 
 // toggle setting and update display
@@ -833,7 +834,6 @@ void applyStationNameEdit(bool editCharacter, int8_t direction) {
             stationNameBuffer[maxNameLength] = '\0'; // ensure null terminator in edit buffer
             strncpy(stationName, stationNameBuffer, maxNameLength); // update working copy for menu re-entry
             stationName[maxNameLength] = '\0'; // ensure null terminator in working copy
-            menuInactivityTimer = currentMillis; // reset menu timeout
             display(MENU_INTERFACE); // show menu again
             menuUnlockTime = currentMillis + setClickInterval; // block menu entry immediately after exit
             ignoreFirstSetInMenu = true; // wait for SET release before accepting new input in menu
@@ -1085,10 +1085,11 @@ void display(uint8_t mode) {
                 lcd.setCursor(0, 0);
                 lcd.print("EXIT MENU");
                 lcd.setCursor(0, 1);
+                lcd.print("> ");
                 switch (menuIndex) {
-                    case 0: lcd.print("> save changes"); break;
-                    case 1: lcd.print("> discard"); break;
-                    case 2: lcd.print("> cancel"); break;
+                    case 0: lcd.print("save changes"); break;
+                    case 1: lcd.print("discard"); break;
+                    case 2: lcd.print("cancel"); break;
                 }
                 break;
             }
