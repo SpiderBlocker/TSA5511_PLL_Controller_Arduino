@@ -378,11 +378,8 @@ void readOutputPortsSetting() {
 
 void readStationName() {
     EEPROM.get(EEPROM_NAME_ADDR, stationName); // read station name from EEPROM
-    stationName[maxNameLength] = '\0'; // ensure null terminator
-
-    // check if EEPROM contains valid null terminator
-    bool invalid = false;
-    if (EEPROM.read(EEPROM_NAME_ADDR + maxNameLength) != 0x00) invalid = true;
+    bool invalid = stationName[maxNameLength] != '\0'; // check if station name has a valid null terminator
+    stationName[maxNameLength] = '\0'; // ensure null terminator regardless
 
     // check for invalid characters or uninitialized EEPROM content
     for (uint8_t i = 0; i < maxNameLength; i++) {
@@ -464,7 +461,7 @@ void handleBacklightControl() {
             backlightOff = false;
             display(LCD_HIBERNATE);
             uint8_t btn = buttonDownState ? downButton : buttonUpState ? upButton : setButton; // determine which button triggered the wake-up
-            while (!digitalRead(btn)); // wait for release
+            while (!digitalRead(btn)); // wait for button release
             switch (btn) { // clear button state and press flags to suppress immediate action
                 case downButton: buttonDownState = buttonDownPressed = false; break;
                 case upButton: buttonUpState = buttonUpPressed = false; break;
@@ -485,8 +482,8 @@ void handleBacklightControl() {
 }
 
 void handleFrequencyChange() {
-    static bool timedOut = true;
     static unsigned long freqSetInactivityTimer = 0;
+    static bool timedOut = true;
     
     if (menuMode) return;
     if (!(buttonDownState || buttonSetState || buttonUpState) && timedOut) return; // avoid redundant processing
@@ -537,7 +534,6 @@ void handleMenu() {
     static unsigned long lastShortClickTime = 0;
     static unsigned long clickStartTime = 0;
     static uint8_t prevMainMenuIndex = 0; // store previous main menu index when entering submenu
-
     unsigned long currentMillis = millis();
 
     // reset menu timeout on any button press
@@ -558,7 +554,7 @@ void handleMenu() {
         if (!buttonSetState) ignoreFirstSetInMenu = false;
         return;
     }
-    
+
     if (!menuMode) {
         // block menu if station name editor is active or still locked after exit
         if (stationNameEditMode || currentMillis < menuUnlockTime) return;
@@ -822,7 +818,6 @@ void applyStationNameEdit(bool editCharacter, int8_t direction) {
         // UP/DOWN action
         uint8_t range = asciiRange[1] - asciiRange[0] + 1;
         stationNameBuffer[editPosition] = (stationNameBuffer[editPosition] - asciiRange[0] + direction + range) % range + asciiRange[0];
-        display(STATION_NAME_EDITOR);
     } else {
         // SET action
         unsigned long currentMillis = millis();
@@ -837,11 +832,12 @@ void applyStationNameEdit(bool editCharacter, int8_t direction) {
             display(MENU_INTERFACE); // show menu again
             menuUnlockTime = currentMillis + setClickInterval; // block menu entry immediately after exit
             ignoreFirstSetInMenu = true; // wait for SET release before accepting new input in menu
+            return; // prevent further display call
         } else {
             editPosition++; // move to next character
-            display(STATION_NAME_EDITOR);
         }
     }
+    display(STATION_NAME_EDITOR);
 }
 
 void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
@@ -990,6 +986,7 @@ void checkI2C() {
     if (menuMode) return; // no interference allowed with menu session
 
     unsigned long currentMillis = millis();
+
     if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
         lastI2cCheckTime = currentMillis;
         attemptI2C(false, PLL_ADDR, nullptr, 0); // I²C bus is operational if transmission succeeds
@@ -1217,8 +1214,6 @@ void display(uint8_t mode) {
             break;
 
         case STATION_NAME_EDITOR:
-            lcd.clear();
-            lcd.print("STATION NAME");
             lcd.setCursor(0, 1);
             lcd.print(stationNameBuffer);
             lcd.setCursor(editPosition, 1);
@@ -1236,6 +1231,7 @@ void display(uint8_t mode) {
             } else {
                 // animation if unlocked
                 unsigned long currentMillis = millis();
+
                 if (currentMillis - lastCharScrollTime >= animInterval) {
                     lastCharScrollTime = currentMillis;
                     lcd.print("     ");
