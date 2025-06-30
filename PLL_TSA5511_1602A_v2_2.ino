@@ -73,6 +73,16 @@ USAGE
 #include <LiquidCrystal.h>
 
 
+// === AVR STARTUP: DISABLE WATCHDOG ===
+#if defined(__AVR__)
+__attribute__((naked, section(".init3")))
+void disable_watchdog_early() {
+    MCUSR = 0; // clear all reset flags
+    wdt_disable(); // disable watchdog to prevent reset loop
+}
+#endif
+
+
 // === SYSTEM CONSTANTS ===
 // version & metadata
 #define description "PLL Control"
@@ -261,7 +271,6 @@ unsigned long validateFreq(float frequency, bool alignToStepSize = false) {
 
 // === MAIN PROGRAM LOGIC ===
 void setup() {
-    wdt_disable(); // disable watchdog to prevent reset loop
     setupHardware();
     initialize();
 }
