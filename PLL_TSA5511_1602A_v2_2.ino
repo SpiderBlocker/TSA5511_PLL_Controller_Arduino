@@ -48,7 +48,7 @@ USAGE
                           • EXIT SETTINGS    > Returns to the main menu.
 
     ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and
-                                               confirm each character with SET. Auto-scroll is available when holding DOWN/UP or SET.
+                                               confirm each character with SET. Auto-scroll is available when holding UP/DOWN or SET.
                           • BACKLIGHT DIMMER > This toggles the automatic LCD backlight dimmer function (on or off).
                           • EXIT SETTINGS    > Returns to the main menu. 
 
@@ -76,7 +76,7 @@ USAGE
 // === AVR STARTUP: DISABLE WATCHDOG ===
 #if defined(__AVR__)
 __attribute__((naked, section(".init3")))
-void disable_watchdog_early() {
+void disableWatchdogEarly() {
     MCUSR = 0; // clear all reset flags
     wdt_disable(); // disable watchdog to prevent reset loop
 }
@@ -196,9 +196,6 @@ enum {
 
 
 // === RUNTIME STATE VARIABLES ===
-// initialization
-bool initialized = false; // true if initialization is completed
-
 // I²C
 uint8_t pllAddrIndex = 1; // default index = 0x61
 uint8_t tempPllAddrIndex = pllAddrIndex; // temporary index used for I²C address selection in menu edit mode
@@ -311,7 +308,6 @@ void initialize() {
     configurePLL();
     display(MAIN_INTERFACE);
     display(PLL_LOCK_STATUS);
-    initialized = true;
 }
 
 // hold SET during startup to restore safe default I²C address (0x61)
@@ -500,9 +496,9 @@ void handleFrequencyChange() {
     unsigned long currentMillis = millis();
 
     // change VCO frequency
-    auto freqChange = [](int8_t direction) { applyFrequencyChange(true, &targetFreq, direction); };
-    handleButtonInput(buttonDownState, buttonDownPressed, -1, freqChange);
-    handleButtonInput(buttonUpState, buttonUpPressed, 1, freqChange);
+    auto changeFreq = [](int8_t direction) { applyFrequencyChange(true, &targetFreq, direction); };
+    handleButtonInput(buttonDownState, buttonDownPressed, -1, changeFreq);
+    handleButtonInput(buttonUpState, buttonUpPressed, 1, changeFreq);
     if (buttonDownState || buttonUpState) {
         freqSetInactivityTimer = currentMillis;
         timedOut = false;
@@ -522,8 +518,8 @@ void handleFrequencyChange() {
     }
 }
 
-void applyFrequencyChange(bool freqChange, long* targetFreq, int8_t direction) {
-    if (freqChange) {
+void applyFrequencyChange(bool adjusting, long* targetFreq, int8_t direction) {
+    if (adjusting) {
         // UP/DOWN action
         if (freqSetMode) { *targetFreq += direction * (min(getStepSizeMultiplier() * getPLLRefFreq(), upperFreq - lowerFreq)); } // constrain step size within range
         *targetFreq = (*targetFreq < lowerFreq) ? upperFreq : (*targetFreq > upperFreq) ? lowerFreq : *targetFreq;
@@ -691,8 +687,8 @@ void handleMenu() {
                 switch (menuIndex) {
                     case 0: prevMainMenuIndex = menuIndex; menuLevel = 1; menuIndex = 0; break; // enter VCO settings
                     case 1: prevMainMenuIndex = menuIndex; menuLevel = 2; menuIndex = 0; break; // enter PLL settings
-                    case 2: prevMainMenuIndex = menuIndex; menuLevel = 3; menuIndex = 0; break; // enter GENERAL SETTINGS
-                    case 3: menuExitConfirmMode = true; menuIndex = 0; break; // enter exit menu
+                    case 2: prevMainMenuIndex = menuIndex; menuLevel = 3; menuIndex = 0; break; // enter general settings
+                    case 3: menuExitConfirmMode = true; menuIndex = 0; break; // exit menu
                 }
                 display(MENU_INTERFACE);
             } else {
@@ -816,7 +812,7 @@ void restoreSettings() {
 void handleStationNameEdit() {
     if (!stationNameEditMode) return;
 
-    // select character
+    // select characterUP/DOWN
     auto editCharacter = [](int8_t direction) { applyStationNameEdit(true, direction); };
     handleButtonInput(buttonDownState, buttonDownPressed, -1, editCharacter);
     handleButtonInput(buttonUpState, buttonUpPressed, 1, editCharacter);
@@ -938,7 +934,7 @@ void storeBandIndex() {
 }
 
 void storeBandFrequency(byte bandIndex, long frequency) {
-    if (initialized && bandIndex < numFreqBands && frequency != currentFreq) { // avoid unnecessary EEPROM writes
+    if (bandIndex < numFreqBands && frequency != currentFreq) { // avoid unnecessary EEPROM writes
         EEPROM.put(EEPROM_BAND_FREQ_BASE_ADDR + bandIndex * sizeof(long), frequency);
     }
 }
@@ -1021,11 +1017,11 @@ bool attemptI2C(bool isRead, byte address, byte* buffer, byte length) {
         }
         delay(i2cRetryDelay);
     }
-    if (!menuMode) { i2cErrHandler(); }
+    if (!menuMode) { handleI2CError(); }
     return false;
 }
 
-void i2cErrHandler() {
+void handleI2CError() {
     digitalWrite(lockIndicator, LOW);
     display(I2C_ERROR);
     while (true) {
