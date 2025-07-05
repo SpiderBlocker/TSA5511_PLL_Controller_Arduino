@@ -43,7 +43,7 @@ It features an intuitive menu interface for making various system settings as ex
                           • EXIT SETTINGS    > Returns to the main menu.
 
     ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and
-                                               confirm each character with SET. Auto-scroll is available when holding DOWN/UP or SET.
+                                               confirm each character with SET. Auto-scroll is available when holding UP/DOWN or SET.
                           • BACKLIGHT DIMMER > This toggles the automatic LCD backlight dimmer function (on or off).
                           • EXIT SETTINGS    > Returns to the main menu. 
 
