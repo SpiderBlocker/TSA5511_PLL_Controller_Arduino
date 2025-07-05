@@ -303,7 +303,7 @@ void initialize() {
     analogWrite(lcdBacklight, maxBrightness);
     display(SPLASH_SCREEN);
     delay(splashDelay);
-    i2cSafeDefault();
+    restoreI2CDefaults();
     readSettings();
     configurePLL();
     display(MAIN_INTERFACE);
@@ -311,7 +311,7 @@ void initialize() {
 }
 
 // hold SET during startup to restore safe default I²C address (0x61)
-void i2cSafeDefault() {
+void restoreI2CDefaults() {
     if (!digitalRead(setButton)) {
         pllAddrIndex = 1;
         pllAddress = PLL_ADDRESSES[pllAddrIndex];
