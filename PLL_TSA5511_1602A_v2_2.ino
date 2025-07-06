@@ -199,7 +199,6 @@ enum {
 // I²C
 uint8_t pllAddrIndex = 1; // default index = 0x61
 uint8_t tempPllAddrIndex = pllAddrIndex; // temporary index used for I²C address selection in menu edit mode
-byte pllAddress = PLL_ADDRESSES[pllAddrIndex]; // 7-bit I²C address (TSA5511 datasheet mislabels 8-bit values as 7-bit)
 bool i2cFallbackActive = false; // true if SET is pressed during startup (I²C address safe fallback)
 
 // PLL settings
@@ -314,7 +313,6 @@ void initialize() {
 void restoreI2CDefaults() {
     if (!digitalRead(setButton)) {
         pllAddrIndex = 1;
-        pllAddress = PLL_ADDRESSES[pllAddrIndex];
         storeI2CAddress();
         i2cFallbackActive = true;
         display(I2C_ERROR);
@@ -364,7 +362,6 @@ void readNumDecimals() {
 void readI2CAddress() {
     uint8_t val = EEPROM.read(EEPROM_I2C_ADDR);
     pllAddrIndex = (val <= 3) ? val : 1;
-    pllAddress = PLL_ADDRESSES[pllAddrIndex];
 }
 
 void readXTALFreq() {
@@ -422,7 +419,6 @@ void readButtons() {
 }
 
 void handleBacklightControl() {
-    static bool backlightControlActive = false;
     static unsigned long buttonHoldStartTime = 0;
     static unsigned long dimmerTimer = 0;
     static unsigned long lastDimmerUpdateTime = 0;
@@ -430,16 +426,15 @@ void handleBacklightControl() {
 
     // no LCD backlight control in frequency set mode, menu mode or if unlocked
     if (freqSetMode || menuMode || !pllLock) {
-        backlightControlActive = false;
+        dimmerTimer = 0;
         return;
     }
 
     unsigned long currentMillis = millis();
 
-    // enable LCD backlight control after SET release
-    if (!backlightControlActive) {
+    // initialize dimmer timer after SET release
+    if (dimmerTimer == 0) {
         while (!digitalRead(setButton) && digitalRead(downButton) && digitalRead(upButton)); // skip if multiple buttons are pressed simultaneously
-        backlightControlActive = true;
         dimmerTimer = currentMillis;
     }
 
@@ -625,10 +620,8 @@ void handleMenu() {
                 if (tempPllAddrIndex != prevPllAddrIndex) {
                     if (attemptI2C(false, PLL_ADDRESSES[tempPllAddrIndex], nullptr, 0)) { // new I²C address is valid
                         pllAddrIndex = tempPllAddrIndex;
-                        pllAddress = PLL_ADDRESSES[pllAddrIndex];
                     } else { // new I²C address is invalid
                         pllAddrIndex = prevPllAddrIndex;
-                        pllAddress  = PLL_ADDRESSES[pllAddrIndex];
                         i2cFallbackActive = true;
                         display(I2C_ERROR);
                         i2cFallbackActive = false;
@@ -855,7 +848,7 @@ void handleButtonInput(bool buttonState, bool& buttonPressed, int8_t direction, 
     static unsigned long lastCharEditTime = 0;
     unsigned long currentMillis = millis();
     unsigned long totalPressTime = currentMillis - pressStartTime;
-    unsigned long fastPressInterval = baseRepeatInterval ;
+    unsigned long fastPressInterval = baseRepeatInterval;
 
     if (buttonState) {
         // change on first button press, or - when holding button - continuously after initialPressDelay
@@ -897,7 +890,7 @@ void configurePLL() {
     data[1] = divisor & 0x00FF; // extract low divisor byte
     data[2] = PLL_CP_HIGH; // set charge pump high
     data[3] = PLL_ALL_LOW; // set output ports low
-    if (attemptI2C(false, pllAddress, data, 4)) {
+    if (attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 4)) {
         storeBandFrequency(freqBandIndex, targetFreq);
         currentFreq = targetFreq;
         pllCheckPending = true;
@@ -907,7 +900,7 @@ void configurePLL() {
 void checkPLL() {
     if (!pllCheckPending) return;
     byte readByte;
-    if (attemptI2C(true, pllAddress, &readByte, 1)) {
+    if (attemptI2C(true, PLL_ADDRESSES[pllAddrIndex], &readByte, 1)) {
         pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
         if (!menuMode) { display(PLL_LOCK_STATUS); }
         if (pllLock) {
@@ -919,7 +912,7 @@ void checkPLL() {
                 case 2: data[1] = PLL_P5_HIGH; break;
                 case 3: default: data[1] = PLL_P2_P5_HIGH; break;
             }
-            if (attemptI2C(false, pllAddress, data, 2)) {
+            if (attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 2)) {
                 pllCheckPending = false; // PLL lock state not monitored after lock, as PLL lock flag may flicker due to FM modulation
             }
             digitalWrite(lockIndicator, HIGH);
@@ -934,7 +927,7 @@ void storeBandIndex() {
 }
 
 void storeBandFrequency(byte bandIndex, long frequency) {
-    if (bandIndex < numFreqBands && frequency != currentFreq) { // avoid unnecessary EEPROM writes
+    if (bandIndex < numFreqBands && frequency != currentFreq) { // avoid unnecessary EEPROM access
         EEPROM.put(EEPROM_BAND_FREQ_BASE_ADDR + bandIndex * sizeof(long), frequency);
     }
 }
@@ -972,7 +965,7 @@ void storeStationName() {
         }
     }
 
-    // fall back to default name if invalid
+    // fallback to default name if invalid
     if (!valid) {
         strncpy(stationName, defaultName, maxNameLength); // copy default station name
         memset(stationName + strlen(defaultName), 32, maxNameLength - strlen(defaultName)); // pad with spaces
@@ -981,7 +974,7 @@ void storeStationName() {
     char storedStationName[maxNameLength + 1]; // +1 for null terminator
     EEPROM.get(EEPROM_NAME_ADDR, storedStationName);
 
-    // avoid unnecessary write operations to protect EEPROM
+    // avoid unnecessary EEPROM access
     if (strncmp(stationName, storedStationName, maxNameLength + 1) != 0) {
         EEPROM.put(EEPROM_NAME_ADDR, stationName);
     }
@@ -999,7 +992,7 @@ void checkI2C() {
 
     if (currentMillis - lastI2cCheckTime >= i2cHealthCheckInterval) {
         lastI2cCheckTime = currentMillis;
-        attemptI2C(false, pllAddress, nullptr, 0); // I²C bus is operational if transmission succeeds
+        attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], nullptr, 0); // I²C bus is operational if transmission succeeds
     }
 }
 
@@ -1198,7 +1191,7 @@ void display(uint8_t mode) {
                                 case 0: lcd.print("all low"); break;
                                 case 1: lcd.print("P2 high"); break;
                                 case 2: lcd.print("P5 high"); break;
-                                case 3: default: lcd.print("P2/P5 high"); break;
+                                case 3: lcd.print("P2/P5 high"); break;
                             }
                         } else {
                             lcd.print("SET to select");
@@ -1277,7 +1270,7 @@ void display(uint8_t mode) {
             lcd.setCursor(0, 1);
             if (i2cFallbackActive) {
                 lcd.print("restoring 0x");
-                lcd.print(pllAddress, HEX);
+                lcd.print(PLL_ADDRESSES[pllAddrIndex], HEX);
             } else {
                 lcd.print("SET to restart");
             }
