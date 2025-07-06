@@ -910,7 +910,7 @@ void checkPLL() {
                 case 0: data[1] = PLL_ALL_LOW; break;
                 case 1: data[1] = PLL_P2_HIGH; break;
                 case 2: data[1] = PLL_P5_HIGH; break;
-                case 3: default: data[1] = PLL_P2_P5_HIGH; break;
+                case 3: data[1] = PLL_P2_P5_HIGH; break;
             }
             if (attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 2)) {
                 pllCheckPending = false; // PLL lock state not monitored after lock, as PLL lock flag may flicker due to FM modulation
