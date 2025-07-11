@@ -432,9 +432,9 @@ void handleBacklightControl() {
 
     unsigned long currentMillis = millis();
 
-    // initialize dimmer timer after SET release
+    // defer dimmer timer until SET is released and no other buttons are pressed
     if (dimmerTimer == 0) {
-        while (!digitalRead(setButton) && digitalRead(downButton) && digitalRead(upButton)); // skip if multiple buttons are pressed simultaneously
+        while (!digitalRead(setButton) && digitalRead(downButton) && digitalRead(upButton));
         dimmerTimer = currentMillis;
     }
 
