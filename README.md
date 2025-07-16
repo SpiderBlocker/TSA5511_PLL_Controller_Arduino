@@ -15,7 +15,8 @@ It features an intuitive menu interface for making various system settings as ex
 ```text
 
     ■ VCO SETTINGS     => • FREQUENCY BAND   > Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM for
-                                               each VCO frequency band separately.
+                                               each VCO frequency band and XTAL frequency separately. The last selected VCO frequency band will be stored in EEPROM for
+                                               each XTAL frequency separately as well.
                           • PRECISION        > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a
                                                lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
                                                rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
