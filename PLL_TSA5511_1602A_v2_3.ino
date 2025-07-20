@@ -111,15 +111,15 @@ USAGE
     const uint8_t lowBrightness = 30; // dimmed brightness
 
     // EEPROM storage locations
-    const uint16_t EEPROM_NAME_ADDR = 10; // station name
-    const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer setting
-    const uint16_t EEPROM_DECIMAL_ADDR = 40; // VCO frequency decimal precision
-    const uint16_t EEPROM_CP_ADDR = 50; // charge pump setting
-    const uint16_t EEPROM_FREQBAND_ADDR = 60; // actual VCO frequency band index
-    const uint16_t EEPROM_XTAL_ADDR = 70; // 0 = 1.6 MHz, 1 = 3.2 MHz
-    const uint16_t EEPROM_I2C_ADDR = 80; // I²C address setting
-    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 85; // PLL output port setting
-    const uint16_t EEPROM_BAND_FREQ_BASE_ADDR = 90; // VCO frequency per band and per XTAL frequency (8 bytes per band)
+    const uint16_t EEPROM_NAME_ADDR = 10; // station name                                  17 bytes (16 characters + null terminator)
+    const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer setting                        1 byte
+    const uint16_t EEPROM_DECIMAL_ADDR = 40; // VCO frequency decimal precision             1 byte
+    const uint16_t EEPROM_CP_ADDR = 50; // charge pump setting                              1 byte
+    const uint16_t EEPROM_FREQBAND_ADDR = 60; // actual VCO frequency band index            2 bytes (1 byte x 2 XTAL)
+    const uint16_t EEPROM_XTAL_ADDR = 70; // 0 = 1.6 MHz, 1 = 3.2 MHz                       1 byte
+    const uint16_t EEPROM_I2C_ADDR = 80; // I²C address setting                             1 byte
+    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 85; // PLL output port setting                1 byte
+    const uint16_t EEPROM_BAND_FREQ_BASE_ADDR = 90; // VCO frequency per band, per XTAL    56 bytes (4 bytes x 7 bands x 2 XTAL)
 
     // I²C settings
     const unsigned long wireTimeout = 5000; // I²C transmission timeout, preventing I²C bus crash in some cases
@@ -312,14 +312,13 @@ void initialize() {
 
 // hold SET during startup to restore safe default I²C address (0x61)
 void restoreI2CDefaults() {
-    if (!digitalRead(setButton)) {
-        pllAddrIndex = 1;
-        storeI2CAddress();
-        i2cFallbackActive = true;
-        display(I2C_ERROR);
-        i2cFallbackActive = false;
-        delay(i2cFallbackDelay);
-    }
+    if (digitalRead(setButton)) return;
+    pllAddrIndex = 1;
+    storeI2CAddress();
+    i2cFallbackActive = true;
+    display(I2C_ERROR);
+    i2cFallbackActive = false;
+    delay(i2cFallbackDelay);
 }
 
 void readSettings() {
@@ -358,12 +357,10 @@ void readXTALFreq() {
 
 // read last-used VCO frequency for selected band index and XTAL frequency
 long readLastBandFrequency(byte bandIndex, byte xtalIndex) {
-    if (bandIndex < numFreqBands && xtalIndex <= 1) {
-        long freq;
-        EEPROM.get(EEPROM_BAND_FREQ_BASE_ADDR + (bandIndex * 8) + (xtalIndex * 4), freq); // calculate EEPROM address: base + (bandIndex * 8) + (xtalIndex * 4)
-        return freq;
-    }
-    return 0;
+    if (bandIndex >= numFreqBands || xtalIndex > 1) return 0;
+    long freq;
+    EEPROM.get(EEPROM_BAND_FREQ_BASE_ADDR + (bandIndex * 8) + (xtalIndex * 4), freq);
+    return freq;
 }
 
 void readNumDecimals() {
