@@ -6,7 +6,7 @@ It features an intuitive menu interface for making various system settings as ex
 
 # Hardware
 - **Circuit diagram**
-![Circuit diagram](/PLL_CTRL_CCT.png)
+![Circuit diagram](images/PLL_CTRL_CCT.png)
 
 - The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
 - LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards.
