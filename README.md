@@ -5,7 +5,7 @@ PLL controller for the TSA5511, initially intended to replace the proprietary co
 It features an intuitive menu interface for making various system settings as explained in detail below. All configurable settings are stored in EEPROM and automatically recalled upon restart.
 
 # Hardware
-- **Circuit diagram**
+- Circuit diagram
 ![Circuit diagram](images/PLL_CTRL_CCT.png)
 
 - The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
