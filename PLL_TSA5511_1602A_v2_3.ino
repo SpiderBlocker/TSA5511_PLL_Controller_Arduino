@@ -145,7 +145,7 @@ USAGE
 
     // VCO frequency band settings
     const float freqBands[][2] = {
-        { 65700000,   74000000 }, // OIRT FM broadcast
+        { 65800000,   74000000 }, // OIRT FM broadcast
         { 76000000,   95000000 }, // FM broadcast - Japan
         { 87000000,  108000000 }, // FM broadcast - ITU R1/R2/R3
         { 144000000, 148000000 }, // 2 m amateur band - ITU R1/R2/R3
