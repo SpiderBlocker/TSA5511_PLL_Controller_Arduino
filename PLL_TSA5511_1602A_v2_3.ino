@@ -1269,7 +1269,7 @@ void display(uint8_t mode) {
         case I2C_ERROR:
             digitalWrite(lcdBacklight, HIGH);
             lcd.clear();
-            lcd.print(i2cFallbackActive ? "I2C SAFE DEFAULT" : "I2C ERROR");
+            lcd.print(i2cFallbackActive ? "I2C FALLBACK" : "I2C ERROR");
             lcd.setCursor(0, 1);
             if (i2cFallbackActive) {
                 lcd.print("restoring 0x");
