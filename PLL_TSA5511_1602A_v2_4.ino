@@ -772,32 +772,32 @@ void handleMenu() {
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
                         if (outputPortsEditPhase == 0) {
                             if (portIdxLock == PLL_PORT_NONE) portIdxLock = 7;
-                            else if (portIdxLock == 0)       portIdxLock = PLL_PORT_NONE;
-                            else                              portIdxLock--;
+                            else if (portIdxLock == 0) portIdxLock = PLL_PORT_NONE;
+                            else portIdxLock--;
                         } else if (outputPortsEditPhase == 1) {
                             if (portIdxUnlock == PLL_PORT_NONE) portIdxUnlock = 7;
-                            else if (portIdxUnlock == 0)       portIdxUnlock = PLL_PORT_NONE;
-                            else                                portIdxUnlock--;
+                            else if (portIdxUnlock == 0) portIdxUnlock = PLL_PORT_NONE;
+                            else portIdxUnlock--;
                         } else {
                             if (portIdxRF == PLL_PORT_NONE) portIdxRF = 7;
-                            else if (portIdxRF == 0)       portIdxRF = PLL_PORT_NONE;
-                            else                            portIdxRF--;
+                            else if (portIdxRF == 0) portIdxRF = PLL_PORT_NONE;
+                            else portIdxRF--;
                         }
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 1, [](int8_t) {
                         if (outputPortsEditPhase == 0) {
                             if (portIdxLock == PLL_PORT_NONE) portIdxLock = 0;
-                            else if (portIdxLock == 7)       portIdxLock = PLL_PORT_NONE;
-                            else                              portIdxLock++;
+                            else if (portIdxLock == 7) portIdxLock = PLL_PORT_NONE;
+                            else portIdxLock++;
                         } else if (outputPortsEditPhase == 1) {
                             if (portIdxUnlock == PLL_PORT_NONE) portIdxUnlock = 0;
-                            else if (portIdxUnlock == 7)       portIdxUnlock = PLL_PORT_NONE;
-                            else                                portIdxUnlock++;
+                            else if (portIdxUnlock == 7) portIdxUnlock = PLL_PORT_NONE;
+                            else portIdxUnlock++;
                         } else {
                             if (portIdxRF == PLL_PORT_NONE) portIdxRF = 0;
-                            else if (portIdxRF == 7)       portIdxRF = PLL_PORT_NONE;
-                            else                            portIdxRF++;
+                            else if (portIdxRF == 7) portIdxRF = PLL_PORT_NONE;
+                            else portIdxRF++;
                         }
                         display(MENU_INTERFACE);
                     });
@@ -951,11 +951,11 @@ void checkPLL() {
         // build output port bitmap for current lock state
         uint8_t portsHigh = 0x00;
         if (pllLock) {
-            // locked: drive LOCK and RF ports high (if assigned)
+            // locked: set lock and RF drive ports high (if assigned)
             if (portIdxLock <= 7) portsHigh |= (1 << portIdxLock);
             if (portIdxRF   <= 7) portsHigh |= (1 << portIdxRF);
         } else {
-            // unlocked: drive UNLOCK port high (if assigned)
+            // unlocked: set unlock port high (if assigned)
             if (portIdxUnlock <= 7) portsHigh |= (1 << portIdxUnlock);
         }
 
