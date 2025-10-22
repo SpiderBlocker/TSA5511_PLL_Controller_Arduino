@@ -42,7 +42,7 @@ It features an intuitive menu interface for making various system settings as ex
                                                adjusted accordingly.
                                                Note that compatibility of the TSA5511 with a 1.6 MHz crystal frequency is not officially supported; however, it has been
                                                empirically confirmed to work.
-                          • OUTPUT PORTS     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
+                          • PORT MAPPING     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
                                                indicator and the transmitter RF output stage respectively.
                           • EXIT SETTINGS    > Returns to the main menu.
 
