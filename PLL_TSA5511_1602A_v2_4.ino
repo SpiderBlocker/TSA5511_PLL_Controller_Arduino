@@ -44,7 +44,7 @@ USAGE
                                                adjusted accordingly.
                                                Note that compatibility of the TSA5511 with a 1.6 MHz crystal frequency is not officially supported; however, it has been
                                                empirically confirmed to work.
-                          • OUTPUT PORTS     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
+                          • PORT MAPPING     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
                                                indicator and the transmitter RF output stage respectively.
                           • EXIT SETTINGS    > Returns to the main menu.
 
@@ -118,7 +118,7 @@ USAGE
     const uint16_t EEPROM_FREQBAND_ADDR = 60; // actual VCO frequency band index            2 bytes (1 byte x 2 XTAL)
     const uint16_t EEPROM_XTAL_ADDR = 70; // 0 = 1.6 MHz, 1 = 3.2 MHz                       1 byte
     const uint16_t EEPROM_I2C_ADDR = 80; // I²C address setting                             1 byte
-    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 85; // PLL output port mapping                2 bytes (1 byte for lock/RF drive and 1 byte for unlock)
+    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 85; // PLL output port mapping                3 bytes ([85]=LOCK, [86]=UNLOCK, [87]=RF drive)
     const uint16_t EEPROM_BAND_FREQ_BASE_ADDR = 90; // VCO frequency per band, per XTAL    56 bytes (4 bytes x 7 bands x 2 XTAL)
 
     // I²C settings
@@ -133,6 +133,7 @@ USAGE
     const byte PLL_ADDRESSES[] = { 0x60, 0x61, 0x62, 0x63 }; // optional I²C addressing by P3-biasing; refer to TSA5511 datasheet, table 4 (0x61 is always valid)
     const byte PLL_CP_LOW = 0x8E; // charge pump low
     const byte PLL_CP_HIGH = 0xCE; // charge pump high
+    const uint8_t PLL_PORT_NONE = 0xFF; // no output port assigned
     const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
     const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits (MSB of high byte must remain zero)
     const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
@@ -376,16 +377,17 @@ void readChargePump() {
 }
 
 void readOutputPortsSetting() {
-    uint8_t v0 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR); // v0: [5..3] = lock index, [2..0] = RF drive index (legacy: 0..3)
-    if (v0 <= 3) { storeOutputPortsSetting(); return; } // legacy value found → migrate to new format (85–86)
-    uint8_t v1 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + 1); // v1: [2..0]=unlock index (7..3 reserved=0)
-    if ((v0 == 0xFF || v1 == 0xFF) || (v0 & 0xC0) || (v1 & 0xF8)) { // in case of uninitialized or invalid pattern, persist to runtime defaults
-        storeOutputPortsSetting();
-        return;
-    }
-    portIdxRF = (v0 & 0x07); // RF drive index (0..7)
-    portIdxLock = ((v0 >> 3) & 0x07); // lock index (0..7)
-    portIdxUnlock = (v1 & 0x07); // unlock index (0..7)
+    uint8_t b0 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR); // read lock index (port 0..7) or 0xFF (none)
+    uint8_t b1 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + 1); // read unlock index (port 0..7) or 0xFF (none)
+    uint8_t b2 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + 2); // read RF drive index (port 0..7) or 0xFF (none)
+
+    // legacy EEPROM layout fallback: P2/P5 at address 85 (86–87 blank) → migrate to new format
+    if ((b1 == 0xFF && b2 == 0xFF) && (b0 <= 3)) { storeOutputPortsSetting(); return; }
+
+    // apply with clamping; any value >7 becomes 'none'
+    portIdxLock = (b0 <= 7) ? b0 : PLL_PORT_NONE; // lock index (0..7) or none
+    portIdxUnlock = (b1 <= 7) ? b1 : PLL_PORT_NONE; // unlock index (0..7) or none
+    portIdxRF = (b2 <= 7) ? b2 : PLL_PORT_NONE; // rf index (0..7) or none
 }
 
 void readStationName() {
@@ -769,21 +771,33 @@ void handleMenu() {
                 case 3: // output ports: function → output port mapping (lock → unlock → RF drive)
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
                         if (outputPortsEditPhase == 0) {
-                            portIdxLock = (portIdxLock == 0) ? 7 : (uint8_t)(portIdxLock - 1);
+                            if (portIdxLock == PLL_PORT_NONE) portIdxLock = 7;
+                            else if (portIdxLock == 0)       portIdxLock = PLL_PORT_NONE;
+                            else                              portIdxLock--;
                         } else if (outputPortsEditPhase == 1) {
-                            portIdxUnlock = (portIdxUnlock == 0) ? 7 : (uint8_t)(portIdxUnlock - 1);
+                            if (portIdxUnlock == PLL_PORT_NONE) portIdxUnlock = 7;
+                            else if (portIdxUnlock == 0)       portIdxUnlock = PLL_PORT_NONE;
+                            else                                portIdxUnlock--;
                         } else {
-                            portIdxRF = (portIdxRF == 0) ? 7 : (uint8_t)(portIdxRF - 1);
+                            if (portIdxRF == PLL_PORT_NONE) portIdxRF = 7;
+                            else if (portIdxRF == 0)       portIdxRF = PLL_PORT_NONE;
+                            else                            portIdxRF--;
                         }
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 1, [](int8_t) {
                         if (outputPortsEditPhase == 0) {
-                            portIdxLock   = (portIdxLock   == 7) ? 0 : (uint8_t)(portIdxLock   + 1);
+                            if (portIdxLock == PLL_PORT_NONE) portIdxLock = 0;
+                            else if (portIdxLock == 7)       portIdxLock = PLL_PORT_NONE;
+                            else                              portIdxLock++;
                         } else if (outputPortsEditPhase == 1) {
-                            portIdxUnlock = (portIdxUnlock == 7) ? 0 : (uint8_t)(portIdxUnlock + 1);
+                            if (portIdxUnlock == PLL_PORT_NONE) portIdxUnlock = 0;
+                            else if (portIdxUnlock == 7)       portIdxUnlock = PLL_PORT_NONE;
+                            else                                portIdxUnlock++;
                         } else {
-                            portIdxRF     = (portIdxRF     == 7) ? 0 : (uint8_t)(portIdxRF     + 1);
+                            if (portIdxRF == PLL_PORT_NONE) portIdxRF = 0;
+                            else if (portIdxRF == 7)       portIdxRF = PLL_PORT_NONE;
+                            else                            portIdxRF++;
                         }
                         display(MENU_INTERFACE);
                     });
@@ -919,7 +933,7 @@ void configurePLL() {
     data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
     data[1] = divisor & 0x00FF; // extract low divisor byte
     data[2] = PLL_CP_HIGH; // set charge pump high
-    data[3] = (portIdxUnlock <= 7) ? (uint8_t)(1U << portIdxUnlock) : 0; // set all output ports low, except for the PLL unlock indicator 
+    data[3] = (portIdxUnlock <= 7) ? (uint8_t)(1U << portIdxUnlock) : 0; // assert unlock if assigned; otherwise all ports low
     if (attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 4)) {
         storeBandFrequency(freqBandIndex[xtalFreqIndex], xtalFreqIndex, targetFreq);
         currentFreq = targetFreq;
@@ -934,14 +948,14 @@ void checkPLL() {
         pllLock = (readByte >> PLL_LOCK_BIT) & 0x01;
         if (!menuMode) { display(PLL_LOCK_STATUS); }
 
-        // build output port bitmap for the current lock state
+        // build output port bitmap for current lock state
         uint8_t portsHigh = 0x00;
         if (pllLock) {
-            // locked: drive selected lock and RF drive ports high
+            // locked: drive LOCK and RF ports high (if assigned)
             if (portIdxLock <= 7) portsHigh |= (1 << portIdxLock);
             if (portIdxRF   <= 7) portsHigh |= (1 << portIdxRF);
         } else {
-            // unlocked: drive selected unlock port high
+            // unlocked: drive UNLOCK port high (if assigned)
             if (portIdxUnlock <= 7) portsHigh |= (1 << portIdxUnlock);
         }
 
@@ -949,7 +963,7 @@ void checkPLL() {
         data[0] = chargePump ? PLL_CP_HIGH : PLL_CP_LOW; // set charge pump
         data[1] = portsHigh; // set output ports
         if (attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 2)) {
-            if (pllLock) pllCheckPending = false; // PLL lock state not monitored after lock, as PLL lock flag may flicker due to FM modulation
+            if (pllLock) pllCheckPending = false; // stop polling after lock, as lock flag may flicker due to FM modulation
         }
         digitalWrite(lockIndicator, pllLock ? HIGH : LOW);
     }
@@ -984,11 +998,9 @@ void storeChargePump() {
 }
 
 void storeOutputPortsSetting() {
-    uint8_t v0 = ((portIdxLock & 0x07) << 3) | (portIdxRF   & 0x07); // v0: [5..3]=lock index, [2..0]=rf index
-    uint8_t v1 = (portIdxUnlock & 0x07); // v1: [2..0]=unlock index (7..3 reserved=0)
-
-    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR,     v0); // write lock and RF drive byte
-    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 1, v1); // write unlock byte
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR, (portIdxLock <= 7) ? portIdxLock : 0xFF); // write lock index (port 0..7) or 0xFF (none)
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 1, (portIdxUnlock <= 7) ? portIdxUnlock : 0xFF); // write unlock index (port 0..7) or 0xFF (none)
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 2, (portIdxRF <= 7) ? portIdxRF : 0xFF); // write RF drive index (port 0..7) or 0xFF (none)
 }
 
 void storeStationName() {
@@ -1222,19 +1234,19 @@ void display(uint8_t mode) {
                         }
                         break;
                     case 3:
-                        lcd.print("OUTPUT PORTS");
+                        lcd.print("PORT MAPPING");
                         lcd.setCursor(0, 1);
                         if (menuEditMode) {
                             lcd.print("> ");
                             if (outputPortsEditPhase == 0) {
-                                lcd.print("PLL lock: P");
-                                lcd.print(portIdxLock);
+                                lcd.print("locked: ");
+                                if (portIdxLock <= 7) { lcd.print("P"); lcd.print(portIdxLock); } else { lcd.print("none"); }
                             } else if (outputPortsEditPhase == 1) {
-                                lcd.print("PLL unlock: P");
-                                lcd.print(portIdxUnlock);
+                                lcd.print("unlocked: ");
+                                if (portIdxUnlock <= 7) { lcd.print("P"); lcd.print(portIdxUnlock); } else { lcd.print("none"); }
                             } else {
-                                lcd.print("RF drive: P");
-                                lcd.print(portIdxRF);
+                                lcd.print("RF drive: ");
+                                if (portIdxRF <= 7) { lcd.print("P"); lcd.print(portIdxRF); } else { lcd.print("none"); }
                             }
                         } else {
                             lcd.print("SET to select");
