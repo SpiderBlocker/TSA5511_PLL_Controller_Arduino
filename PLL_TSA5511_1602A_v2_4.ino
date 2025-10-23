@@ -118,7 +118,7 @@ USAGE
     const uint16_t EEPROM_FREQBAND_ADDR = 60; // actual VCO frequency band index            2 bytes (1 byte x 2 XTAL)
     const uint16_t EEPROM_XTAL_ADDR = 70; // 0 = 1.6 MHz, 1 = 3.2 MHz                       1 byte
     const uint16_t EEPROM_I2C_ADDR = 80; // I²C address setting                             1 byte
-    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 85; // PLL output port mapping                3 bytes ([85]=LOCK, [86]=UNLOCK, [87]=RF drive)
+    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 86; // PLL output port mapping                3 bytes ([86]=lock, [87]=unlock, [88]=RF drive)
     const uint16_t EEPROM_BAND_FREQ_BASE_ADDR = 90; // VCO frequency per band, per XTAL    56 bytes (4 bytes x 7 bands x 2 XTAL)
 
     // I²C settings
@@ -133,7 +133,7 @@ USAGE
     const byte PLL_ADDRESSES[] = { 0x60, 0x61, 0x62, 0x63 }; // optional I²C addressing by P3-biasing; refer to TSA5511 datasheet, table 4 (0x61 is always valid)
     const byte PLL_CP_LOW = 0x8E; // charge pump low
     const byte PLL_CP_HIGH = 0xCE; // charge pump high
-    const uint8_t PLL_PORT_NONE = 0xFF; // no output port assigned
+    const uint8_t PLL_PORT_NONE = 0x08; // no output port assigned
     const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
     const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits (MSB of high byte must remain zero)
     const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
@@ -381,13 +381,16 @@ void readOutputPortsSetting() {
     uint8_t b1 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + 1); // read unlock index (port 0..7) or 0xFF (none)
     uint8_t b2 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + 2); // read RF drive index (port 0..7) or 0xFF (none)
 
-    // legacy EEPROM layout fallback: P2/P5 at address 85 (86–87 blank) → migrate to new format
-    if ((b1 == 0xFF && b2 == 0xFF) && (b0 <= 3)) { storeOutputPortsSetting(); return; }
+    // persist current runtime defaults in case of uninitialized/blank EEPROM
+    if (b0 == 0xFF && b1 == 0xFF && b2 == 0xFF) {
+        storeOutputPortsSetting();
+        return;
+    }
 
     // apply with clamping; any value >7 becomes 'none'
-    portIdxLock = (b0 <= 7) ? b0 : PLL_PORT_NONE; // lock index (0..7) or none
-    portIdxUnlock = (b1 <= 7) ? b1 : PLL_PORT_NONE; // unlock index (0..7) or none
-    portIdxRF = (b2 <= 7) ? b2 : PLL_PORT_NONE; // rf index (0..7) or none
+    portIdxLock = (b0 <= 7) ? b0 : PLL_PORT_NONE; // lock index (0..7) or 'none'
+    portIdxUnlock = (b1 <= 7) ? b1 : PLL_PORT_NONE; // unlock index (0..7) or 'none'
+    portIdxRF = (b2 <= 7) ? b2 : PLL_PORT_NONE; // rf index (0..7) or 'none'
 }
 
 void readStationName() {
@@ -721,11 +724,13 @@ void handleMenu() {
             switch (menuIndex) {
                 case 0:
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
-                        if (freqBandIndex[xtalFreqIndex] > 0) freqBandIndex[xtalFreqIndex]--;
+                        auto& idx = freqBandIndex[xtalFreqIndex];
+                        idx = (idx == 0) ? (numFreqBands - 1) : (idx - 1);
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 1, [](int8_t) {
-                        if (freqBandIndex[xtalFreqIndex] < numFreqBands - 1) freqBandIndex[xtalFreqIndex]++;
+                        auto& idx = freqBandIndex[xtalFreqIndex];
+                        idx = (idx >= numFreqBands - 1) ? 0 : (idx + 1);
                         display(MENU_INTERFACE);
                     });
                     break;
@@ -998,9 +1003,10 @@ void storeChargePump() {
 }
 
 void storeOutputPortsSetting() {
-    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR, (portIdxLock <= 7) ? portIdxLock : 0xFF); // write lock index (port 0..7) or 0xFF (none)
-    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 1, (portIdxUnlock <= 7) ? portIdxUnlock : 0xFF); // write unlock index (port 0..7) or 0xFF (none)
-    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 2, (portIdxRF <= 7) ? portIdxRF : 0xFF); // write RF drive index (port 0..7) or 0xFF (none)
+    auto enc = [](uint8_t p) { return (p <= 7) ? p : PLL_PORT_NONE; }; // encode port index into storage format (0..7 or 'none')
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR, enc(portIdxLock));
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 1, enc(portIdxUnlock));
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + 2, enc(portIdxRF));
 }
 
 void storeStationName() {
@@ -1093,13 +1099,14 @@ void blinkLed(uint8_t ledPin, unsigned long interval) {
 void display(uint8_t mode) {
     // format right-aligned VCO frequency with dynamic decimal precision
     auto printFreq = [](uint8_t row) {
-        const char* suffix = " MHz";
+        // format right-aligned VCO frequency with dynamic decimal precision
+        const char* suffix = PSTR(" MHz");
         char buffer[9]; // buffer for max. 8-character frequency string (incl. decimal point) and null terminator
         dtostrf(targetFreq / 1000000.0, 8, numDecimals, buffer); // format VCO frequency as right-aligned string in MHz
-        uint8_t col = 16 - (strlen(buffer) + strlen(suffix)); // compute starting column for right-alignment
+        uint8_t col = 16 - (strlen(buffer) + strlen_P(suffix)); // compute starting column for right-alignment
         lcd.setCursor(col, row);
         lcd.print(buffer);
-        lcd.print(suffix);
+        lcd.print((const __FlashStringHelper*)suffix);
     };
 
     // cursor only active in station name editor
