@@ -9,8 +9,8 @@ It features an intuitive menu interface for making various system settings as ex
 ![Circuit diagram](images/PLL_CTRL_CCT.png)
 
 - The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
-- LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid for all current Arduino boards.
-- Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, like 1 or 2 kΩ.
+- LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid on common Arduino boards.
+- Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, such as 1 or 2 kΩ.
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation.
 
 # Usage
@@ -47,7 +47,7 @@ It features an intuitive menu interface for making various system settings as ex
                           • EXIT SETTINGS    > Returns to the main menu.
 
     ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and
-                                               confirm each character with SET. Auto-scroll is available when holding UP/DOWN or SET.
+                                               confirm each character with SET. Auto-scroll while holding UP/DOWN or SET.
                           • BACKLIGHT DIMMER > This toggles the automatic LCD backlight dimmer function (on or off).
                           • EXIT SETTINGS    > Returns to the main menu. 
 
@@ -59,5 +59,5 @@ It features an intuitive menu interface for making various system settings as ex
 
 - The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the exit menu is active, which requires explicit user confirmation.
 - Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.
-- If enabled, the LCD backlight will dim after a preset period in quiescent condition (locked state). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
+- If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
