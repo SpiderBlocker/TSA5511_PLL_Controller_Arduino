@@ -36,8 +36,8 @@ USAGE
                                                Upon confirming a new I²C address, communication is automatically verified. If verification fails, the last known working
                                                I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is stored and can't be
                                                reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61).
-                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state: high (220 µA), low (50 µA), or disabled. It should be set to
-                                               high for the DRFS06 exciter or to low for other platforms if required. Set it to disabled for testing purposes.
+                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state: high (220 µA), low (50 µA), or disabled. It should be set to high
+                                               for the DRFS06 exciter or to low for other platforms if required. Set it to disabled for testing purposes.
                           • XTAL FREQUENCY   > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                                theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper VCO
                                                frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
@@ -774,15 +774,13 @@ void handleMenu() {
                     break;
                 case 2:
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
-                        if (cpMode == CP_LOW) cpMode = CP_DISABLED;
-                        else if (cpMode == CP_HIGH) cpMode = CP_LOW;
-                        else cpMode = CP_HIGH;
+                        if (cpMode == CP_HIGH) cpMode = CP_LOW;
+                        else if (cpMode == CP_LOW) cpMode = CP_DISABLED;
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 1, [](int8_t) {
-                        if (cpMode == CP_LOW) cpMode = CP_HIGH;
-                        else if (cpMode == CP_HIGH) cpMode = CP_DISABLED;
-                        else cpMode = CP_LOW;
+                        if (cpMode == CP_DISABLED) cpMode = CP_LOW;
+                        else if (cpMode == CP_LOW) cpMode = CP_HIGH;
                         display(MENU_INTERFACE);
                     });
                     break;
@@ -823,10 +821,15 @@ void handleMenu() {
             }
         } else if (menuLevel == 3) {
             switch (menuIndex) {
-                case 1:
-                    handleButtonInput(buttonDownState, buttonDownPressed, 0, [](int8_t) { toggleSetting(backlightDimActive); });
-                    handleButtonInput(buttonUpState, buttonUpPressed, 0, [](int8_t) { toggleSetting(backlightDimActive); });
+                case 1: {
+                    auto onToggle = [](int8_t){
+                        backlightDimActive = !backlightDimActive;
+                        display(MENU_INTERFACE);
+                    };
+                    handleButtonInput(buttonDownState, buttonDownPressed, 0, onToggle);
+                    handleButtonInput(buttonUpState, buttonUpPressed, 0, onToggle);
                     break;
+                }
             }
         }
 
@@ -846,12 +849,6 @@ void handleMenu() {
             display(MENU_INTERFACE);
         });
     }
-}
-
-// toggle setting and update display
-void toggleSetting(bool &setting) {
-    setting = !setting;
-    display(MENU_INTERFACE);
 }
 
 // restore all user settings from EEPROM and return to main interface
