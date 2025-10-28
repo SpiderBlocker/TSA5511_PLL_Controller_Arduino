@@ -597,7 +597,7 @@ void handleMenu() {
                     tempPllAddrIndex = pllAddrIndex; // initialize temporary I²C address index
                     strncpy(stationNameBuffer, stationName, maxNameLength); // fill buffer with current station name as safe default
                     stationNameBuffer[maxNameLength] = '\0';
-                    outputPortsEditPhase = 0; // start with "PLL lock"
+                    outputPortsEditPhase = 0;
                     display(MENU_INTERFACE);
                     ignoreFirstSetInMenu = true; // skip until SET release
                     menuInactivityTimer = currentMillis;
@@ -774,13 +774,13 @@ void handleMenu() {
                     break;
                 case 2:
                     handleButtonInput(buttonDownState, buttonDownPressed, -1, [](int8_t) {
-                        if (cpMode == CP_HIGH) cpMode = CP_LOW;
-                        else if (cpMode == CP_LOW) cpMode = CP_DISABLED;
+                        if (cpMode == CP_DISABLED) cpMode = CP_LOW;
+                        else if (cpMode == CP_LOW) cpMode = CP_HIGH;
                         display(MENU_INTERFACE);
                     });
                     handleButtonInput(buttonUpState, buttonUpPressed, 1, [](int8_t) {
-                        if (cpMode == CP_DISABLED) cpMode = CP_LOW;
-                        else if (cpMode == CP_LOW) cpMode = CP_HIGH;
+                        if (cpMode == CP_HIGH) cpMode = CP_LOW;
+                        else if (cpMode == CP_LOW) cpMode = CP_DISABLED;
                         display(MENU_INTERFACE);
                     });
                     break;
