@@ -59,7 +59,7 @@
             <li><strong>VCO SETTINGS</strong>
                 <ul class="submenu">
                     <li><strong>FREQUENCY BAND</strong> – Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM for each VCO frequency band and XTAL frequency separately. The last selected VCO frequency band will be stored in EEPROM for each XTAL frequency separately as well.</li>
-                    <li><strong>PRECISION</strong> – This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can be changed to a lower value if so desired. Refer to additional explanation below at PLL SUBMENU > XTAL FREQ.</li>
+                    <li><strong>PRECISION</strong> – This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency being rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the highest possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can be changed to a lower value if so desired. Refer to additional explanation below at PLL SUBMENU > XTAL FREQ.</li>
                     <li><strong>EXIT SETTINGS</strong> – Returns to the main menu.</li>
                 </ul>
             </li>
@@ -89,7 +89,7 @@
 
         <ul>
             <li>The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the exit menu is active, which requires explicit user confirmation.</li>
-            <li>Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.</li>
+            <li>Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.</li>
             <li>If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.</li>
             <li>In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.</li>
         </ul>
