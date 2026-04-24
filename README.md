@@ -21,7 +21,7 @@ It features an intuitive menu interface for making various system settings as ex
                                                each VCO frequency band and XTAL frequency separately. The last selected VCO frequency band will be stored in EEPROM for
                                                each XTAL frequency separately as well.
                           • PRECISION        > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a
-                                               lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency to be
+                                               lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency being
                                                rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
                                                PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the highest
                                                possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can be changed
@@ -33,15 +33,15 @@ It features an intuitive menu interface for making various system settings as ex
                                                regardless of the hardware configuration. By default the I²C address is set to 0x61.
                                                Upon confirming a new I²C address, communication is automatically verified. If verification fails, the last known working
                                                I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is stored and can't be
-                                               reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61). 
-                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state: high (220 µA), low (50 µA), or disabled. It should be set to high
-                                               for the DRFS06 exciter or to low for other platforms if required. Set it to disabled for testing purposes.
+                                               reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61).
                           • XTAL FREQUENCY   > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                                theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper VCO
                                                frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
                                                adjusted accordingly.
                                                Note that compatibility of the TSA5511 with a 1.6 MHz crystal frequency is not officially supported; however, it has been
                                                empirically confirmed to work.
+                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state: high (220 µA), low (50 µA), or disabled. It should be set to high
+                                               for the DRFS06 exciter or to low for other platforms if required. Set it to disabled for testing purposes.
                           • PORT MAPPING     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
                                                indicator and the transmitter RF output stage respectively.
                           • EXIT SETTINGS    > Returns to the main menu.
@@ -58,6 +58,6 @@ It features an intuitive menu interface for making various system settings as ex
 ```
 
 - The menu interface will timeout after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the exit menu is active, which requires explicit user confirmation.
-- Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-scroll through the VCO frequency band with gradual acceleration. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.
+- Change VCO frequency using UP/DOWN and confirm with SET. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. Changing the VCO frequency without confirmation will time out and return to the main screen unchanged.
 - If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). Press and hold SET to turn off the backlight completely. The LCD backlight will be restored by pressing any button.
 - In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before alerting an error.
