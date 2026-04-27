@@ -9,7 +9,7 @@ It features an intuitive menu interface for making various system settings as ex
 ![Circuit diagram](images/PLL_CTRL_CCT.png)
 
 - The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
-- LCD backlight control is available if you connect it to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid on common Arduino boards.
+- LCD backlight control is available if connected to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid on common Arduino boards.
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF decoupling circuitry, you may want to use lower values for reliable communication, such as 1 or 2 kΩ.
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation.
 
@@ -22,8 +22,8 @@ It features an intuitive menu interface for making various system settings as ex
                                                each XTAL frequency separately as well.
                           • PRECISION        > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a
                                                lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency being
-                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is inherently dependent on the
-                                               PLL crystal frequency (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the highest
+                                               rounded and set to the nearest possible value. Since the minimum VCO frequency step size is derived from the PLL crystal
+                                               frequency and the /8 prescaler (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the highest
                                                possible resolution automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can be changed
                                                to a lower value if so desired. Refer to additional explanation below at PLL SUBMENU > XTAL FREQ.
                           • EXIT SETTINGS    > Returns to the main menu.
