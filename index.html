@@ -260,11 +260,11 @@
         <section class="grid" aria-label="Project highlights">
             <article class="card">
                 <h2>Made for real hardware</h2>
-                <p>Originally developed for replacing the proprietary controller of a DRFS06 exciter, while remaining useful for other TSA5511 based designs.</p>
+                <p>Originally developed for replacing the proprietary controller of the DRFS06 exciter, and especially useful for other TSA5511 based designs as well.</p>
             </article>
             <article class="card">
                 <h2>Menu driven</h2>
-                <p>The LCD interface provides direct access to VCO, PLL and general settings without recompiling the sketch for everyday adjustments.</p>
+                <p>The LCD interface provides direct access to adjust parameters for VCO, PLL and general settings on the fly.</p>
             </article>
             <article class="card">
                 <h2>EEPROM aware</h2>
@@ -275,7 +275,7 @@
         <section id="overview" class="content-section">
             <h2>Project overview</h2>
             <p>This page is a concise landing page for the TSA5511 PLL Controller project. The full source code, revision history and implementation details are maintained in the GitHub repository, while this page summarizes the purpose, hardware concept and main operating features for search engines and visitors.</p>
-            <p>The controller is intended for VCO frequency control from 64 MHz up to 1,300 MHz, within the specification range of the TSA5511. It supports configurable VCO bands, selectable PLL crystal frequency, I²C address handling, lock indication, station-name editing and LCD backlight control.</p>
+            <p>The controller is intended for VCO frequency control from 64 MHz up to 1,300 MHz, within the specification range of the TSA5511. It supports configurable VCO bands, selectable PLL crystal frequency, I²C address handling, lock/unlock indication, display of station-name and enhanced LCD backlight control.</p>
         </section>
 
         <section id="features" class="content-section">
@@ -287,7 +287,7 @@
                 <li>Double-click access to the configuration menu.</li>
                 <li>Configurable VCO frequency bands.</li>
                 <li>Frequency precision matched to the PLL reference step.</li>
-                <li>Separate memory for operating frequency per VCO band and crystal setting.</li>
+                <li>Separate memory for operating frequency per VCO band and crystal frequency.</li>
                 <li>Selectable TSA5511 I²C address with verification.</li>
                 <li>Configurable PLL crystal frequency: 1.6 MHz or 3.2 MHz.</li>
                 <li>Charge-pump current configuration for locked state.</li>
