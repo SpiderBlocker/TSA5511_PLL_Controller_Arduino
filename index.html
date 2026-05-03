@@ -2,346 +2,87 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="google-site-verification" content="BqP9RSQfLQiSCL0kyj5hCiTWCxZPS0T6amfjk4WEgzQ">
+    <meta name="google-site-verification" content="BqP9RSQfLQiSCL0kyj5hCiTWCxZPS0T6amfjk4WEgzQ" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>TSA5511 PLL Controller for Arduino | FM Exciter Frequency Control</title>
-    <meta name="description" content="A practical Arduino Nano based TSA5511 PLL controller for FM exciter and VCO projects, with LCD menu control, EEPROM storage, I²C address handling, charge-pump settings, station-name editing and configurable VCO bands.">
-    <meta name="robots" content="index, follow, max-image-preview:large">
-    <meta name="author" content="Loenie">
-    <meta name="theme-color" content="#102033">
-
-    <link rel="canonical" href="https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/">
-
+    <title>Sanitize NowPlaying for Stereo Tool</title>
+    <meta name="description" content="PowerShell-based metadata sanitizer that monitors nowplaying.txt and writes clean, consistent RDS RadioText, RT+ and prefix output files for Stereo Tool workflows.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://spiderblocker.github.io/Sanitize_NowPlaying_for_Stereo_Tool/">
+    <meta property="og:title" content="Sanitize NowPlaying for Stereo Tool">
+    <meta property="og:description" content="Clean, normalize and validate nowplaying.txt metadata into consistent RDS RadioText, RT+ and prefix output files for Stereo Tool.">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="TSA5511 PLL Controller for Arduino">
-    <meta property="og:description" content="Arduino Nano based TSA5511 PLL controller for FM exciter and VCO projects, featuring LCD menu control, EEPROM storage and robust I²C handling.">
-    <meta property="og:url" content="https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/">
-
+    <meta property="og:url" content="https://spiderblocker.github.io/Sanitize_NowPlaying_for_Stereo_Tool/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Sanitize NowPlaying for Stereo Tool">
+    <meta name="twitter:description" content="A PowerShell-based tool for preparing clean RDS RadioText and RT+ metadata from nowplaying.txt.">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareSourceCode",
-      "name": "TSA5511 PLL Controller for Arduino",
-      "headline": "Arduino based TSA5511 PLL controller for FM exciter and VCO projects",
-      "description": "A practical Arduino Nano based TSA5511 PLL controller with LCD menu control, configurable VCO bands, EEPROM storage, I²C address handling, charge-pump settings, port mapping, station-name editing and backlight dimming.",
-      "url": "https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/",
-      "codeRepository": "https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino",
-      "programmingLanguage": "C++",
-      "runtimePlatform": "Arduino",
-      "isAccessibleForFree": true,
-      "author": {
-        "@type": "Person",
-        "name": "Loenie"
-      },
-      "keywords": [
-        "Arduino",
-        "TSA5511",
-        "PLL controller",
-        "FM exciter",
-        "VCO frequency control",
-        "DRFS06",
-        "I2C",
-        "LCD menu",
-        "EEPROM"
-      ]
+      "name": "Sanitize NowPlaying for Stereo Tool",
+      "alternateName": "Sanitize NowPlaying",
+      "url": "https://spiderblocker.github.io/Sanitize_NowPlaying_for_Stereo_Tool/",
+      "codeRepository": "https://github.com/SpiderBlocker/Sanitize_NowPlaying_for_Stereo_Tool",
+      "downloadUrl": "https://github.com/SpiderBlocker/Sanitize_NowPlaying_for_Stereo_Tool/raw/main/Sanitize-NowPlaying.zip",
+      "description": "PowerShell-based metadata sanitizer that monitors nowplaying.txt and writes clean, consistent RDS RadioText, RT+ and prefix output files for Stereo Tool workflows.",
+      "programmingLanguage": "PowerShell",
+      "operatingSystem": "Windows 10, Windows 11; PowerShell-based and optimized for Windows broadcast systems",
+      "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "author": { "@type": "Person", "name": "Loenie" },
+      "keywords": ["RDS", "RadioText", "RT+", "Stereo Tool", "PowerShell", "nowplaying.txt", "RadioBOSS", "metadata cleanup", "FM broadcasting", "artist title sanitizer"]
     }
     </script>
-
     <style>
-        :root {
-            --bg: #eef3f7;
-            --panel: #ffffff;
-            --ink: #182230;
-            --muted: #5e6b7a;
-            --accent: #0067b8;
-            --accent-dark: #004a85;
-            --line: #d8e1ea;
-            --soft: #f6f9fc;
-            --code: #102033;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
-            line-height: 1.65;
-            color: var(--ink);
-            background: linear-gradient(180deg, #dfeaf3 0%, var(--bg) 260px);
-        }
-
-        a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        a:hover,
-        a:focus {
-            color: var(--accent-dark);
-            text-decoration: underline;
-        }
-
-        .page {
-            max-width: 1080px;
-            margin: 0 auto;
-            padding: 28px 18px 40px;
-        }
-
-        .hero {
-            padding: 42px 32px;
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            box-shadow: 0 20px 45px rgba(16, 32, 51, 0.10);
-        }
-
-        .eyebrow {
-            margin: 0 0 10px;
-            color: var(--accent-dark);
-            font-size: 0.92rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        h1 {
-            margin: 0;
-            max-width: 820px;
-            font-size: clamp(2rem, 4vw, 3.2rem);
-            line-height: 1.12;
-            color: var(--ink);
-        }
-
-        .intro {
-            max-width: 820px;
-            margin: 18px 0 0;
-            font-size: 1.15rem;
-            color: var(--muted);
-        }
-
-        .actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 26px;
-        }
-
-        .button {
-            display: inline-block;
-            padding: 11px 18px;
-            border-radius: 999px;
-            font-weight: 700;
-            border: 1px solid var(--accent);
-        }
-
-        .button.primary {
-            color: #fff;
-            background: var(--accent);
-        }
-
-        .button.secondary {
-            color: var(--accent-dark);
-            background: #fff;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 16px;
-            margin-top: 22px;
-        }
-
-        .card,
-        .content-section {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(16, 32, 51, 0.06);
-        }
-
-        .card {
-            padding: 20px;
-        }
-
-        .card h2,
-        .content-section h2 {
-            margin-top: 0;
-            color: var(--ink);
-        }
-
-        .card p {
-            margin-bottom: 0;
-            color: var(--muted);
-        }
-
-        .content-section {
-            margin-top: 22px;
-            padding: 28px;
-        }
-
-        .feature-list {
-            columns: 2;
-            column-gap: 34px;
-            padding-left: 22px;
-        }
-
-        .feature-list li,
-        .menu-list li {
-            break-inside: avoid;
-            margin-bottom: 8px;
-        }
-
-        .spec-box {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-            margin: 18px 0 0;
-        }
-
-        .spec-box div {
-            padding: 14px;
-            background: var(--soft);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-        }
-
-        .spec-box strong {
-            display: block;
-            color: var(--code);
-        }
-
-        code {
-            padding: 2px 5px;
-            border-radius: 5px;
-            color: var(--code);
-            background: #e8eef5;
-        }
-
-        footer {
-            margin-top: 28px;
-            padding: 24px;
-            color: var(--muted);
-            text-align: center;
-        }
-
-        @media (max-width: 760px) {
-            .hero,
-            .content-section {
-                padding: 22px;
-            }
-
-            .grid,
-            .spec-box {
-                grid-template-columns: 1fr;
-            }
-
-            .feature-list {
-                columns: 1;
-            }
-        }
+        :root { --bg:#f4f6f8; --card:#fff; --text:#1f2933; --muted:#5f6b7a; --accent:#087ea4; --accent-dark:#075f7d; --line:#d9e2ec; --soft:#eef7fb; --code:#0f172a; }
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:Arial, Helvetica, sans-serif; line-height:1.65; color:var(--text); background:linear-gradient(180deg,#eaf2f7 0%,var(--bg) 280px); }
+        a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+        .page { max-width:980px; margin:0 auto; padding:32px 20px 48px; }
+        .hero { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:34px; box-shadow:0 14px 38px rgba(15,23,42,.08); }
+        .eyebrow { margin:0 0 12px; color:var(--accent-dark); font-size:.86rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+        h1 { margin:0; font-size:clamp(2rem,4vw,3rem); line-height:1.12; color:#17202a; }
+        .lead { max-width:760px; margin:18px 0 0; color:var(--muted); font-size:1.12rem; }
+        .actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }
+        .button { display:inline-block; padding:11px 17px; border-radius:999px; border:1px solid var(--accent); font-weight:700; }
+        .button.primary { color:#fff; background:var(--accent); } .button.secondary { color:var(--accent-dark); background:#fff; }
+        .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:22px; }
+        .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:0 8px 24px rgba(15,23,42,.05); }
+        .card h2, .card h3 { margin-top:0; color:#17202a; } .card h2 { font-size:1.35rem; } .card h3 { font-size:1.08rem; }
+        .wide { grid-column:1 / -1; } .highlight { background:var(--soft); border-left:4px solid var(--accent); }
+        ul { padding-left:1.25rem; margin-bottom:0; } li { margin:.35rem 0; }
+        .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px; }
+        .step { padding:14px; background:#f8fafc; border:1px solid var(--line); border-radius:14px; } .step strong { display:block; margin-bottom:4px; color:#17202a; }
+        code { color:#fff; background:var(--code); border-radius:6px; padding:2px 6px; white-space:nowrap; }
+        pre { overflow-x:auto; color:#fff; background:var(--code); border-radius:14px; padding:16px; line-height:1.45; }
+        .note { color:var(--muted); font-size:.95rem; }
+        footer { margin-top:28px; color:var(--muted); text-align:center; font-size:.92rem; }
+        @media (max-width:800px) { .grid, .flow { grid-template-columns:1fr; } .hero { padding:26px; } }
     </style>
 </head>
 <body>
     <main class="page">
         <section class="hero">
-            <p class="eyebrow">Arduino PLL control project</p>
-            <h1>TSA5511 PLL Controller for Arduino</h1>
-            <p class="intro">A practical controller for TSA5511 based FM exciter and VCO projects. It combines an Arduino Nano, a 16x2 LCD, three pushbuttons and carefully managed EEPROM settings into a compact front-panel frequency controller.</p>
+            <p class="eyebrow">RDS metadata processing for Stereo Tool</p>
+            <h1>Sanitize NowPlaying for Stereo Tool</h1>
+            <p class="lead">A PowerShell-based tool that monitors <code>nowplaying.txt</code> in real time and transforms noisy artist/title metadata into clean, predictable RDS RadioText, RT+ and prefix output files for Stereo Tool. It is optimized for Windows-based broadcast systems and designed to keep on-air text consistent without manually retagging an entire music library.</p>
             <div class="actions">
-                <a class="button primary" href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino">View source code on GitHub</a>
-                <a class="button secondary" href="#features">Project features</a>
-                <a class="button secondary" href="#hardware">Hardware overview</a>
+                <a class="button primary" href="https://github.com/SpiderBlocker/Sanitize_NowPlaying_for_Stereo_Tool/raw/main/Sanitize-NowPlaying.zip">Download ZIP</a>
+                <a class="button secondary" href="https://github.com/SpiderBlocker/Sanitize_NowPlaying_for_Stereo_Tool">View source on GitHub</a>
             </div>
         </section>
-
-        <section class="grid" aria-label="Project highlights">
-            <article class="card">
-                <h2>Designed for TSA5511-based hardware</h2>
-                <p>Originally developed to replace the proprietary controller of the DRFS06 exciter, this project is equally suitable for other TSA5511-based designs.</p>
-            </article>
-            <article class="card">
-                <h2>Menu driven</h2>
-                <p>The LCD interface provides direct access to adjust VCO, PLL, and general settings on the fly.</p>
-            </article>
-            <article class="card">
-                <h2>EEPROM aware</h2>
-                <p>Configurable settings and last-used operating states are restored after restart, while avoiding unnecessary EEPROM writes where practical.</p>
-            </article>
+        <section class="grid" aria-label="Project summary">
+            <article class="card"><h2>Purpose-built for RDS</h2><p>The tool continuously watches playout metadata, removes common library noise, applies RDS-aware length rules and writes output files that Stereo Tool can read consistently.</p></article>
+            <article class="card"><h2>Consistent RT and RT+</h2><p>It first builds the final RadioText string and then derives RT+ artist/title tagging from that same result, keeping the visible RT text and RT+ metadata aligned.</p></article>
+            <article class="card"><h2>No retagging marathon</h2><p>Encoder tags, bitrate notes, format labels, platform names, duplicate fragments, country/year suffixes and bracketed clutter are filtered at runtime.</p></article>
+            <article class="card wide highlight"><h2>What this page adds</h2><p>This landing page gives search engines and visitors a concise overview of the project. The GitHub repository remains the authoritative source for the script, release ZIP, screenshots and full technical notes.</p></article>
+            <article class="card wide"><h2>Typical signal path</h2><div class="flow"><div class="step"><strong>1. Playout software</strong>Writes artist/title data to <code>nowplaying.txt</code>.</div><div class="step"><strong>2. Sanitizer</strong>Normalizes text, removes metadata noise and creates the final RT string.</div><div class="step"><strong>3. Output files</strong>Writes <code>nowplaying_rt.txt</code>, <code>nowplaying_rtplus.txt</code> and <code>nowplaying_prefix.txt</code>.</div><div class="step"><strong>4. Stereo Tool</strong>Reads the sanitized files for RDS RadioText and RT+ processing.</div></div></article>
+            <article class="card"><h2>Designed for live use</h2><ul><li>Real-time monitoring of <code>nowplaying.txt</code></li><li>Startup freshness check to avoid stale metadata</li><li>Persistent JSON configuration</li><li>Single-instance protection</li><li>Atomic writes during normal operation</li><li>Output flush on exit to prevent stale RDS data</li></ul></article>
+            <article class="card"><h2>Metadata handling</h2><ul><li>Artist/title cleanup and conservative splitting</li><li>Configurable delimiter, including U+241F, TAB and custom values</li><li>Duplicate detection and bracket handling</li><li>Country, year and suffix cleanup</li><li>Language-aware tails such as live, edit, mix and version</li><li>Adaptive trimming to the 64-character RDS limit</li><li>Optional Greek/Cyrillic transliteration and ASCII-safe mode</li></ul></article>
+            <article class="card"><h2>Console interface</h2><ul><li>Color status view for input, prefix, RT and RT+</li><li>F10 settings menu</li><li>Working-directory setup wizard</li><li>Multilingual “Now playing” prefix</li><li>Configurable playout delimiter</li><li>Shutdown flush feedback</li></ul></article>
+            <article class="card wide"><h2>Quick start</h2><p>Download the ZIP from the repository, place the standalone executable in a writable folder, and configure your playout software to write <code>nowplaying.txt</code> to the selected working directory. Then point Stereo Tool to the sanitized RT, RT+ and prefix output files.</p><pre><code>conhost.exe "C:\RDS\Sanitize-NowPlaying.exe"</code></pre><p class="note">Using the classic console host is recommended on Windows 11 when predictable console sizing and appearance are preferred over Windows Terminal tabs.</p></article>
+            <article class="card wide"><h2>Repository</h2><p>Full documentation, screenshots, source code and the downloadable package are available in the GitHub repository.</p><p><a href="https://github.com/SpiderBlocker/Sanitize_NowPlaying_for_Stereo_Tool">Open Sanitize NowPlaying for Stereo Tool on GitHub</a></p></article>
         </section>
-
-        <section id="overview" class="content-section">
-            <h2>Project overview</h2>
-            <p>This page is a concise landing page for the TSA5511 PLL Controller project. The full source code, revision history and implementation details are maintained in the GitHub repository, while this page summarizes the purpose, hardware concept and main operating features for search engines and visitors.</p>
-            <p>The controller is intended for VCO frequency control from 64 MHz up to 1,300 MHz, within the specification range of the TSA5511. It supports configurable VCO bands, selectable PLL crystal frequency, I²C address handling, lock/unlock indication, display of station-name and enhanced LCD backlight control.</p>
-        </section>
-
-        <section id="features" class="content-section">
-            <h2>Main features</h2>
-            <ul class="feature-list">
-                <li>Arduino Nano or compatible controller platform.</li>
-                <li>16x2 LCD user interface in 4-bit mode.</li>
-                <li>Three-button operation using DOWN, SET and UP.</li>
-                <li>Double-click access to the configuration menu.</li>
-                <li>Configurable VCO frequency bands.</li>
-                <li>Frequency precision matched to the PLL reference step.</li>
-                <li>Separate memory for operating frequency per VCO band and crystal frequency.</li>
-                <li>Selectable TSA5511 I²C address with verification.</li>
-                <li>Configurable PLL crystal frequency: 1.6 MHz or 3.2 MHz.</li>
-                <li>Charge-pump current configuration for locked state.</li>
-                <li>Output port mapping for lock, unlock and RF-stage control.</li>
-                <li>Station-name editor for the idle display.</li>
-                <li>Optional LCD backlight dimming and manual backlight-off function.</li>
-                <li>I²C communication retry handling and visible fault indication.</li>
-            </ul>
-        </section>
-
-        <section id="hardware" class="content-section">
-            <h2>Hardware overview</h2>
-            <p>The hardware consists of an Arduino Nano or compatible board, a standard 16x2 LCD, three pushbuttons with 470 nF debounce capacitors, the TSA5511 PLL circuit and an optional PLL lock LED. The lock LED can also act as a blinking fault indicator, while the LCD displays the lock status directly.</p>
-            <div class="spec-box">
-                <div>
-                    <strong>Controller</strong>
-                    Arduino Nano or compatible board
-                </div>
-                <div>
-                    <strong>User interface</strong>
-                    16x2 LCD, DOWN / SET / UP buttons
-                </div>
-                <div>
-                    <strong>PLL device</strong>
-                    TSA5511 with configurable I²C address
-                </div>
-                <div>
-                    <strong>Typical use</strong>
-                    FM exciter, VCO and RF frequency-control projects
-                </div>
-            </div>
-            <p>Pull-up resistors on SDA and SCL are required. If the I²C bus passes through RF-decoupling circuitry, lower pull-up values such as 1 kΩ or 2 kΩ may improve communication reliability.</p>
-        </section>
-
-        <section id="operation" class="content-section">
-            <h2>Operation and settings</h2>
-            <ul class="menu-list">
-                <li><strong>VCO settings:</strong> select the active VCO frequency band and choose the displayed/settable frequency precision.</li>
-                <li><strong>PLL settings:</strong> configure the I²C address, PLL crystal frequency, charge-pump behaviour and output-port mapping.</li>
-                <li><strong>General settings:</strong> edit the station name and enable or disable automatic LCD backlight dimming.</li>
-                <li><strong>Exit menu:</strong> explicitly save changes to EEPROM, discard changes or return to the menu.</li>
-            </ul>
-            <p>In normal use, the VCO frequency is adjusted with UP and DOWN and confirmed with SET. Holding UP or DOWN starts an accelerated sweep through the selected frequency band. If a pending frequency change is not confirmed, the controller returns to the main screen unchanged after timeout.</p>
-        </section>
-
-        <section id="repository" class="content-section">
-            <h2>Source code and documentation</h2>
-            <p>The complete Arduino sketch and project documentation are available in the public GitHub repository. Use the repository for the latest source code, detailed comments, pin mappings and version history.</p>
-            <p><a class="button primary" href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino">Open the GitHub repository</a></p>
-        </section>
-
-        <footer>
-            <p>© 2026 Loenie · TSA5511 PLL Controller for Arduino</p>
-        </footer>
+        <footer><p>© 2026 Loenie · Sanitize NowPlaying for Stereo Tool</p></footer>
     </main>
 </body>
 </html>
