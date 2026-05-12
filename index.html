@@ -182,6 +182,11 @@
             padding: 28px;
         }
 
+        .callout {
+            background: var(--soft);
+            border-left: 4px solid var(--accent);
+        }
+
         .feature-list {
             columns: 2;
             column-gap: 34px;
@@ -259,7 +264,7 @@
 
         <section class="grid" aria-label="Project highlights">
             <article class="card">
-                <h2>Made for real hardware</h2>
+                <h2>Developed for exciter retrofits</h2>
                 <p>Originally developed for replacing the proprietary controller of a DRFS06 exciter, while remaining useful for other TSA5511 based designs.</p>
             </article>
             <article class="card">
@@ -274,27 +279,27 @@
 
         <section id="overview" class="content-section">
             <h2>Project overview</h2>
-            <p>This page is a concise landing page for the TSA5511 PLL Controller project. The full source code, revision history and implementation details are maintained in the GitHub repository, while this page summarizes the purpose, hardware concept and main operating features for search engines and visitors.</p>
+            <p>This project provides a compact Arduino-based front-panel controller for TSA5511 PLL designs. It brings the main operating and configuration functions to a 16x2 LCD interface, so frequency control and everyday settings can be handled directly from the hardware.</p>
             <p>The controller is intended for VCO frequency control from 64 MHz up to 1,300 MHz, within the specification range of the TSA5511. It supports configurable VCO bands, selectable PLL crystal frequency, I²C address handling, lock indication, station-name editing and LCD backlight control.</p>
         </section>
 
         <section id="features" class="content-section">
             <h2>Main features</h2>
             <ul class="feature-list">
-                <li>Arduino Nano or compatible controller platform.</li>
-                <li>16x2 LCD user interface in 4-bit mode.</li>
-                <li>Three-button operation using DOWN, SET and UP.</li>
-                <li>Double-click access to the configuration menu.</li>
-                <li>Configurable VCO frequency bands.</li>
-                <li>Frequency precision matched to the PLL reference step.</li>
-                <li>Separate memory for operating frequency per VCO band and crystal setting.</li>
-                <li>Selectable TSA5511 I²C address with verification.</li>
-                <li>Configurable PLL crystal frequency: 1.6 MHz or 3.2 MHz.</li>
-                <li>Charge-pump current configuration for locked state.</li>
-                <li>Output port mapping for lock, unlock and RF-stage control.</li>
-                <li>Station-name editor for the idle display.</li>
-                <li>Optional LCD backlight dimming and manual backlight-off function.</li>
-                <li>I²C communication retry handling and visible fault indication.</li>
+                <li>Arduino Nano or compatible controller platform</li>
+                <li>16x2 LCD user interface in 4-bit mode</li>
+                <li>Three-button operation using DOWN, SET and UP</li>
+                <li>Double-click access to the configuration menu</li>
+                <li>Configurable VCO frequency bands</li>
+                <li>Frequency precision matched to the PLL reference step</li>
+                <li>Separate memory for operating frequency per VCO band and crystal setting</li>
+                <li>Selectable TSA5511 I²C address with verification</li>
+                <li>Configurable PLL crystal frequency: 1.6 MHz or 3.2 MHz</li>
+                <li>Charge-pump current configuration for locked state</li>
+                <li>Output port mapping for lock, unlock and RF-stage control</li>
+                <li>Station-name editor for the idle display</li>
+                <li>Optional LCD backlight dimming and manual backlight-off function</li>
+                <li>I²C communication retry handling and visible fault indication</li>
             </ul>
         </section>
 
@@ -331,6 +336,11 @@
                 <li><strong>Exit menu:</strong> explicitly save changes to EEPROM, discard changes or return to the menu.</li>
             </ul>
             <p>In normal use, the VCO frequency is adjusted with UP and DOWN and confirmed with SET. Holding UP or DOWN starts an accelerated sweep through the selected frequency band. If a pending frequency change is not confirmed, the controller returns to the main screen unchanged after timeout.</p>
+        </section>
+
+        <section id="about-this-page" class="content-section callout">
+            <h2>About this landing page</h2>
+            <p>This landing page provides a concise project overview for visitors and search engines. The GitHub repository remains the authoritative source for the full Arduino sketch, detailed documentation, pin mappings and version history.</p>
         </section>
 
         <section id="repository" class="content-section">
