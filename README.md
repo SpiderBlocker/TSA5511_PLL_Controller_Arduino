@@ -49,6 +49,7 @@ It features an intuitive menu interface for making various system settings as ex
     ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in quiescent condition (locked state). Select characters using UP/DOWN and
                                                confirm each character with SET. Auto-scroll while holding UP/DOWN or SET.
                           • BACKLIGHT DIMMER > This toggles the automatic LCD backlight dimmer function (on or off).
+                          • CLEAR SETTINGS   > This clears all stored settings and restores the default settings after double confirmation.
                           • EXIT SETTINGS    > Returns to the main menu. 
 
     ■ EXIT MENU        => • save changes     > Stores any changes to EEPROM and returns to the main interface.
