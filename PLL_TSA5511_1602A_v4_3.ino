@@ -1752,7 +1752,7 @@ void display(uint8_t mode) {
             lcd.setCursor(0, 1);
             if (!rfOutputEnabled && ((millis() / rfOutputStatusInterval) % 2)) {
                 clearLine(1); // clear row before showing the centered RF drive override status
-                lcd.setCursor((lcdColumns - (sizeof("RF DRIVE: OFF") - 1)) / 2, 1);
+                lcd.setCursor(0, 1);
                 lcd.print(F("RF DRIVE: OFF"));
             } else {
                 lcd.print(stationName);
