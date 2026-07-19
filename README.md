@@ -35,15 +35,15 @@ It features an intuitive menu interface for configuring system settings and a qu
                                                regardless of the hardware configuration. By default the I²C address is set to 0x61.
                                                When saving changes after selecting a new I²C address, communication is automatically verified. If verification fails, the last known
                                                working I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is stored and cannot be
-                                               reconfigured through the menu, restart the system while holding SET to restore the default fail-safe I²C address (0x61).
+                                               reconfigured through the menu, reset or power-cycle the controller while holding SET to restore the default fail-safe I²C address (0x61).
                           • XTAL FREQUENCY   > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                                theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper VCO
                                                frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
                                                adjusted accordingly.
                                                Note that compatibility of the TSA5511 with a 1.6 MHz crystal frequency is not officially supported; however, it has been
                                                empirically confirmed to work.
-                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state: high (220 µA), low (50 µA), or disabled. It should be set to high
-                                               for the DRFS06 exciter or to low for other platforms if required. Set it to disabled for testing purposes.
+                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state to high (220 µA) or low (50 µA). It should be set to high for
+                                               the DRFS06 exciter or to low for other platforms if required. The varicap drive can also be disabled for testing purposes.
                           • PORT MAPPING     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
                                                indicator and the transmitter RF output stage respectively. When using TSA5511 package variants with fewer available
                                                output ports, make sure that PORT MAPPING only selects physically available ports.
@@ -72,7 +72,7 @@ It features an intuitive menu interface for configuring system settings and a qu
                           • CLEAR MEMORY     > Clears one of the user memory slots for the current VCO frequency band and XTAL frequency.
                           • RF DRIVE         > Temporarily enables or disables the RF drive output without storing the state in EEPROM.
                                                When off, the station name alternates with an RF DRIVE: OFF status message.
-                          • LCD OFF          > Turns off the LCD backlight until any button is pressed.
+                          • LCD OFF          > Smoothly fades out and turns off the LCD backlight until any button is pressed.
                           • EXIT QUICK MENU  > Returns to the main interface.
 
 ```
@@ -80,6 +80,6 @@ It features an intuitive menu interface for configuring system settings and a qu
 - The SYSTEM SETTINGS menu will time out after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the save/discard/cancel exit menu is active, which requires explicit user confirmation.
 - The QUICK MENU will also time out after a preset period of inactivity and return to the main screen; its actions are applied immediately.
 - Change VCO frequency using UP/DOWN and confirm with a short SET press. Holding SET cancels the frequency change and returns to the main screen unchanged. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. If no confirmation is given, the frequency edit will time out unchanged.
-- PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, continuous lock polling is intentionally avoided after lock has been detected.
-- If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be turned off completely from the QUICK MENU and will be restored by pressing any button.
-- In case of an I²C communication error alert, verify PLL hardware and SDA/SCL connection and press SET to restart. I²C communication will be retried several times before showing an error alert.
+- PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing.
+- If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be smoothly faded out and turned off completely from the QUICK MENU and will be restored by pressing any button.
+- I²C communication loss is indicated and retried automatically. If recovery is required, or the TSA5511 POR flag indicates an unexpected reset, any active menu is closed with unsaved changes discarded and any unconfirmed frequency edit is cancelled; the PLL is then fully reprogrammed without user interaction.
