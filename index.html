@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>TSA5511 PLL Controller for Arduino | FM Exciter Frequency Control</title>
-    <meta name="description" content="An Arduino Nano-based TSA5511 PLL controller for FM exciter and VCO projects, with LCD menus, user memories, RF-drive control, EEPROM storage and automatic I²C/POR recovery.">
+    <meta name="description" content="An Arduino Nano-based TSA5511 PLL controller for FM exciter and VCO projects, with an interactive browser demo, LCD menus, user memories, RF-drive control, EEPROM storage and automatic I²C/POR recovery.">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="Loenie">
     <meta name="theme-color" content="#087ea4">
@@ -15,7 +15,7 @@
 
     <meta property="og:type" content="website">
     <meta property="og:title" content="TSA5511 PLL Controller for Arduino">
-    <meta property="og:description" content="Arduino Nano-based TSA5511 PLL controller with LCD menus, user memories, EEPROM storage, RF-drive control and automatic recovery from I²C communication loss or unexpected PLL resets.">
+    <meta property="og:description" content="Arduino Nano-based TSA5511 PLL controller with an interactive browser demo, LCD menus, user memories, EEPROM storage, RF-drive control and automatic recovery from I²C communication loss or unexpected PLL resets.">
     <meta property="og:url" content="https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/">
 
     <script type="application/ld+json">
@@ -24,7 +24,7 @@
       "@type": "SoftwareSourceCode",
       "name": "TSA5511 PLL Controller for Arduino",
       "headline": "Arduino-based TSA5511 PLL controller for FM exciter and VCO projects",
-      "description": "An Arduino Nano-based TSA5511 PLL controller with LCD menu control, configurable VCO bands, consistent SET-button gesture handling, System Settings, Quick Menu, user memories, EEPROM storage, I²C address handling, automatic I²C and POR recovery, charge-pump and varicap-drive control, port mapping, RF-drive control, station-name editing, menu-title display control, factory reset and backlight dimming.",
+      "description": "An Arduino Nano-based TSA5511 PLL controller with an interactive browser demo, LCD menu control, configurable VCO bands, consistent SET-button gesture handling, System Settings, Quick Menu, user memories, EEPROM storage, I²C address handling, automatic I²C and POR recovery, charge-pump and varicap-drive control, port mapping, RF-drive control, station-name editing, menu-title display control, factory reset and backlight dimming.",
       "url": "https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/",
       "codeRepository": "https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino",
       "programmingLanguage": "C++",
@@ -49,7 +49,8 @@
         "user memory",
         "RF drive",
         "Factory Reset",
-        "EEPROM"
+        "EEPROM",
+        "interactive demo"
       ]
     }
     </script>
@@ -263,7 +264,8 @@
             <h1>TSA5511 PLL Controller for Arduino</h1>
             <p class="intro">A PLL controller for TSA5511-based FM exciter and VCO projects. It combines an Arduino Nano, a 16x2 LCD, three pushbuttons, System Settings, Quick Menu, carefully managed EEPROM storage and automatic PLL communication recovery into a compact front-panel frequency controller.</p>
             <div class="actions">
-                <a class="button primary" href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino">View source code on GitHub</a>
+                <a class="button primary" href="demo.html">Try the interactive demo</a>
+                <a class="button secondary" href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino">View source code on GitHub</a>
                 <a class="button secondary" href="#features">Project features</a>
                 <a class="button secondary" href="#hardware">Hardware overview</a>
             </div>
@@ -282,6 +284,13 @@
                 <h2>EEPROM aware</h2>
                 <p>Persistent system settings, per-band operating states and user memories are restored after restart, while temporary actions stay out of EEPROM.</p>
             </article>
+        </section>
+
+        <section id="demo" class="content-section callout">
+            <h2>Interactive browser demo</h2>
+            <p>Explore a functional simulation of the controller without physical hardware. Operate the virtual 16x2 LCD and buttons, navigate System Settings and the Quick Menu, inspect the virtual TSA5511 status and output ports, and trigger simulated I²C communication loss or a TSA5511 power cycle to observe the recovery behaviour.</p>
+            <p>The simulation does not communicate with a physical Arduino or TSA5511. Any saved demo settings remain local to the browser.</p>
+            <p><a class="button primary" href="demo.html">Launch the interactive demo</a></p>
         </section>
 
         <section id="overview" class="content-section">
@@ -355,7 +364,7 @@
 
         <section id="about-this-page" class="content-section callout">
             <h2>About this landing page</h2>
-            <p>This landing page provides a concise project overview for visitors and search engines. The GitHub repository remains the authoritative source for the full Arduino sketch, detailed documentation, pin mappings and version history.</p>
+            <p>This landing page provides a concise project overview and direct access to the interactive browser demo. The GitHub repository remains the authoritative source for the full Arduino sketch, detailed documentation, pin mappings and version history.</p>
         </section>
 
         <section id="repository" class="content-section">
