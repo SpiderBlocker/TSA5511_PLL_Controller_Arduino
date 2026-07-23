@@ -4,6 +4,13 @@
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
 It features an intuitive menu interface for configuring system settings and a quick menu for frequently used functions, as described in detail below. Persistent system settings and user memories are stored in EEPROM and automatically recalled upon restart.
 
+# Interactive demo
+A browser-based interactive demo is available to explore the virtual 16x2 LCD interface, button controls, System Settings, Quick Menu, TSA5511 status information and simulated recovery scenarios without requiring physical hardware.
+
+[Launch the interactive demo](https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/demo.html)
+
+The demo is a functional simulation for demonstration purposes and does not communicate with a physical TSA5511 or Arduino controller. Saved demo settings remain local to the browser.
+
 # Hardware
 - Circuit diagram
 ![Circuit diagram](images/PLL_CTRL_CCT.png)
