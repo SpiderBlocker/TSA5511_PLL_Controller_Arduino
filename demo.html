@@ -1,0 +1,2416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TSA5511 PLL Controller — Interactive Demo</title>
+  <style>
+    :root {
+      --page-bg: #101315;
+      --panel-border: #30383d;
+      --text: #e8edf0;
+      --muted: #9da9af;
+      --lcd-shell: #0c6593;
+      --lcd-shell-dark: #073d61;
+      --lcd-bezel: #111517;
+      --lcd-bg: #083a88;
+      --lcd-bg-deep: #031d57;
+      --lcd-lit: #d8f4ff;
+      --led-off: #12321c;
+      --led-on: #35ef69;
+      --surface-texture:
+        repeating-linear-gradient(180deg, rgba(255,255,255,.018) 0 1px, rgba(0,0,0,0) 1px 4px),
+        radial-gradient(circle at 20% 18%, rgba(255,255,255,.020), transparent 34%),
+        radial-gradient(circle at 78% 64%, rgba(255,255,255,.016), transparent 30%);
+      --lcd-level: 1;
+      --lcd-transition: 120ms;
+      --ui-max-scale: .8;
+      --layout-vw: 1vw;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 50% -15%, rgba(115, 215, 218, .10), transparent 38rem),
+        var(--page-bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    button, select { font: inherit; }
+
+    .fit-stage {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .fit-canvas {
+      width: 100%;
+      transform-origin: top center;
+    }
+
+    .fit-stage.auto-fit-active .fit-canvas {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1080px;
+      max-width: none;
+      transform: translateX(-50%) scale(var(--fit-scale, 1));
+    }
+
+    .demo-shell {
+      width: min(1080px, 100%);
+      margin: 0 auto;
+      padding: clamp(16px, calc(3 * var(--layout-vw)), 36px);
+    }
+
+    .intro {
+      margin: 0 auto 24px;
+      max-width: 850px;
+      text-align: center;
+    }
+
+    .intro h1 {
+      margin: 0 0 8px;
+      color: #c4cbd0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 650;
+      font-size: clamp(1.45rem, calc(3 * var(--layout-vw)), 1.80rem);
+      line-height: 1.2;
+      letter-spacing: .13em;
+      text-shadow: 0 1px #000;
+    }
+
+    .intro p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .98rem;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(245px, 310px);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .controller {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border: 1px solid #444b4f;
+      border-radius: 24px;
+      padding: clamp(18px, calc(4 * var(--layout-vw)), 34px);
+      padding-top: clamp(7px, calc(1.7 * var(--layout-vw)), 14px);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.075), transparent 28%),
+        var(--surface-texture),
+        linear-gradient(160deg, #31383c, #181d20 62%, #101315);
+      box-shadow:
+        0 28px 70px rgba(0, 0, 0, .38),
+        inset 0 1px rgba(255,255,255,.14),
+        inset 0 -2px 5px rgba(0,0,0,.55);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .controller::before {
+      content: "PLL CONTROLLER  •  TSA5511";
+      display: block;
+      margin-bottom: 18px;
+      color: #c4cbd0;
+      font: 650 .76rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .13em;
+      text-align: center;
+      text-shadow: 0 1px #000;
+    }
+
+    .lcd-assembly {
+      position: relative;
+      width: min(100%, 620px);
+      margin: 0 auto;
+      padding: clamp(18px, calc(2.8 * var(--layout-vw)), 27px) clamp(21px, calc(3.7 * var(--layout-vw)), 36px);
+      border-radius: 6px;
+      background:
+        radial-gradient(circle at 18% 22%, rgba(255,255,255,.10) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 78% 72%, rgba(255,255,255,.07) 0 1px, transparent 1.5px),
+        linear-gradient(155deg, rgba(255,255,255,.15), transparent 29%),
+        linear-gradient(145deg, var(--lcd-shell), var(--lcd-shell-dark));
+      background-size: 18px 18px, 23px 23px, auto, auto;
+      border: 1px solid #042e49;
+      box-shadow:
+        inset 0 0 0 1px rgba(123,219,255,.25),
+        inset 0 -5px 14px rgba(0,0,0,.20),
+        0 9px 18px rgba(0,0,0,.35);
+    }
+
+    .lcd-assembly::before {
+      content: "1602A  •  16×2 CHARACTER LCD";
+      position: absolute;
+      left: 50%;
+      bottom: 4px;
+      transform: translateX(-50%);
+      color: rgba(220,247,255,.62);
+      font: 600 clamp(.43rem, calc(1 * var(--layout-vw)), .58rem)/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .11em;
+      white-space: nowrap;
+    }
+
+    .mount-hole {
+      position: absolute;
+      z-index: 2;
+      width: clamp(9px, calc(1.8 * var(--layout-vw)), 13px);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: #c8d2d6;
+      border: 2px solid #07324f;
+      box-shadow:
+        inset 0 0 0 2px #4c5960,
+        0 1px 2px rgba(0,0,0,.5);
+      pointer-events: none;
+    }
+
+    .mount-hole.tl { top: 6px; left: 7px; }
+    .mount-hole.tr { top: 6px; right: 7px; }
+    .mount-hole.bl { bottom: 6px; left: 7px; }
+    .mount-hole.br { bottom: 6px; right: 7px; }
+
+    .lcd-bezel {
+      position: relative;
+      border-radius: 3px;
+      padding: clamp(11px, calc(2 * var(--layout-vw)), 17px);
+      background:
+        linear-gradient(180deg, #242a2d, var(--lcd-bezel) 38%, #080a0b);
+      border: 1px solid #030405;
+      box-shadow:
+        inset 0 1px rgba(255,255,255,.12),
+        inset 0 0 14px #000,
+        0 2px 4px rgba(0,0,0,.55);
+    }
+
+    .lcd {
+      position: relative;
+      overflow: hidden;
+      border-radius: 2px;
+      padding: clamp(9px, calc(1.7 * var(--layout-vw)), 14px) clamp(8px, calc(1.6 * var(--layout-vw)), 13px);
+      background:
+        repeating-linear-gradient(0deg, rgba(140,205,255,.035) 0 1px, transparent 1px 3px),
+        radial-gradient(ellipse at 50% 42%, rgba(33,118,255,.42), transparent 72%),
+        linear-gradient(180deg, var(--lcd-bg), var(--lcd-bg-deep));
+      box-shadow:
+        inset 0 0 18px 3px rgba(0, 7, 39, .88),
+        inset 0 0 0 1px rgba(0, 3, 26, .95),
+        0 0 10px rgba(35,122,255,.25);
+      filter: brightness(calc(.34 + var(--lcd-level) * .66));
+      opacity: calc(.48 + var(--lcd-level) * .52);
+      transition: filter var(--lcd-transition) linear, opacity var(--lcd-transition) linear;
+    }
+
+    .lcd::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(115deg, rgba(255,255,255,.07), transparent 28%, transparent 75%, rgba(255,255,255,.03));
+      mix-blend-mode: screen;
+    }
+
+    .lcd-row {
+      display: grid;
+      grid-template-columns: repeat(16, minmax(0, 1fr));
+      gap: 0;
+      height: clamp(31px, calc(5.8 * var(--layout-vw)), 48px);
+      align-items: center;
+    }
+
+    .lcd-cell {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: clamp(.45px, calc(.12 * var(--layout-vw)), 1.15px);
+      align-self: center;
+      justify-self: center;
+      width: min(100%, 28px);
+      height: 92%;
+      min-width: 0;
+    }
+
+    .lcd-dot {
+      min-width: 0;
+      min-height: 0;
+      border-radius: 13%;
+      background: rgba(121, 184, 255, .055);
+      box-shadow: inset 0 0 0 1px rgba(0, 18, 72, .10);
+    }
+
+    .lcd-dot.on {
+      background: var(--lcd-lit);
+      box-shadow:
+        0 0 1px rgba(235, 250, 255, .98),
+        0 0 3px rgba(175, 226, 255, .72);
+    }
+
+    .lcd-dot.spacer {
+      opacity: 0;
+      box-shadow: none;
+    }
+
+    .lcd-cell.cursor .lcd-dot.cursor-underline {
+      animation: cursorBlink .86s steps(1) infinite;
+      background: var(--lcd-lit);
+      box-shadow:
+        0 0 1px rgba(235, 250, 255, .98),
+        0 0 3px rgba(175, 226, 255, .72);
+    }
+
+    @keyframes cursorBlink { 50% { opacity: .12; } }
+
+    .led-row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 0 8px 0 10px;
+      color: #d7e1e6;
+      font: 700 .76rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .12em;
+      border: 1px solid rgba(108, 130, 144, .55);
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(34,42,46,.98), rgba(18,23,26,.98)),
+        linear-gradient(135deg, rgba(255,255,255,.08), transparent 40%);
+      box-shadow:
+        inset 0 1px rgba(255,255,255,.06),
+        0 10px 20px rgba(0,0,0,.22);
+      white-space: nowrap;
+    }
+
+    .led {
+      width: 14px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: var(--led-off);
+      border: 1px solid #071c0e;
+      box-shadow: inset 0 1px 2px rgba(255,255,255,.12), 0 0 0 2px #161a1c;
+      transition: background .1s, box-shadow .1s;
+    }
+
+    .led.on {
+      background: var(--led-on);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,.7), 0 0 0 2px #161a1c, 0 0 13px 3px rgba(53,239,105,.62);
+    }
+
+    .led.error {
+      background: var(--led-on);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,.7), 0 0 0 2px #161a1c, 0 0 13px 3px rgba(53,239,105,.62);
+      animation: errorLedBlink .5s steps(1) infinite;
+    }
+
+    @keyframes errorLedBlink { 50% { opacity: .12; } }
+
+    .controls-wrap {
+      width: min(100%, 620px);
+      margin: 18px auto 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .controls {
+      width: 100%;
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(8px, calc(1.7 * var(--layout-vw)), 14px);
+    }
+
+    .hardware-button {
+      position: relative;
+      min-height: clamp(42px, calc(7 * var(--layout-vw)), 56px);
+      border: 1px solid #6f7b83;
+      border-radius: 14px;
+      color: #eef6fa;
+      background:
+        linear-gradient(180deg, rgba(90,104,112,.96), rgba(51,61,67,.98) 58%, rgba(24,31,35,.99)),
+        linear-gradient(135deg, rgba(255,255,255,.12), transparent 42%);
+      box-shadow:
+        0 5px 0 #1f262a,
+        0 10px 16px rgba(0,0,0,.32),
+        inset 0 1px rgba(255,255,255,.18),
+        inset 0 -1px rgba(0,0,0,.36);
+      cursor: pointer;
+      font: 800 clamp(.76rem, calc(1.5 * var(--layout-vw)), .9rem) ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .12em;
+      text-shadow: 0 1px 1px rgba(0,0,0,.65);
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .05s ease, box-shadow .05s ease, filter .12s ease, border-color .12s ease;
+    }
+
+    .hardware-button:hover { filter: brightness(1.07); border-color: #8e9ca5; }
+
+    .hardware-button:focus-visible {
+      box-shadow:
+        0 5px 0 #1f262a,
+        0 10px 16px rgba(0,0,0,.32),
+        0 0 0 3px rgba(115, 215, 218, .72),
+        inset 0 1px rgba(255,255,255,.18);
+    }
+
+    .hardware-button.pressed,
+    .hardware-button:active {
+      transform: translateY(4px);
+      box-shadow:
+        0 1px 0 #1f262a,
+        0 5px 9px rgba(0,0,0,.34),
+        inset 0 1px rgba(255,255,255,.14),
+        inset 0 -1px rgba(0,0,0,.36);
+    }
+
+    .help-strip {
+      width: min(100%, 620px);
+      margin: 30px auto 0;
+      display: grid;
+      gap: 6px;
+      color: #b7c2c8;
+      font-size: .79rem;
+      text-align: center;
+    }
+
+    .help-line {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 6px 10px;
+    }
+
+    .help-label {
+      color: #e6edf1;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+
+    .help-sep {
+      opacity: .5;
+    }
+
+    kbd {
+      display: inline-block;
+      min-width: 1.65em;
+      margin: 0 .12em;
+      padding: .1em .35em;
+      border: 1px solid #60696e;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      background: #22282b;
+      color: #e9eef0;
+      font: 700 .82em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border: 1px solid #444b4f;
+      border-radius: 16px;
+      overflow: hidden;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.075), transparent 28%),
+        var(--surface-texture),
+        linear-gradient(160deg, #31383c, #181d20 62%, #101315);
+      box-shadow:
+        0 18px 40px rgba(0,0,0,.22),
+        inset 0 1px rgba(255,255,255,.08),
+        inset 0 -2px 5px rgba(0,0,0,.35);
+    }
+
+    .side-panel h2 {
+      margin: 0;
+      padding: clamp(7px, calc(1.7 * var(--layout-vw)), 14px) 17px 12px;
+      color: #c4cbd0;
+      font: 650 .76rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .13em;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: 0 1px #000;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 12px;
+      padding: 16px 17px;
+      font: .82rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .status-grid dt { color: var(--muted); }
+    .status-grid dd {
+      margin: 0;
+      color: #e9eff2;
+      text-align: right;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    .status-grid dt.state-start,
+    .status-grid dd.state-start {
+      margin-top: 6px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(85, 98, 105, .44);
+    }
+
+    .status-grid dt.state-start {
+      position: relative;
+    }
+
+    .status-grid dt.state-start::after {
+      content: "";
+      position: absolute;
+      top: -1px;
+      right: -12px;
+      width: 12px;
+      height: 1px;
+      background: rgba(85, 98, 105, .44);
+    }
+    .status-grid dd.state {
+      font-weight: 700;
+      letter-spacing: .05em;
+    }
+    .status-grid .good { color: #8be09a; }
+    .status-grid .wait { color: #f2ce72; }
+    .status-grid .bad { color: #ff8e8e; }
+    .status-grid .offline { color: #78868d; }
+    .status-grid dd.state.offline {
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+
+    .sim-controls {
+      border-top: 1px solid rgba(86, 98, 105, .52);
+      padding: 14px 17px 16px;
+      background: transparent;
+    }
+
+    .sim-controls label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: .78rem;
+    }
+
+    .sim-controls select {
+      width: 100%;
+      border: 1px solid #526068;
+      border-radius: 7px;
+      padding: 8px 9px;
+      background: rgba(29, 37, 41, .88);
+      color: var(--text);
+    }
+
+    .sim-actions {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(79, 94, 102, .36);
+    }
+
+    .sim-actions .utility-button {
+      width: 100%;
+      padding-block: 8px;
+    }
+
+    .utility-button:disabled {
+      cursor: default;
+      opacity: .48;
+      transform: none;
+    }
+
+    .controller-footer {
+      width: min(100%, 620px);
+      margin: auto auto;
+      padding-top: 22px;
+      border-top: 1px solid rgba(103, 119, 127, .34);
+      display: grid;
+      grid-template-columns: 158px minmax(0, 1fr);
+      gap: 14px 18px;
+      align-items: stretch;
+    }
+
+    .controller-actions {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .controller-actions .utility-button {
+      width: 100%;
+    }
+
+    .utility-button {
+      border: 1px solid #526068;
+      border-radius: 8px;
+      padding: 7px 11px;
+      background: rgba(29, 37, 41, .88);
+      color: #dfe8ec;
+      cursor: pointer;
+      font-size: .75rem;
+      line-height: 1.2;
+      transition: background .12s, border-color .12s, transform .05s;
+    }
+
+    .utility-button:hover {
+      background: #283237;
+      border-color: #6b7a83;
+    }
+
+    .utility-button:active { transform: translateY(1px); }
+
+    .utility-button:focus-visible {
+      outline: 2px solid rgba(115, 215, 218, .72);
+      outline-offset: 2px;
+    }
+
+    .controller-event {
+      min-width: 0;
+      min-height: 100%;
+      padding: 9px 11px;
+      border: 1px solid rgba(79, 94, 102, .48);
+      border-radius: 9px;
+      background: rgba(10, 15, 17, .24);
+      color: #b3c0c6;
+      font-size: .7rem;
+      line-height: 1.4;
+    }
+
+    .controller-event strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #dce5e9;
+      font-size: .66rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .controller-event p { margin: 0; }
+
+    .port-status {
+      margin-top: auto;
+      border-top: 1px solid var(--panel-border);
+      padding: 14px 17px 17px;
+    }
+
+    .port-status h3 {
+      margin: 0 0 10px;
+      color: #d9e2e6;
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .port-grid {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px 10px;
+      align-items: center;
+      font: .76rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .port-grid .port-role { color: var(--muted); }
+    .port-grid .port-map { color: #e2e9ec; }
+    .port-grid .port-level {
+      min-width: 3.2em;
+      text-align: right;
+      font-weight: 700;
+    }
+    .port-grid .high { color: #75e28d; }
+    .port-grid .low { color: #88979e; }
+    .port-grid .none {
+      color: #6f7d84;
+      font-weight: 400;
+    }
+
+    .port-bitmap {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(75, 88, 95, .4);
+      color: #9caab0;
+      font: .72rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .port-bitmap output { color: #e4ecef; }
+    .port-bitmap output.offline { color: #78868d; }
+
+    .toast {
+      position: fixed;
+      z-index: 20;
+      left: 50%;
+      bottom: 22px;
+      width: min(520px, calc(100% - 28px));
+      padding: 11px 14px;
+      border: 1px solid #536168;
+      border-radius: 9px;
+      background: rgba(18, 23, 25, .96);
+      color: #edf2f4;
+      text-align: center;
+      box-shadow: 0 16px 35px rgba(0,0,0,.42);
+      transform: translate(-50%, 14px) scale(var(--ui-max-scale));
+      transform-origin: bottom center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s, transform .18s;
+    }
+
+    .toast.show {
+      transform: translate(-50%, 0) scale(var(--ui-max-scale));
+      opacity: 1;
+    }
+
+    .noscript {
+      margin: 18px auto;
+      max-width: 700px;
+      padding: 14px;
+      background: #422;
+      border: 1px solid #744;
+      border-radius: 8px;
+    }
+
+    .fit-stage.mobile-layout .workspace { grid-template-columns: 1fr; }
+    .fit-stage.mobile-layout .side-panel { width: min(100%, 620px); margin: 0 auto; }
+    .fit-stage.mobile-layout .controls-wrap { grid-template-columns: 1fr; justify-items: center; }
+    .fit-stage.mobile-layout .help-strip {
+      margin-top: 28px;
+      gap: 11px;
+    }
+    .fit-stage.mobile-layout .help-line:nth-child(2) {
+      display: grid;
+      gap: 11px;
+    }
+    .fit-stage.mobile-layout .help-sep { display: none; }
+    .fit-stage.mobile-layout .controller-footer {
+      grid-template-columns: 1fr;
+      margin: 36px auto 0;
+      padding-top: 26px;
+      row-gap: 18px;
+    }
+    .fit-stage.mobile-layout .controller-actions { gap: 12px; }
+
+    .fit-stage.compact-layout .demo-shell { padding: 10px; }
+    .fit-stage.compact-layout .controller { padding: 16px 11px 22px; border-radius: 17px; }
+    .fit-stage.compact-layout .lcd-assembly { padding: 18px 29px 24px; }
+    .fit-stage.compact-layout .lcd-assembly::before {
+      bottom: 7px;
+      font-size: .44rem;
+      letter-spacing: .09em;
+    }
+    .fit-stage.compact-layout .lcd-bezel { padding: 13px 14px; }
+    .fit-stage.compact-layout .lcd { padding: 11px; }
+    .fit-stage.compact-layout .lcd-row { gap: 0; height: 38px; }
+    .fit-stage.compact-layout .lcd-cell { width: 100%; height: 92%; }
+    .fit-stage.compact-layout .controls { gap: 8px; }
+    .fit-stage.compact-layout .hardware-button { min-height: 44px; }
+    .fit-stage.compact-layout .controller::before { margin-bottom: 14px; }
+    .fit-stage.compact-layout .help-strip {
+      margin-top: 30px;
+      gap: 12px;
+      font-size: .72rem;
+    }
+    .fit-stage.compact-layout .help-line:nth-child(2) { gap: 14px; }
+    .fit-stage.compact-layout .controller-footer {
+      margin-top: 38px;
+      padding-top: 28px;
+      row-gap: 20px;
+    }
+    .fit-stage.compact-layout .controller-actions { gap: 14px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="fit-stage" id="fit-stage">
+    <div class="fit-canvas" id="fit-canvas">
+      <main class="demo-shell">
+    <header class="intro">
+      <h1></h1>
+    </header>
+
+    <noscript><div class="noscript">This demonstration requires JavaScript.</div></noscript>
+
+    <div class="workspace">
+      <section class="controller" aria-label="Virtual PLL controller">
+        <div class="lcd-assembly">
+          <span class="mount-hole tl" aria-hidden="true"></span>
+          <span class="mount-hole tr" aria-hidden="true"></span>
+          <span class="mount-hole bl" aria-hidden="true"></span>
+          <span class="mount-hole br" aria-hidden="true"></span>
+          <div class="lcd-bezel">
+            <div class="lcd" id="lcd" aria-live="polite" aria-label="16 by 2 LCD display">
+              <div class="lcd-row" id="lcd-row-0"></div>
+              <div class="lcd-row" id="lcd-row-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls-wrap">
+          <div class="controls" role="group" aria-label="Controller buttons">
+            <button class="hardware-button" data-button="down" type="button" aria-label="DOWN button">DOWN</button>
+            <button class="hardware-button" data-button="set" type="button" aria-label="SET button">SET</button>
+            <button class="hardware-button" data-button="up" type="button" aria-label="UP button">UP</button>
+          </div>
+          <div class="led-row"><span class="led" id="lock-led" aria-hidden="true"></span><span>LOCK</span></div>
+        </div>
+
+        <div class="help-strip" aria-label="Controller instructions">
+          <div class="help-line">
+            <span class="help-label">Controls</span>
+            <span><kbd>↓</kbd> DOWN</span>
+            <span><kbd>Enter</kbd> SET</span>
+            <span><kbd>↑</kbd> UP</span>
+          </div>
+          <div class="help-line">
+            <span>Double-press <kbd>SET</kbd> for <strong>System settings</strong></span>
+            <span class="help-sep">•</span>
+            <span>Hold <kbd>SET</kbd> for the <strong>Quick menu</strong> or to return</span>
+          </div>
+        </div>
+
+        <div class="controller-footer" aria-label="Controller utilities">
+          <div class="controller-actions">
+            <button class="utility-button" id="restart-button" type="button">Restart controller</button>
+            <button class="utility-button" id="factory-button" type="button">Erase saved demo data</button>
+          </div>
+          <div class="controller-event" aria-live="polite">
+            <strong>Last controller event</strong>
+            <p id="event-text">Power applied.</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="Virtual TSA5511 status">
+        <h2>Virtual TSA5511</h2>
+        <dl class="status-grid">
+          <dt>I²C address</dt><dd id="status-address">0x61</dd>
+          <dt>Reference crystal</dt><dd id="status-xtal">3.2 MHz</dd>
+          <dt>VCO divisor</dt><dd id="status-divisor">—</dd>
+          <dt>Charge pump</dt><dd id="status-cp">—</dd>
+          <dt class="state-start">Lock flag</dt><dd id="status-lock" class="state wait state-start">LOW</dd>
+          <dt title="Power-on reset flag">POR flag</dt><dd id="status-por" class="state wait">HIGH</dd>
+          <dt>I²C link</dt><dd id="status-link" class="state good">OK</dd>
+        </dl>
+        <div class="sim-controls">
+          <label>Simulated secondary address (0x61 always valid)
+            <select id="sim-address" aria-label="Simulated TSA5511 secondary I2C address">
+              <option value="96" selected>0x60</option>
+              <option value="98">0x62</option>
+              <option value="99">0x63</option>
+            </select>
+          </label>
+          <div class="sim-actions" role="group" aria-label="TSA5511 fault simulation">
+            <button class="utility-button" id="tsa-power-cycle-button" type="button">Power-cycle TSA5511</button>
+            <button class="utility-button" id="i2c-error-button" type="button">Simulate temporary I²C error</button>
+          </div>
+        </div>
+        <section class="port-status" aria-label="TSA5511 output port status">
+          <h3>Output ports</h3>
+          <div class="port-grid">
+            <span class="port-role">LOCKED</span><span class="port-map" id="port-lock-map">P5</span><span class="port-level low" id="port-lock-level">LOW</span>
+            <span class="port-role">UNLOCKED</span><span class="port-map" id="port-unlock-map">P6</span><span class="port-level high" id="port-unlock-level">HIGH</span>
+            <span class="port-role">RF DRIVE</span><span class="port-map" id="port-rf-map">P2</span><span class="port-level low" id="port-rf-level">LOW</span>
+          </div>
+          <div class="port-bitmap"><span>Output bitmap</span><output id="port-bitmap">0x40</output></div>
+        </section>
+      </aside>
+    </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const LCD_COLUMNS = 16;
+    const LOCK_DELAY = 3500;
+    const SPLASH_DELAY = 2500;
+    const DIM_DELAY = 2500;
+    const DIM_FADE_DURATION = 2200;
+    const DIM_LEVEL = 0.30;
+    const LCD_OFF_FADE_DURATION = 400;
+    const MENU_TIMEOUT = 20000;
+    const FREQ_TIMEOUT = 5000;
+    const SET_LONG_PRESS = 800;
+    const SET_DOUBLE_CLICK = 350;
+    const BUTTON_REPEAT_DELAY = 1000;
+    const MEMORY_SLOTS = 6;
+    const STORAGE_KEY = 'pll-tsa5511-demo-v4.7';
+    const EMPTY_FREQ = null;
+    const XTALS = [1600000, 3200000];
+    const MAX_DECIMALS = [3, 2];
+    const I2C_ADDRESSES = [0x60, 0x61, 0x62, 0x63];
+    const DEFAULT_PLL_ADDR_INDEX = 1;
+    const I2C_FALLBACK_DELAY = 2500;
+    const I2C_HEALTH_CHECK_INTERVAL = 2000;
+    const TSA_POWER_OFF_DURATION = 350; // brief enough to finish before the controller's 2 s health check
+    const I2C_RETRY_WINDOW = 500;
+    const I2C_FAULT_DURATION = 5000;
+    const I2C_LOCK_VERIFY_DELAY = 500;
+    const BANDS = [
+      [65800000, 74000000],
+      [76000000, 95000000],
+      [87000000, 108000000],
+      [144000000, 148000000],
+      [420000000, 450000000],
+      [470000000, 862000000],
+      [64000000, 1300000000]
+    ];
+
+
+    // Compact 5×8 character generator inspired by the HD44780/1602A LCD ROM.
+    // Each slash-separated group is one five-pixel row; missing rows are blank.
+    const RAW_LCD_FONT = Object.freeze({
+      ' ': '00000/00000/00000/00000/00000/00000/00000',
+      '!': '00100/00100/00100/00100/00100/00000/00100',
+      '"': '01010/01010/01010/00000/00000/00000/00000',
+      '#': '01010/11111/01010/01010/11111/01010/00000',
+      '$': '00100/01111/10100/01110/00101/11110/00100',
+      '%': '11001/11010/00100/01000/10110/00110/00000',
+      '&': '01100/10010/10100/01000/10101/10010/01101',
+      "'": '00100/00100/01000/00000/00000/00000/00000',
+      '(': '00010/00100/01000/01000/01000/00100/00010',
+      ')': '01000/00100/00010/00010/00010/00100/01000',
+      '*': '00000/00100/10101/01110/10101/00100/00000',
+      '+': '00000/00100/00100/11111/00100/00100/00000',
+      ',': '00000/00000/00000/00000/00110/00100/01000',
+      '-': '00000/00000/00000/11111/00000/00000/00000',
+      '.': '00000/00000/00000/00000/00000/01100/01100',
+      '/': '00001/00010/00100/01000/10000/00000/00000',
+      '0': '01110/10001/10011/10101/11001/10001/01110',
+      '1': '00100/01100/00100/00100/00100/00100/01110',
+      '2': '01110/10001/00001/00010/00100/01000/11111',
+      '3': '11110/00001/00001/01110/00001/00001/11110',
+      '4': '00010/00110/01010/10010/11111/00010/00010',
+      '5': '11111/10000/10000/11110/00001/00001/11110',
+      '6': '01110/10000/10000/11110/10001/10001/01110',
+      '7': '11111/00001/00010/00100/01000/01000/01000',
+      '8': '01110/10001/10001/01110/10001/10001/01110',
+      '9': '01110/10001/10001/01111/00001/00001/01110',
+      ':': '00000/01100/01100/00000/01100/01100/00000',
+      ';': '00000/01100/01100/00000/01100/00100/01000',
+      '<': '00010/00100/01000/10000/01000/00100/00010',
+      '=': '00000/00000/11111/00000/11111/00000/00000',
+      '>': '01000/00100/00010/00001/00010/00100/01000',
+      '?': '01110/10001/00001/00010/00100/00000/00100',
+      '@': '01110/10001/00001/01101/10101/10101/01110',
+      'A': '01110/10001/10001/11111/10001/10001/10001',
+      'B': '11110/10001/10001/11110/10001/10001/11110',
+      'C': '01110/10001/10000/10000/10000/10001/01110',
+      'D': '11110/10001/10001/10001/10001/10001/11110',
+      'E': '11111/10000/10000/11110/10000/10000/11111',
+      'F': '11111/10000/10000/11110/10000/10000/10000',
+      'G': '01110/10001/10000/10111/10001/10001/01111',
+      'H': '10001/10001/10001/11111/10001/10001/10001',
+      'I': '01110/00100/00100/00100/00100/00100/01110',
+      'J': '00001/00001/00001/00001/10001/10001/01110',
+      'K': '10001/10010/10100/11000/10100/10010/10001',
+      'L': '10000/10000/10000/10000/10000/10000/11111',
+      'M': '10001/11011/10101/10101/10001/10001/10001',
+      'N': '10001/11001/10101/10011/10001/10001/10001',
+      'O': '01110/10001/10001/10001/10001/10001/01110',
+      'P': '11110/10001/10001/11110/10000/10000/10000',
+      'Q': '01110/10001/10001/10001/10101/10010/01101',
+      'R': '11110/10001/10001/11110/10100/10010/10001',
+      'S': '01111/10000/10000/01110/00001/00001/11110',
+      'T': '11111/00100/00100/00100/00100/00100/00100',
+      'U': '10001/10001/10001/10001/10001/10001/01110',
+      'V': '10001/10001/10001/10001/10001/01010/00100',
+      'W': '10001/10001/10001/10101/10101/10101/01010',
+      'X': '10001/10001/01010/00100/01010/10001/10001',
+      'Y': '10001/10001/01010/00100/00100/00100/00100',
+      'Z': '11111/00001/00010/00100/01000/10000/11111',
+      '[': '01110/01000/01000/01000/01000/01000/01110',
+      '\\': '10000/01000/00100/00010/00001/00000/00000',
+      ']': '01110/00010/00010/00010/00010/00010/01110',
+      '^': '00100/01010/10001/00000/00000/00000/00000',
+      '_': '00000/00000/00000/00000/00000/00000/11111',
+      '`': '01000/00100/00010/00000/00000/00000/00000',
+      'a': '00000/00000/01110/00001/01111/10001/01111',
+      'b': '10000/10000/10110/11001/10001/10001/11110',
+      'c': '00000/00000/01110/10001/10000/10001/01110',
+      'd': '00001/00001/01101/10011/10001/10001/01111',
+      'e': '00000/00000/01110/10001/11111/10000/01110',
+      'f': '00110/01001/01000/11100/01000/01000/01000',
+      'g': '00000/01111/10001/10001/01111/00001/01110',
+      'h': '10000/10000/10110/11001/10001/10001/10001',
+      'i': '00100/00000/01100/00100/00100/00100/01110',
+      'j': '00010/00000/00110/00010/00010/10010/01100',
+      'k': '10000/10000/10010/10100/11000/10100/10010',
+      'l': '01100/00100/00100/00100/00100/00100/01110',
+      'm': '00000/00000/11010/10101/10101/10101/10101',
+      'n': '00000/00000/10110/11001/10001/10001/10001',
+      'o': '00000/00000/01110/10001/10001/10001/01110',
+      'p': '00000/00000/11110/10001/11110/10000/10000',
+      'q': '00000/00000/01101/10011/01111/00001/00001',
+      'r': '00000/00000/10110/11001/10000/10000/10000',
+      's': '00000/00000/01111/10000/01110/00001/11110',
+      't': '01000/01000/11100/01000/01000/01001/00110',
+      'u': '00000/00000/10001/10001/10001/10011/01101',
+      'v': '00000/00000/10001/10001/10001/01010/00100',
+      'w': '00000/00000/10001/10001/10101/10101/01010',
+      'x': '00000/00000/10001/01010/00100/01010/10001',
+      'y': '00000/00000/10001/10001/01111/00001/01110',
+      'z': '00000/00000/11111/00010/00100/01000/11111',
+      '{': '00010/00100/00100/01000/00100/00100/00010',
+      '|': '00100/00100/00100/00100/00100/00100/00100',
+      '}': '01000/00100/00100/00010/00100/00100/01000',
+      '~': '00000/00000/01001/10110/00000/00000/00000'
+    });
+
+    const LCD_FONT = Object.freeze(Object.fromEntries(
+      Object.entries(RAW_LCD_FONT).map(([character, rows]) => {
+        const glyph = rows.split('/').slice(0, 8);
+        while (glyph.length < 8) glyph.push('00000');
+        return [character, glyph];
+      })
+    ));
+
+    const DEFAULTS = Object.freeze({
+      stationName: 'Station Name    ',
+      dimmer: true,
+      showMenuTitle: true,
+      decimals: 2,
+      pllControl: 1,
+      xtalIndex: 1,
+      pllAddressIndex: 1,
+      portLock: 5,
+      portUnlock: 6,
+      portRF: 2,
+      bandIndex: [2, 2],
+      lastFreq: {},
+      memories: {}
+    });
+
+    const MENU = Object.freeze({
+      SYSTEM_MAIN: 'system-main',
+      VCO: 'vco',
+      PLL: 'pll',
+      GENERAL: 'general',
+      EXIT: 'exit',
+      QUICK: 'quick',
+      MEMORY: 'memory'
+    });
+
+    const MENU_ITEMS = Object.freeze({
+      [MENU.SYSTEM_MAIN]: ['VCO SETTINGS', 'PLL SETTINGS', 'GENERAL SETTINGS', 'EXIT SETTINGS'],
+      [MENU.VCO]: ['FREQUENCY BAND', 'PRECISION', 'RETURN TO MENU'],
+      [MENU.PLL]: ['I2C ADDRESS', 'XTAL FREQUENCY', 'CHARGE PUMP', 'PORT MAPPING', 'RETURN TO MENU'],
+      [MENU.GENERAL]: ['STATION NAME', 'BACKLIGHT DIMMER', 'SHOW MENU TITLE', 'FACTORY RESET', 'RETURN TO MENU'],
+      [MENU.EXIT]: ['save changes', 'discard', 'cancel'],
+      [MENU.QUICK]: ['RECALL MEMORY', 'SAVE MEMORY', 'CLEAR MEMORY', 'RF DRIVE', 'LCD OFF', 'EXIT QUICK MENU']
+    });
+
+    const fitStage = document.getElementById('fit-stage');
+    const fitCanvas = document.getElementById('fit-canvas');
+    const FIT_DESIGN_WIDTH = 1080;
+    const FIT_MAX_SCALE = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--ui-max-scale')
+    ) || 0.8;
+
+    const lcd = document.getElementById('lcd');
+    const rowElements = [document.getElementById('lcd-row-0'), document.getElementById('lcd-row-1')];
+    const lockLed = document.getElementById('lock-led');
+    const toastEl = document.getElementById('toast');
+    const eventText = document.getElementById('event-text');
+    const simAddress = document.getElementById('sim-address');
+    const status = {
+      address: document.getElementById('status-address'),
+      xtal: document.getElementById('status-xtal'),
+      divisor: document.getElementById('status-divisor'),
+      cp: document.getElementById('status-cp'),
+      lock: document.getElementById('status-lock'),
+      por: document.getElementById('status-por'),
+      link: document.getElementById('status-link')
+    };
+    const ports = {
+      lockMap: document.getElementById('port-lock-map'),
+      lockLevel: document.getElementById('port-lock-level'),
+      unlockMap: document.getElementById('port-unlock-map'),
+      unlockLevel: document.getElementById('port-unlock-level'),
+      rfMap: document.getElementById('port-rf-map'),
+      rfLevel: document.getElementById('port-rf-level'),
+      bitmap: document.getElementById('port-bitmap')
+    };
+
+    let saved = loadSaved();
+    let tsaPowered = true;
+    let tsaPorFlag = true;
+    let tsaLockFlag = false;
+    let tsaRegistersProgrammed = false;
+    let tsaPowerCycleActive = false;
+    let i2cFaultActive = false;
+    let i2cRecoveryActive = false;
+    let state;
+    let timers = {};
+    let setPress = null;
+    let lastSetClick = 0;
+    let menuEntryBusy = false;
+    let downUpPresses = { down: null, up: null };
+    let toastTimer = null;
+    let lockAnimPos = 0;
+    let lockAnimDirection = 1;
+    let rfBlinkPhase = false;
+
+    function reportEmbeddedHeight() {
+      if (window.parent === window) return;
+      window.parent.postMessage({
+        type: 'tsa5511-demo-resize',
+        height: Math.ceil(document.documentElement.scrollHeight)
+      }, '*');
+    }
+
+    function applyAutoFit() {
+      const availableWidth = window.innerWidth;
+      const compactLayout = availableWidth <= 430;
+      const mobileLayout = availableWidth <= 842;
+      const canvasWidth = compactLayout
+        ? 430 / FIT_MAX_SCALE
+        : mobileLayout
+          ? 842 / FIT_MAX_SCALE
+          : FIT_DESIGN_WIDTH;
+      const scale = Math.min(FIT_MAX_SCALE, availableWidth / canvasWidth);
+
+      fitStage.classList.add('auto-fit-active');
+      fitStage.classList.toggle('mobile-layout', mobileLayout);
+      fitStage.classList.toggle('compact-layout', compactLayout);
+      fitCanvas.style.width = `${canvasWidth}px`;
+      fitCanvas.style.setProperty('--layout-vw', `${canvasWidth / 100}px`);
+      fitCanvas.style.setProperty('--fit-scale', scale.toFixed(4));
+
+      requestAnimationFrame(() => {
+        fitStage.style.height = `${Math.ceil(fitCanvas.scrollHeight * scale)}px`;
+        reportEmbeddedHeight();
+      });
+    }
+
+    function deepClone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function normalizeName(value) {
+      const source = String(value ?? '').replace(/[^\x20-\x7e]/g, ' ').slice(0, LCD_COLUMNS);
+      return source.padEnd(LCD_COLUMNS, ' ');
+    }
+
+    function normalizeInteger(value, minimum, maximum, fallback) {
+      const number = Number(value);
+      return Number.isInteger(number) && number >= minimum && number <= maximum ? number : fallback;
+    }
+
+    function normalizeBoolean(value, fallback) {
+      return typeof value === 'boolean' ? value : fallback;
+    }
+
+    function isRecord(value) {
+      return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function loadSaved() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (!isRecord(parsed)) return deepClone(DEFAULTS);
+        const merged = { ...deepClone(DEFAULTS), ...parsed };
+        merged.stationName = normalizeName(merged.stationName);
+        merged.xtalIndex = normalizeInteger(merged.xtalIndex, 0, XTALS.length - 1, DEFAULTS.xtalIndex);
+        merged.bandIndex = Array.isArray(merged.bandIndex) && merged.bandIndex.length === XTALS.length
+          ? merged.bandIndex.map((value, index) => normalizeInteger(value, 0, BANDS.length - 1, DEFAULTS.bandIndex[index]))
+          : [...DEFAULTS.bandIndex];
+        merged.decimals = normalizeInteger(merged.decimals, 0, MAX_DECIMALS[merged.xtalIndex], DEFAULTS.decimals);
+        merged.pllAddressIndex = normalizeInteger(merged.pllAddressIndex, 0, I2C_ADDRESSES.length - 1, DEFAULTS.pllAddressIndex);
+        merged.pllControl = normalizeInteger(merged.pllControl, 0, 2, DEFAULTS.pllControl);
+        merged.dimmer = normalizeBoolean(merged.dimmer, DEFAULTS.dimmer);
+        merged.showMenuTitle = normalizeBoolean(merged.showMenuTitle, DEFAULTS.showMenuTitle);
+        merged.lastFreq = isRecord(merged.lastFreq) ? merged.lastFreq : {};
+        merged.memories = isRecord(merged.memories) ? merged.memories : {};
+
+        const portKeys = ['portLock', 'portUnlock', 'portRF'];
+        portKeys.forEach(key => {
+          merged[key] = normalizeInteger(merged[key], 0, 8, DEFAULTS[key]);
+        });
+        const mappedPorts = portKeys.map(key => merged[key]).filter(port => port < 8);
+        if (new Set(mappedPorts).size !== mappedPorts.length) {
+          portKeys.forEach(key => { merged[key] = DEFAULTS[key]; });
+        }
+        return merged;
+      } catch {
+        return deepClone(DEFAULTS);
+      }
+    }
+
+    function persist() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+      } catch {
+        // The demo still works when storage is blocked (for example in a restricted iframe).
+      }
+    }
+
+    function bandKey(settings = saved) {
+      return `${settings.xtalIndex}:${settings.bandIndex[settings.xtalIndex]}`;
+    }
+
+    function memoryKey(slot, settings = saved) {
+      return `${bandKey(settings)}:${slot}`;
+    }
+
+    function getStep(settings = currentSettings()) {
+      return (XTALS[settings.xtalIndex] * 8) / 512;
+    }
+
+    function getVisibleStep(settings = currentSettings()) {
+      const displayStep = 1000000 / (10 ** settings.decimals);
+      return Math.ceil(displayStep / getStep(settings)) * getStep(settings);
+    }
+
+    function validateFrequency(freq, settings = currentSettings(), visible = false, direction = 0) {
+      const baseStep = getStep(settings);
+      const limit = 0x7fff * baseStep;
+      let value = Math.max(baseStep, Math.min(limit, Number(freq) || baseStep));
+      const step = visible ? getVisibleStep(settings) : baseStep;
+      if (direction > 0) value = Math.ceil(value / step) * step;
+      else if (direction < 0) value = Math.floor(value / step) * step;
+      else value = Math.round(value / step) * step;
+      return Math.max(baseStep, Math.min(limit, value));
+    }
+
+    function getBandLimits(settings = currentSettings()) {
+      const raw = BANDS[settings.bandIndex[settings.xtalIndex]];
+      return [
+        validateFrequency(raw[0], settings, true, 1),
+        validateFrequency(raw[1], settings, true, -1)
+      ];
+    }
+
+    function getStoredBandFrequency(settings = saved) {
+      const [low, high] = getBandLimits(settings);
+      const candidate = Number(settings.lastFreq[bandKey(settings)]);
+      return Number.isFinite(candidate) && candidate >= low && candidate <= high
+        ? validateFrequency(candidate, settings)
+        : low;
+    }
+
+    function currentSettings() {
+      return state?.pending || saved;
+    }
+
+    function resetRuntime({ startupSetHeld = false } = {}) {
+      clearAllTimers();
+      document.querySelectorAll('.hardware-button.pressed').forEach(button => button.classList.remove('pressed'));
+      saved = loadSaved();
+      const initialFreq = getStoredBandFrequency(saved);
+      state = {
+        screen: 'splash',
+        currentFreq: initialFreq,
+        targetFreq: initialFreq,
+        locked: false,
+        lockPending: false,
+        rfOutputEnabled: true,
+        lcdOff: false,
+        dimmed: false,
+        pending: null,
+        systemSnapshot: null,
+        menuLevel: null,
+        menuIndex: 0,
+        previousSystemIndex: 0,
+        menuEdit: false,
+        memoryAction: 0,
+        outputPortPhase: 0,
+        factoryFinal: false,
+        factoryChoice: false,
+        stationEditPosition: 0,
+        stationBuffer: saved.stationName,
+        lastActivity: performance.now(),
+        lastMenuActivity: performance.now(),
+        lastFreqActivity: performance.now(),
+        messageOverride: null
+      };
+      menuEntryBusy = false;
+      lastSetClick = 0;
+      setPress = null;
+      tsaPowerCycleActive = false;
+      i2cFaultActive = false;
+      i2cRecoveryActive = false;
+      lockAnimPos = 0;
+      lockAnimDirection = 1;
+      rfBlinkPhase = false;
+      setLcdBrightness(1, 0);
+      logEvent('Power applied.');
+      render();
+      timers.splash = setTimeout(() => {
+        const finishStartup = (reason = 'Startup programming') => {
+          // The sketch performs an initial TSA5511 status read here; a successful read clears POR.
+          const startupAddress = I2C_ADDRESSES[saved.pllAddressIndex];
+          if (addressAcknowledges(startupAddress)) tsaPorFlag = false;
+          state.screen = 'main';
+          render();
+          programmePLL(state.currentFreq, { force: true, reason });
+        };
+
+        const failSafeRequested = startupSetHeld || isSetHeldDuringRestart();
+        if (failSafeRequested) {
+          saved.pllAddressIndex = DEFAULT_PLL_ADDR_INDEX;
+          persist();
+          state.screen = 'i2c-fallback';
+          render();
+          logEvent('SET detected at the end of the splash screen; safe I²C address 0x61 restored.');
+          timers.startupFallback = setTimeout(() => finishStartup('Startup programming after I²C fallback'), I2C_FALLBACK_DELAY);
+          return;
+        }
+
+        finishStartup();
+      }, SPLASH_DELAY);
+      startBackgroundTimers();
+    }
+
+    function clearAllTimers() {
+      Object.values(timers).forEach(timer => {
+        clearTimeout(timer);
+        clearInterval(timer);
+      });
+      timers = {};
+      Object.values(downUpPresses).forEach(press => {
+        if (press?.timer) clearTimeout(press.timer);
+      });
+      downUpPresses = { down: null, up: null };
+    }
+
+    function startBackgroundTimers() {
+      timers.animation = setInterval(() => {
+        if (!state) return;
+        if (!state.locked && ['main', 'frequency'].includes(state.screen)) {
+          lockAnimPos += lockAnimDirection;
+          if (lockAnimPos >= 3 || lockAnimPos <= 0) lockAnimDirection *= -1;
+          render();
+        }
+      }, 250);
+
+      timers.rfBlink = setInterval(() => {
+        if (!state) return;
+        rfBlinkPhase = !rfBlinkPhase;
+        if (state.screen === 'main' && !state.rfOutputEnabled) render();
+      }, 1000);
+
+      timers.housekeeping = setInterval(housekeeping, 80);
+    }
+
+    function housekeeping() {
+      if (!state) return;
+      const now = performance.now();
+
+      if (state.screen === 'frequency' && now - state.lastFreqActivity > FREQ_TIMEOUT) {
+        state.targetFreq = state.currentFreq;
+        state.screen = 'main';
+        logEvent('Frequency edit timed out; change discarded.');
+        render();
+      }
+
+      if (state.screen === 'menu' && state.menuLevel !== MENU.EXIT && now - state.lastMenuActivity > MENU_TIMEOUT) {
+        if ([MENU.QUICK, MENU.MEMORY].includes(state.menuLevel)) {
+          exitToMain('Quick menu timed out.');
+        } else {
+          discardSystemChanges('System settings timed out; unsaved changes discarded.');
+        }
+      }
+
+      const canDim = state.screen === 'main' && state.locked && state.rfOutputEnabled && saved.dimmer && !state.lcdOff;
+      if (canDim && now - state.lastActivity > DIM_DELAY && !state.dimmed) {
+        state.dimmed = true;
+        setLcdBrightness(DIM_LEVEL, DIM_FADE_DURATION);
+      }
+    }
+
+    function setLcdBrightness(level, duration = 120) {
+      const clamped = Math.max(0, Math.min(1, level));
+      lcd.style.setProperty('--lcd-level', String(clamped));
+      lcd.style.setProperty('--lcd-transition', `${duration}ms`);
+    }
+
+    function activity() {
+      if (!state) return false;
+      state.lastActivity = performance.now();
+      state.lastMenuActivity = state.lastActivity;
+      state.lastFreqActivity = state.lastActivity;
+
+      if (state.lcdOff) {
+        state.lcdOff = false;
+        state.dimmed = false;
+        setLcdBrightness(1, 100);
+        state.screen = 'main';
+        logEvent('LCD backlight restored.');
+        render();
+        return true;
+      }
+
+      if (state.dimmed) {
+        state.dimmed = false;
+        setLcdBrightness(1, 100);
+      }
+      return false;
+    }
+
+    function powerOffLcd() {
+      state.screen = 'main';
+      state.lcdOff = true;
+      state.dimmed = false;
+      setLcdBrightness(0, LCD_OFF_FADE_DURATION);
+      logEvent('LCD backlight switched off. Press any controller button to wake it.');
+
+      clearTimeout(timers.lcdOff);
+      timers.lcdOff = setTimeout(() => {
+        render();
+      }, LCD_OFF_FADE_DURATION);
+    }
+
+    function addressAcknowledges(address) {
+      if (!tsaPowered || i2cFaultActive) return false;
+      const secondaryAddress = Number(simAddress.value);
+      return address === 0x61 || address === secondaryAddress;
+    }
+
+    function programmePLL(freq, { force = false, reason = 'Frequency programmed' } = {}) {
+      const settings = saved;
+      const aligned = validateFrequency(freq, settings, true);
+      const address = I2C_ADDRESSES[settings.pllAddressIndex];
+      if (!addressAcknowledges(address)) {
+        toast(`I²C address 0x${address.toString(16).toUpperCase()} did not acknowledge.`);
+        logEvent(`I²C write failed at 0x${address.toString(16).toUpperCase()}.`);
+        return false;
+      }
+
+      if (!force && aligned === state.currentFreq && state.lockPending) return true;
+
+      state.currentFreq = aligned;
+      state.targetFreq = aligned;
+      saved.lastFreq[bandKey(saved)] = aligned;
+      persist();
+      state.locked = false;
+      state.lockPending = true;
+      tsaLockFlag = false;
+      tsaRegistersProgrammed = true;
+      state.lastActivity = performance.now();
+      setLcdBrightness(1, 100);
+      lockAnimPos = 0;
+      lockAnimDirection = 1;
+      clearTimeout(timers.lock);
+      timers.lock = setTimeout(() => {
+        tsaLockFlag = true;
+        if (!i2cFaultActive && !i2cRecoveryActive && state.screen !== 'i2c-error') {
+          state.locked = true;
+          state.lockPending = false;
+          state.lastActivity = performance.now();
+          logEvent('TSA5511 lock flag asserted HIGH.');
+        }
+        render();
+      }, LOCK_DELAY);
+      logEvent(`${reason}; acquiring lock for ${(LOCK_DELAY / 1000).toFixed(1)} s.`);
+      render();
+      return true;
+    }
+
+    function formatMHz(freq, decimals = currentSettings().decimals) {
+      return (freq / 1000000).toFixed(decimals);
+    }
+
+    function formatFrequencyRight(freq, decimals = currentSettings().decimals) {
+      return `${formatMHz(freq, decimals)} MHz`;
+    }
+
+    function padLine(text = '') {
+      return String(text).slice(0, LCD_COLUMNS).padEnd(LCD_COLUMNS, ' ');
+    }
+
+    function centerLine(text = '') {
+      const value = String(text).slice(0, LCD_COLUMNS);
+      const left = Math.floor((LCD_COLUMNS - value.length) / 2);
+      return ' '.repeat(left) + value + ' '.repeat(LCD_COLUMNS - value.length - left);
+    }
+
+    function rightCompose(prefix, value) {
+      const p = String(prefix || '');
+      const v = String(value || '');
+      return padLine(p + ' '.repeat(Math.max(0, LCD_COLUMNS - p.length - v.length)) + v);
+    }
+
+    function lockText() {
+      if (state.locked) return 'LOCK ';
+      const chars = [' ', ' ', ' ', ' ', ' '];
+      const arrows = lockAnimDirection >= 0 ? '>>' : '<<';
+      chars[lockAnimPos] = arrows[0];
+      chars[Math.min(4, lockAnimPos + 1)] = arrows[1];
+      return chars.join('');
+    }
+
+    function render() {
+      if (!state) return;
+      let lines = ['                ', '                '];
+      let cursor = null;
+
+      if (state.screen === 'splash') {
+        lines[0] = padLine('PLL Control V4.7');
+        lines[1] = padLine('(C)2026 Loenie');
+      } else if (state.screen === 'main') {
+        lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
+        lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
+      } else if (state.screen === 'frequency') {
+        lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
+        lines[1] = rightCompose('SET ', formatFrequencyRight(state.targetFreq, saved.decimals));
+      } else if (state.screen === 'menu-title') {
+        lines = state.messageOverride || [centerLine(state.menuLevel === MENU.QUICK ? 'QUICK MENU' : 'SYSTEM SETTINGS'), '                '];
+      } else if (state.screen === 'menu') {
+        lines = renderMenuLines();
+      } else if (state.screen === 'station-editor') {
+        lines[0] = padLine('STATION NAME');
+        lines[1] = padLine(state.stationBuffer);
+        cursor = { row: 1, col: state.stationEditPosition };
+      } else if (state.screen === 'i2c-fallback') {
+        lines[0] = padLine('I2C FALLBACK');
+        lines[1] = padLine(`restoring 0x${I2C_ADDRESSES[saved.pllAddressIndex].toString(16).toUpperCase()}`);
+      } else if (state.screen === 'i2c-error') {
+        lines[0] = padLine('I2C ERROR');
+        lines[1] = padLine('retrying...');
+      }
+
+      if (state.lcdOff) lines = ['                ', '                '];
+      drawRows(lines, cursor);
+      lockLed.classList.toggle('on', state.locked && !state.lcdOff && state.screen !== 'i2c-error');
+      lockLed.classList.toggle('error', state.screen === 'i2c-error' && !state.lcdOff);
+      updateStatus();
+    }
+
+    function drawRows(lines, cursor) {
+      rowElements.forEach((row, rowIndex) => {
+        const text = padLine(lines[rowIndex] || '');
+        const fragment = document.createDocumentFragment();
+        for (let col = 0; col < LCD_COLUMNS; col += 1) {
+          const character = text[col] || ' ';
+          const glyph = LCD_FONT[character] || LCD_FONT['?'];
+          const cell = document.createElement('span');
+          cell.className = 'lcd-cell';
+          cell.setAttribute('aria-label', character === ' ' ? 'space' : character);
+          if (cursor && cursor.row === rowIndex && cursor.col === col) cell.classList.add('cursor');
+
+          for (let dotIndex = 0; dotIndex < 48; dotIndex += 1) {
+            const dotRow = Math.floor(dotIndex / 6);
+            const dotColumn = dotIndex % 6;
+            const dot = document.createElement('i');
+            const isSpacerColumn = dotColumn === 5;
+            const isUnderline = cursor && cursor.row === rowIndex && cursor.col === col && dotRow === 7 && dotColumn < 5;
+            const classes = ['lcd-dot'];
+            if (isSpacerColumn) {
+              classes.push('spacer');
+            } else if (glyph[dotRow][dotColumn] === '1') {
+              classes.push('on');
+            }
+            if (isUnderline) classes.push('cursor-underline');
+            dot.className = classes.join(' ');
+            dot.setAttribute('aria-hidden', 'true');
+            cell.appendChild(dot);
+          }
+          fragment.appendChild(cell);
+        }
+        row.replaceChildren(fragment);
+      });
+    }
+
+    function updateStatus() {
+      const settings = saved;
+      const divisor = Math.round(state.currentFreq / getStep(settings));
+      const address = I2C_ADDRESSES[settings.pllAddressIndex];
+      const registersValid = tsaPowered && tsaRegistersProgrammed;
+
+      const setStaticValue = (element, value, available) => {
+        element.textContent = available ? value : '—';
+        element.className = available ? '' : 'offline';
+      };
+
+      setStaticValue(status.address, `0x${address.toString(16).toUpperCase()}`, tsaPowered);
+      setStaticValue(status.xtal, `${(XTALS[settings.xtalIndex] / 1000000).toFixed(1)} MHz`, tsaPowered);
+      setStaticValue(status.divisor, Number.isFinite(divisor) ? String(divisor) : '—', registersValid);
+      setStaticValue(
+        status.cp,
+        settings.pllControl === 0 ? 'Low' : settings.pllControl === 1 ? 'High' : 'Disabled',
+        registersValid
+      );
+
+      status.lock.textContent = tsaPowered ? (tsaLockFlag ? 'HIGH' : 'LOW') : '—';
+      status.lock.className = `state ${tsaPowered ? (tsaLockFlag ? 'good' : 'wait') : 'offline'} state-start`;
+      status.por.textContent = tsaPowered ? (tsaPorFlag ? 'HIGH' : 'LOW') : '—';
+      status.por.className = `state ${tsaPowered ? (tsaPorFlag ? 'wait' : 'good') : 'offline'}`;
+      status.link.textContent = !tsaPowered ? 'DOWN' : (i2cFaultActive ? 'ERROR' : 'OK');
+      status.link.className = `state ${!tsaPowered || i2cFaultActive ? 'bad' : 'good'}`;
+
+      const levels = {
+        lock: registersValid && tsaLockFlag,
+        unlock: registersValid && !tsaLockFlag,
+        rf: registersValid && tsaLockFlag && state.rfOutputEnabled
+      };
+      const mappings = {
+        lock: settings.portLock,
+        unlock: settings.portUnlock,
+        rf: settings.portRF
+      };
+
+      const setPortStatus = (mapElement, levelElement, port, high) => {
+        const mapped = Number.isInteger(port) && port >= 0 && port < 8;
+        mapElement.textContent = mapped ? `P${port}` : 'none';
+
+        if (!registersValid || !mapped) {
+          levelElement.textContent = '—';
+          levelElement.className = 'port-level none';
+          return;
+        }
+
+        levelElement.textContent = high ? 'HIGH' : 'LOW';
+        levelElement.className = `port-level ${high ? 'high' : 'low'}`;
+      };
+
+      setPortStatus(ports.lockMap, ports.lockLevel, mappings.lock, levels.lock);
+      setPortStatus(ports.unlockMap, ports.unlockLevel, mappings.unlock, levels.unlock);
+      setPortStatus(ports.rfMap, ports.rfLevel, mappings.rf, levels.rf);
+
+      if (registersValid) {
+        let bitmap = 0;
+        if (levels.lock && mappings.lock < 8) bitmap |= (1 << mappings.lock);
+        if (levels.unlock && mappings.unlock < 8) bitmap |= (1 << mappings.unlock);
+        if (levels.rf && mappings.rf < 8) bitmap |= (1 << mappings.rf);
+        ports.bitmap.textContent = `0x${bitmap.toString(16).toUpperCase().padStart(2, '0')}`;
+        ports.bitmap.className = '';
+      } else {
+        ports.bitmap.textContent = '—';
+        ports.bitmap.className = 'offline';
+      }
+
+      const simulationBusy = tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive || ['splash', 'i2c-fallback', 'i2c-error'].includes(state.screen);
+      tsaPowerCycleButton.disabled = simulationBusy;
+      i2cErrorButton.disabled = simulationBusy;
+      restartButton.disabled = simulationBusy;
+      factoryButton.disabled = simulationBusy;
+    }
+
+    function renderMenuLines() {
+      const settings = currentSettings();
+      const index = state.menuIndex;
+
+      if (state.menuLevel === MENU.EXIT) {
+        return [padLine('EXIT SETTINGS'), padLine(`> ${MENU_ITEMS[MENU.EXIT][index]}`)];
+      }
+
+      if (state.menuLevel === MENU.QUICK) {
+        let top = MENU_ITEMS[MENU.QUICK][index];
+        if (index === 3) top = `RF DRIVE: ${state.rfOutputEnabled ? 'ON' : 'OFF'}`;
+        const bottom = index === 3 ? 'SET to toggle' : (index >= 4 ? 'SET to confirm' : 'SET to select');
+        return [padLine(top), padLine(bottom)];
+      }
+
+      if (state.menuLevel === MENU.MEMORY) {
+        const actionTitles = ['RECALL MEMORY', 'SAVE MEMORY', 'CLEAR MEMORY'];
+        let top = actionTitles[state.memoryAction];
+        if (state.memoryAction === 1) top = rightCompose('SAVE ', formatFrequencyRight(state.currentFreq, saved.decimals)).trimEnd();
+        if (index === MEMORY_SLOTS) return [padLine(top), padLine('> return')];
+        const freq = saved.memories[memoryKey(index, saved)];
+        const label = `> M${index + 1}:`;
+        const bottom = Number.isFinite(freq)
+          ? rightCompose(label, formatFrequencyRight(validateFrequency(freq, saved, true), saved.decimals))
+          : rightCompose(label, '<empty>');
+        return [padLine(top), bottom];
+      }
+
+      if (state.menuLevel === MENU.SYSTEM_MAIN) {
+        const top = MENU_ITEMS[MENU.SYSTEM_MAIN][index];
+        return [padLine(top), padLine(index === 3 ? 'SET to proceed' : 'SET to enter')];
+      }
+
+      if (state.menuLevel === MENU.VCO) {
+        if (index === 0) {
+          if (!state.menuEdit) return [padLine('FREQUENCY BAND'), padLine('SET to select')];
+          const [low, high] = getBandLimits(settings);
+          return [padLine('FREQUENCY BAND'), padLine(`> ${Math.floor(low / 1000000)}-${Math.floor(high / 1000000)} MHz`)];
+        }
+        if (index === 1) {
+          return [padLine('PRECISION'), state.menuEdit ? padLine(`> ${settings.decimals} ${settings.decimals === 1 ? 'decimal' : 'decimals'}`) : padLine('SET to select')];
+        }
+        return [padLine('RETURN TO MENU'), padLine('SET to confirm')];
+      }
+
+      if (state.menuLevel === MENU.PLL) {
+        if (index === 0) {
+          return [padLine('I2C ADDRESS'), state.menuEdit ? padLine(`> 0x${I2C_ADDRESSES[settings.pllAddressIndex].toString(16).toUpperCase()}`) : padLine('SET to select')];
+        }
+        if (index === 1) {
+          return [padLine('XTAL FREQUENCY'), state.menuEdit ? padLine(`> ${(XTALS[settings.xtalIndex] / 1000000).toFixed(1)} MHz`) : padLine('SET to select')];
+        }
+        if (index === 2) {
+          const modes = ['low', 'high', 'disabled'];
+          return [padLine('CHARGE PUMP'), state.menuEdit ? padLine(`> ${modes[settings.pllControl]}`) : padLine('SET to select')];
+        }
+        if (index === 3) {
+          let value = 'SET to select';
+          if (state.menuEdit) {
+            const labels = ['locked', 'unlocked', 'RF drive'];
+            const keys = ['portLock', 'portUnlock', 'portRF'];
+            const port = settings[keys[state.outputPortPhase]];
+            value = `> ${labels[state.outputPortPhase]}: ${port === 8 ? 'none' : `P${port}`}`;
+          }
+          return [padLine('PORT MAPPING'), padLine(value)];
+        }
+        return [padLine('RETURN TO MENU'), padLine('SET to confirm')];
+      }
+
+      if (state.menuLevel === MENU.GENERAL) {
+        if (index === 0) return [padLine('STATION NAME'), padLine('SET to edit')];
+        if (index === 1) return [padLine('BACKLIGHT DIMMER'), state.menuEdit ? padLine(`> ${settings.dimmer ? 'on' : 'off'}`) : padLine('SET to select')];
+        if (index === 2) return [padLine('SHOW MENU TITLE'), state.menuEdit ? padLine(`> ${settings.showMenuTitle ? 'on' : 'off'}`) : padLine('SET to select')];
+        if (index === 3) {
+          const top = state.factoryFinal ? 'CLEAR ALL DATA?' : 'FACTORY RESET';
+          return [padLine(top), state.menuEdit ? padLine(`> ${state.factoryChoice ? 'yes' : 'no'}`) : padLine('SET to select')];
+        }
+        return [padLine('RETURN TO MENU'), padLine('SET to confirm')];
+      }
+
+      return ['                ', '                '];
+    }
+
+    function beginMenu(level) {
+      state.menuLevel = level;
+      state.menuIndex = 0;
+      state.menuEdit = false;
+      state.lastMenuActivity = performance.now();
+      state.outputPortPhase = 0;
+      state.factoryFinal = false;
+      state.factoryChoice = false;
+      if (level === MENU.SYSTEM_MAIN) {
+        state.systemSnapshot = deepClone(saved);
+        state.pending = deepClone(saved);
+        state.stationBuffer = state.pending.stationName;
+      }
+      showMenuEntry(level);
+    }
+
+    function showMenuEntry(level) {
+      const settings = level === MENU.QUICK ? saved : currentSettings();
+      if (!settings.showMenuTitle) {
+        state.screen = 'menu';
+        render();
+        return;
+      }
+      menuEntryBusy = true;
+      state.screen = 'menu-title';
+      state.messageOverride = [centerLine(level === MENU.QUICK ? 'QUICK MENU' : 'SYSTEM SETTINGS'), '                '];
+      render();
+      timers.menuTitle = setTimeout(() => {
+        let step = 0;
+        const target = padLine(level === MENU.QUICK ? 'RECALL MEMORY' : 'VCO SETTINGS');
+        timers.menuTitleAnim = setInterval(() => {
+          step += 1;
+          const title = centerLine(level === MENU.QUICK ? 'QUICK MENU' : 'SYSTEM SETTINGS').split('');
+          const reveal = Math.max(0, step - 3);
+          for (let i = 0; i < Math.min(8, step); i += 1) {
+            title[i] = ' ';
+            title[15 - i] = ' ';
+          }
+          for (let i = 0; i < Math.min(8, reveal); i += 1) {
+            title[i] = target[i];
+            title[15 - i] = target[15 - i];
+          }
+          state.messageOverride = [title.join(''), '                '];
+          render();
+          if (step >= 11) {
+            clearInterval(timers.menuTitleAnim);
+            menuEntryBusy = false;
+            state.screen = 'menu';
+            state.messageOverride = null;
+            render();
+          }
+        }, 70);
+      }, 1000);
+    }
+
+    function exitToMain(message) {
+      state.screen = 'main';
+      state.menuLevel = null;
+      state.menuEdit = false;
+      state.pending = null;
+      state.systemSnapshot = null;
+      state.stationEditPosition = 0;
+      state.lastActivity = performance.now();
+      if (message) logEvent(message);
+      render();
+    }
+
+    function discardSystemChanges(message = 'Unsaved system settings discarded.') {
+      if (state.systemSnapshot) saved = deepClone(state.systemSnapshot);
+      state.pending = null;
+      state.systemSnapshot = null;
+      exitToMain(message);
+    }
+
+    function saveSystemChanges() {
+      const pending = deepClone(state.pending);
+      pending.stationName = normalizeName(state.stationBuffer);
+      const requestedAddress = I2C_ADDRESSES[pending.pllAddressIndex];
+      if (!addressAcknowledges(requestedAddress)) {
+        const previousIndex = saved.pllAddressIndex;
+        pending.pllAddressIndex = previousIndex;
+        state.pending = pending;
+        state.screen = 'i2c-fallback';
+        render();
+        logEvent(`I²C probe at 0x${requestedAddress.toString(16).toUpperCase()} failed; restoring 0x${I2C_ADDRESSES[previousIndex].toString(16).toUpperCase()}.`);
+        timers.fallback = setTimeout(() => finishSave(pending), 2500);
+        return;
+      }
+      finishSave(pending);
+    }
+
+    function finishSave(pending) {
+      saved = deepClone(pending);
+      saved.stationName = normalizeName(saved.stationName);
+      saved.decimals = Math.min(saved.decimals, MAX_DECIMALS[saved.xtalIndex]);
+      const newFreq = getStoredBandFrequency(saved);
+      persist();
+      state.pending = null;
+      state.systemSnapshot = null;
+      state.screen = 'main';
+      state.menuLevel = null;
+      state.menuEdit = false;
+      state.targetFreq = newFreq;
+      logEvent('System settings saved.');
+      programmePLL(newFreq, { force: true, reason: 'PLL configuration updated' });
+    }
+
+    function handleSetShort() {
+      if (menuEntryBusy || !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (state.lcdOff) return;
+
+      if (state.screen === 'main') {
+        const now = performance.now();
+        if (lastSetClick && now - lastSetClick >= 50 && now - lastSetClick < SET_DOUBLE_CLICK) {
+          lastSetClick = 0;
+          beginMenu(MENU.SYSTEM_MAIN);
+          logEvent('SYSTEM SETTINGS opened.');
+        } else {
+          lastSetClick = now;
+        }
+        return;
+      }
+
+      if (state.screen === 'frequency') {
+        const target = state.targetFreq;
+        state.screen = 'main';
+        programmePLL(target, { force: true, reason: `Frequency set to ${formatMHz(target, saved.decimals)} MHz` });
+        return;
+      }
+
+      if (state.screen === 'station-editor') {
+        if (state.stationEditPosition >= 15) finishStationEditor();
+        else {
+          state.stationEditPosition += 1;
+          render();
+        }
+        return;
+      }
+
+      if (state.screen !== 'menu') return;
+      state.lastMenuActivity = performance.now();
+      handleMenuSetShort();
+    }
+
+    function handleSetLong() {
+      if (menuEntryBusy || !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (state.lcdOff) return;
+
+      if (state.screen === 'main') {
+        beginMenu(MENU.QUICK);
+        logEvent('QUICK MENU opened.');
+        return;
+      }
+
+      if (state.screen === 'frequency') {
+        state.targetFreq = state.currentFreq;
+        state.screen = 'main';
+        logEvent('Frequency edit cancelled.');
+        render();
+        return;
+      }
+
+      if (state.screen === 'station-editor') {
+        finishStationEditor();
+        return;
+      }
+
+      if (state.screen !== 'menu') return;
+      state.lastMenuActivity = performance.now();
+
+      if (state.menuLevel === MENU.MEMORY) {
+        state.menuLevel = MENU.QUICK;
+        state.menuIndex = state.memoryAction;
+        render();
+      } else if (state.menuLevel === MENU.QUICK) {
+        exitToMain('Quick menu closed.');
+      } else if (state.menuLevel === MENU.EXIT) {
+        state.menuLevel = MENU.SYSTEM_MAIN;
+        state.menuIndex = 3;
+        render();
+      } else if (state.menuEdit) {
+        state.menuEdit = false;
+        state.outputPortPhase = 0;
+        state.factoryFinal = false;
+        state.factoryChoice = false;
+        render();
+      } else if (state.menuLevel === MENU.SYSTEM_MAIN) {
+        state.menuLevel = MENU.EXIT;
+        state.menuIndex = 0;
+        render();
+      } else {
+        state.menuLevel = MENU.SYSTEM_MAIN;
+        state.menuIndex = state.previousSystemIndex;
+        render();
+      }
+    }
+
+    function handleMenuSetShort() {
+      const level = state.menuLevel;
+      const index = state.menuIndex;
+
+      if (level === MENU.QUICK) {
+        if (index <= 2) {
+          state.memoryAction = index;
+          state.menuLevel = MENU.MEMORY;
+          state.menuIndex = 0;
+          render();
+        } else if (index === 3) {
+          state.rfOutputEnabled = !state.rfOutputEnabled;
+          state.lastActivity = performance.now();
+          logEvent(`RF drive override ${state.rfOutputEnabled ? 'enabled' : 'disabled'}.`);
+          render();
+        } else if (index === 4) {
+          powerOffLcd();
+        } else {
+          exitToMain('Quick menu closed.');
+        }
+        return;
+      }
+
+      if (level === MENU.MEMORY) {
+        if (index === MEMORY_SLOTS) {
+          state.menuLevel = MENU.QUICK;
+          state.menuIndex = state.memoryAction;
+          render();
+          return;
+        }
+        if (state.memoryAction === 0) {
+          const freq = saved.memories[memoryKey(index, saved)];
+          if (Number.isFinite(freq)) {
+            exitToMain();
+            programmePLL(freq, { force: true, reason: `Memory M${index + 1} recalled` });
+          } else {
+            toast(`Memory M${index + 1} is empty.`);
+            logEvent(`Memory M${index + 1} is empty.`);
+            render();
+          }
+        } else if (state.memoryAction === 1) {
+          saved.memories[memoryKey(index, saved)] = state.currentFreq;
+          persist();
+          state.menuLevel = MENU.QUICK;
+          state.menuIndex = state.memoryAction;
+          logEvent(`Current frequency saved to M${index + 1}.`);
+          render();
+        } else {
+          saved.memories[memoryKey(index, saved)] = EMPTY_FREQ;
+          persist();
+          state.menuLevel = MENU.QUICK;
+          state.menuIndex = state.memoryAction;
+          logEvent(`Memory M${index + 1} cleared.`);
+          render();
+        }
+        return;
+      }
+
+      if (level === MENU.EXIT) {
+        if (index === 0) saveSystemChanges();
+        else if (index === 1) discardSystemChanges();
+        else {
+          state.menuLevel = MENU.SYSTEM_MAIN;
+          state.menuIndex = 0;
+          render();
+        }
+        return;
+      }
+
+      if (!state.menuEdit) {
+        if (level === MENU.SYSTEM_MAIN) {
+          state.previousSystemIndex = index;
+          if (index === 0) { state.menuLevel = MENU.VCO; state.menuIndex = 0; }
+          else if (index === 1) { state.menuLevel = MENU.PLL; state.menuIndex = 0; }
+          else if (index === 2) { state.menuLevel = MENU.GENERAL; state.menuIndex = 0; }
+          else { state.menuLevel = MENU.EXIT; state.menuIndex = 0; }
+          render();
+          return;
+        }
+
+        const items = MENU_ITEMS[level];
+        if (index === items.length - 1) {
+          state.menuLevel = MENU.SYSTEM_MAIN;
+          state.menuIndex = state.previousSystemIndex;
+          render();
+          return;
+        }
+
+        if (level === MENU.GENERAL && index === 0) {
+          state.stationBuffer = normalizeName(state.pending.stationName);
+          state.stationEditPosition = 0;
+          state.screen = 'station-editor';
+          render();
+          return;
+        }
+
+        state.menuEdit = true;
+        state.factoryFinal = false;
+        state.factoryChoice = false;
+        state.outputPortPhase = 0;
+        render();
+        return;
+      }
+
+      if (level === MENU.PLL && index === 3) {
+        if (state.outputPortPhase < 2) {
+          state.outputPortPhase += 1;
+          render();
+          return;
+        }
+        state.outputPortPhase = 0;
+      } else if (level === MENU.GENERAL && index === 3) {
+        if (state.factoryChoice) {
+          if (state.factoryFinal) {
+            eraseSavedData(true);
+            return;
+          }
+          state.factoryFinal = true;
+          state.factoryChoice = false;
+          render();
+          return;
+        }
+        state.factoryFinal = false;
+        state.factoryChoice = false;
+      }
+      state.menuEdit = false;
+      render();
+    }
+
+    function finishStationEditor() {
+      state.pending.stationName = normalizeName(state.stationBuffer);
+      state.stationBuffer = state.pending.stationName;
+      state.screen = 'menu';
+      state.menuEdit = false;
+      state.stationEditPosition = 0;
+      logEvent('Station name updated in temporary settings.');
+      render();
+    }
+
+    function handleDirection(direction, isRepeat = false) {
+      if (menuEntryBusy || !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (state.lcdOff) return;
+      const delta = direction === 'up' ? 1 : -1;
+
+      if (state.screen === 'main' || state.screen === 'frequency') {
+        const settings = saved;
+        const [low, high] = getBandLimits(settings);
+        const step = getVisibleStep(settings);
+        let value = state.screen === 'frequency' ? state.targetFreq : state.currentFreq;
+        value += delta * step;
+        if (value < low) value = high;
+        if (value > high) value = low;
+        state.targetFreq = value;
+        state.screen = 'frequency';
+        state.lastFreqActivity = performance.now();
+        render();
+        return;
+      }
+
+      if (state.screen === 'station-editor') {
+        const chars = state.stationBuffer.split('');
+        let code = chars[state.stationEditPosition].charCodeAt(0) + delta;
+        if (code < 32) code = 126;
+        if (code > 126) code = 32;
+        chars[state.stationEditPosition] = String.fromCharCode(code);
+        state.stationBuffer = chars.join('');
+        render();
+        return;
+      }
+
+      if (state.screen !== 'menu') return;
+      state.lastMenuActivity = performance.now();
+
+      // System-menu navigation is edge-triggered in the Arduino sketch; quick/memory menus may repeat.
+      if (isRepeat && !state.menuEdit && ![MENU.QUICK, MENU.MEMORY].includes(state.menuLevel)) return;
+
+      if (state.menuEdit) {
+        adjustMenuValue(delta);
+        render();
+        return;
+      }
+
+      const length = state.menuLevel === MENU.MEMORY ? MEMORY_SLOTS + 1 : MENU_ITEMS[state.menuLevel].length;
+      if (state.menuLevel === MENU.MEMORY) {
+        state.menuIndex = (state.menuIndex + delta + length) % length;
+      } else {
+        state.menuIndex = Math.max(0, Math.min(length - 1, state.menuIndex + delta));
+      }
+      render();
+    }
+
+    function adjustMenuValue(delta) {
+      const settings = state.pending;
+      const level = state.menuLevel;
+      const index = state.menuIndex;
+
+      if (level === MENU.VCO && index === 0) {
+        const current = settings.bandIndex[settings.xtalIndex];
+        settings.bandIndex[settings.xtalIndex] = (current + delta + BANDS.length) % BANDS.length;
+      } else if (level === MENU.VCO && index === 1) {
+        settings.decimals = Math.max(0, Math.min(MAX_DECIMALS[settings.xtalIndex], settings.decimals + delta));
+      } else if (level === MENU.PLL && index === 0) {
+        settings.pllAddressIndex = Math.max(0, Math.min(I2C_ADDRESSES.length - 1, settings.pllAddressIndex + delta));
+      } else if (level === MENU.PLL && index === 1) {
+        settings.xtalIndex = Math.max(0, Math.min(XTALS.length - 1, settings.xtalIndex + delta));
+        settings.decimals = MAX_DECIMALS[settings.xtalIndex];
+      } else if (level === MENU.PLL && index === 2) {
+        // Match the sketch: UP moves high -> low -> disabled; DOWN moves disabled -> low -> high.
+        if (delta > 0) {
+          if (settings.pllControl === 1) settings.pllControl = 0;
+          else if (settings.pllControl === 0) settings.pllControl = 2;
+        } else {
+          if (settings.pllControl === 2) settings.pllControl = 0;
+          else if (settings.pllControl === 0) settings.pllControl = 1;
+        }
+      } else if (level === MENU.PLL && index === 3) {
+        adjustPortMapping(settings, delta);
+      } else if (level === MENU.GENERAL && index === 1) {
+        settings.dimmer = delta > 0;
+      } else if (level === MENU.GENERAL && index === 2) {
+        settings.showMenuTitle = delta > 0;
+      } else if (level === MENU.GENERAL && index === 3) {
+        state.factoryChoice = delta > 0;
+      }
+    }
+
+    function adjustPortMapping(settings, delta) {
+      const keys = ['portLock', 'portUnlock', 'portRF'];
+      const key = keys[state.outputPortPhase];
+      const other = keys.filter(k => k !== key).map(k => settings[k]);
+      let value = settings[key];
+      for (let attempts = 0; attempts <= 8; attempts += 1) {
+        if (delta < 0) value = value === 8 ? 7 : value === 0 ? 8 : value - 1;
+        else value = value === 8 ? 0 : value === 7 ? 8 : value + 1;
+        if (value === 8 || !other.includes(value)) break;
+      }
+      settings[key] = value;
+    }
+
+    function eraseSavedData(fromMenu = false) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage may be unavailable */ }
+      saved = deepClone(DEFAULTS);
+      persist();
+      toast('Saved demo data erased.');
+      if (fromMenu) {
+        resetRuntime();
+        logEvent('Factory reset completed.');
+      } else {
+        resetRuntime();
+      }
+    }
+
+    function abortInteractiveStateForRecovery() {
+      if (state.screen === 'frequency') state.targetFreq = state.currentFreq;
+      state.pending = null;
+      state.systemSnapshot = null;
+      state.menuLevel = null;
+      state.menuEdit = false;
+      state.stationEditPosition = 0;
+      state.factoryFinal = false;
+      state.factoryChoice = false;
+      state.lcdOff = false;
+      state.dimmed = false;
+      setLcdBrightness(1, 100);
+    }
+
+    function simulationUnavailable() {
+      return !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error' || tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive;
+    }
+
+    function simulateTsaPowerCycle() {
+      if (simulationUnavailable()) {
+        toast('Wait until the current controller operation has completed.');
+        return;
+      }
+
+      clearTimeout(timers.lock);
+      clearTimeout(timers.tsaPowerRestore);
+      clearTimeout(timers.tsaPorDetect);
+      tsaPowerCycleActive = true;
+      tsaPowered = false;
+      tsaPorFlag = false;
+      tsaLockFlag = false;
+      tsaRegistersProgrammed = false;
+      state.lockPending = false;
+      logEvent(`Virtual TSA5511 supply removed for ${TSA_POWER_OFF_DURATION} ms.`);
+      render();
+
+      timers.tsaPowerRestore = setTimeout(() => {
+        tsaPowered = true;
+        tsaPorFlag = true;
+        logEvent('Virtual TSA5511 power restored; POR flag asserted HIGH.');
+        render();
+      }, TSA_POWER_OFF_DURATION);
+
+      timers.tsaPorDetect = setTimeout(() => {
+        if (!tsaPowered || i2cFaultActive) return;
+        abortInteractiveStateForRecovery();
+        state.locked = false;
+        state.screen = 'main';
+        tsaPorFlag = false; // the successful status read clears POR
+        tsaPowerCycleActive = false;
+        logEvent('POR detected; controller is restoring the TSA5511 configuration.');
+        programmePLL(state.currentFreq, { force: true, reason: 'PLL reprogrammed after TSA5511 power cycle' });
+      }, I2C_HEALTH_CHECK_INTERVAL);
+    }
+
+    function simulateTemporaryI2CError() {
+      if (simulationUnavailable()) {
+        toast('Wait until the current controller operation has completed.');
+        return;
+      }
+
+      const controllerWasLocked = state.locked;
+      i2cFaultActive = true;
+      i2cRecoveryActive = false;
+      logEvent('Temporary I²C interruption injected; controller health check pending.');
+      render();
+
+      timers.i2cErrorDetect = setTimeout(() => {
+        abortInteractiveStateForRecovery();
+        state.locked = false;
+        state.screen = 'i2c-error';
+        logEvent('I²C communication failed after 10 retries; recovery is active.');
+        render();
+      }, I2C_HEALTH_CHECK_INTERVAL + I2C_RETRY_WINDOW);
+
+      timers.i2cFaultClear = setTimeout(() => {
+        i2cFaultActive = false;
+        i2cRecoveryActive = true;
+        logEvent('I²C communication restored; verifying TSA5511 status.');
+        render();
+
+        timers.i2cVerify = setTimeout(() => {
+          i2cRecoveryActive = false;
+          state.screen = 'main';
+          state.locked = tsaLockFlag;
+          state.lockPending = !tsaLockFlag;
+          state.lastActivity = performance.now();
+          logEvent(tsaLockFlag || controllerWasLocked
+            ? 'I²C recovery completed; existing PLL lock was preserved.'
+            : 'I²C recovery completed; lock acquisition continues.');
+          render();
+        }, I2C_LOCK_VERIFY_DELAY);
+      }, I2C_FAULT_DURATION);
+    }
+
+    function logEvent(text) {
+      eventText.textContent = text;
+    }
+
+    function toast(text) {
+      toastEl.textContent = text;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+    }
+
+    function isSetHeldDuringRestart() {
+      return Boolean(setPress) || pressedKeys.has('Enter');
+    }
+
+    function buttonDown(name, element) {
+      if (!state) return;
+      const woke = activity();
+      element.classList.add('pressed');
+      if (woke) {
+        element.dataset.suppress = 'true';
+        return;
+      }
+
+      if (name === 'set') {
+        if (setPress) return;
+        setPress = { started: performance.now(), long: false, element };
+        setPress.timer = setTimeout(() => {
+          if (!setPress) return;
+          setPress.long = true;
+          handleSetLong();
+        }, SET_LONG_PRESS);
+      } else {
+        handleDirection(name);
+        const press = { started: performance.now(), element };
+        downUpPresses[name] = press;
+        press.timer = setTimeout(() => repeatDirection(name), BUTTON_REPEAT_DELAY);
+      }
+    }
+
+    function repeatDirection(name) {
+      const press = downUpPresses[name];
+      if (!press) return;
+      handleDirection(name, true);
+      let interval = 80;
+      if (state.screen === 'frequency') {
+        const held = performance.now() - press.started - BUTTON_REPEAT_DELAY;
+        const target = getVisibleStep(saved) / 500;
+        interval = Math.max(14, target / (0.7 + held / BUTTON_REPEAT_DELAY));
+      } else if (state.screen === 'station-editor') {
+        interval = 200;
+      }
+      press.timer = setTimeout(() => repeatDirection(name), interval);
+    }
+
+    function buttonUp(name, element) {
+      element.classList.remove('pressed');
+      if (element.dataset.suppress === 'true') {
+        delete element.dataset.suppress;
+        return;
+      }
+
+      if (name === 'set') {
+        if (!setPress) return;
+        clearTimeout(setPress.timer);
+        const wasLong = setPress.long;
+        setPress = null;
+        if (!wasLong) handleSetShort();
+      } else {
+        const press = downUpPresses[name];
+        if (press?.timer) clearTimeout(press.timer);
+        downUpPresses[name] = null;
+      }
+    }
+
+    function cancelButtonPress(name, element) {
+      element.classList.remove('pressed');
+      delete element.dataset.suppress;
+      if (name === 'set') {
+        if (setPress?.timer) clearTimeout(setPress.timer);
+        setPress = null;
+      } else {
+        const press = downUpPresses[name];
+        if (press?.timer) clearTimeout(press.timer);
+        downUpPresses[name] = null;
+      }
+    }
+
+    document.querySelectorAll('.hardware-button').forEach(button => {
+      const name = button.dataset.button;
+      button.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        button.setPointerCapture?.(event.pointerId);
+        buttonDown(name, button);
+      });
+      button.addEventListener('pointerup', event => {
+        event.preventDefault();
+        buttonUp(name, button);
+      });
+      button.addEventListener('pointercancel', () => cancelButtonPress(name, button));
+      button.addEventListener('contextmenu', event => event.preventDefault());
+    });
+
+    const keyMap = { ArrowDown: 'down', Enter: 'set', ArrowUp: 'up' };
+    const pressedKeys = new Set();
+    document.addEventListener('keydown', event => {
+      const name = keyMap[event.key];
+      if (!name || pressedKeys.has(event.key)) return;
+
+      const focusedTag = document.activeElement?.tagName;
+      if (event.key !== 'Enter' && ['SELECT', 'INPUT', 'TEXTAREA', 'BUTTON'].includes(focusedTag)) return;
+
+      // Enter is reserved exclusively for the physical SET control, even when
+      // a utility button currently has keyboard focus.
+      event.preventDefault();
+      if (event.key === 'Enter') event.stopPropagation();
+      pressedKeys.add(event.key);
+      const button = document.querySelector(`[data-button="${name}"]`);
+      buttonDown(name, button);
+    }, true);
+    document.addEventListener('keyup', event => {
+      const name = keyMap[event.key];
+      if (!name || !pressedKeys.has(event.key)) return;
+      event.preventDefault();
+      if (event.key === 'Enter') event.stopPropagation();
+      pressedKeys.delete(event.key);
+      const button = document.querySelector(`[data-button="${name}"]`);
+      buttonUp(name, button);
+    }, true);
+
+    simAddress.addEventListener('change', () => {
+      const address = Number(simAddress.value);
+      logEvent(`Virtual TSA5511 secondary address set to 0x${address.toString(16).toUpperCase()} (0x61 remains valid).`);
+      render();
+    });
+
+    const restartButton = document.getElementById('restart-button');
+    const factoryButton = document.getElementById('factory-button');
+    const tsaPowerCycleButton = document.getElementById('tsa-power-cycle-button');
+    const i2cErrorButton = document.getElementById('i2c-error-button');
+
+    tsaPowerCycleButton.addEventListener('click', simulateTsaPowerCycle);
+    i2cErrorButton.addEventListener('click', simulateTemporaryI2CError);
+
+    restartButton.addEventListener('click', () => {
+      resetRuntime({ startupSetHeld: isSetHeldDuringRestart() });
+    });
+    factoryButton.addEventListener('click', () => eraseSavedData(false));
+
+    window.addEventListener('blur', () => {
+      document.querySelectorAll('.hardware-button.pressed').forEach(button => cancelButtonPress(button.dataset.button, button));
+      pressedKeys.clear();
+    });
+
+    let fitResizeFrame = 0;
+    const scheduleAutoFit = () => {
+      cancelAnimationFrame(fitResizeFrame);
+      fitResizeFrame = requestAnimationFrame(applyAutoFit);
+    };
+
+    window.addEventListener('resize', scheduleAutoFit, { passive: true });
+    if ('ResizeObserver' in window) {
+      const fitObserver = new ResizeObserver(scheduleAutoFit);
+      fitObserver.observe(fitCanvas);
+    }
+
+    applyAutoFit();
+    resetRuntime();
+  })();
+  </script>
+</body>
+</html>
