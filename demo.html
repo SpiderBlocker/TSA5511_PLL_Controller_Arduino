@@ -1412,7 +1412,7 @@
       saved.lastFreq[bandKey(saved)] = aligned;
       persist();
       state.locked = false;
-      state.lockPending = true;
+      state.lockPending = settings.pllControl !== 2;
       tsaLockFlag = false;
       tsaRegistersProgrammed = true;
       state.lastActivity = performance.now();
@@ -1420,6 +1420,13 @@
       lockAnimPos = 0;
       lockAnimDirection = 1;
       clearTimeout(timers.lock);
+
+      if (settings.pllControl === 2) {
+        logEvent(`${reason}; charge pump disabled, PLL remains unlocked.`);
+        render();
+        return true;
+      }
+
       timers.lock = setTimeout(() => {
         tsaLockFlag = true;
         if (!i2cFaultActive && !i2cRecoveryActive && state.screen !== 'i2c-error') {
@@ -2232,11 +2239,13 @@
           i2cRecoveryActive = false;
           state.screen = 'main';
           state.locked = tsaLockFlag;
-          state.lockPending = !tsaLockFlag;
+          state.lockPending = !tsaLockFlag && saved.pllControl !== 2;
           state.lastActivity = performance.now();
-          logEvent(tsaLockFlag || controllerWasLocked
-            ? 'I²C recovery completed; existing PLL lock was preserved.'
-            : 'I²C recovery completed; lock acquisition continues.');
+          logEvent(saved.pllControl === 2
+            ? 'I²C recovery completed; charge pump disabled, PLL remains unlocked.'
+            : tsaLockFlag || controllerWasLocked
+              ? 'I²C recovery completed; existing PLL lock was preserved.'
+              : 'I²C recovery completed; lock acquisition continues.');
           render();
         }, I2C_LOCK_VERIFY_DELAY);
       }, I2C_FAULT_DURATION);
