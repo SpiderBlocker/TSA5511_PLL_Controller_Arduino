@@ -263,6 +263,17 @@
       border-color: rgba(185, 120, 100, .48);
     }
 
+    /* A failed address phase still contains real clock/data activity; keep retry pulses visible. */
+    .i2c-link.fault.busy .i2c-wire {
+      height: 2px;
+      border-top: 0;
+      background: var(--wire-color);
+      box-shadow:
+        0 0 8px color-mix(in srgb, var(--wire-color) 58%, transparent),
+        0 0 14px color-mix(in srgb, var(--wire-color) 22%, transparent);
+      opacity: 1;
+    }
+
     .i2c-link.recovering .i2c-channel { --wire-color: #a79260; }
     .i2c-link.recovering .i2c-label {
       color: #c5b27c;
@@ -954,6 +965,12 @@
       border-top: 0;
       border-left: 2px dashed var(--wire-color, #526066);
     }
+    .fit-stage.mobile-layout .i2c-link.fault.busy .i2c-wire {
+      width: 2px;
+      height: auto;
+      border-left: 0;
+      background: var(--wire-color);
+    }
     @keyframes i2cDataFlowVertical {
       from { transform: translateY(-110%); }
       to { transform: translateY(calc(100% + 24px)); }
@@ -1163,10 +1180,10 @@
     const DEFAULT_PLL_ADDR_INDEX = 1;
     const I2C_FALLBACK_DELAY = 2500;
     const I2C_HEALTH_CHECK_INTERVAL = 2000;
-    const TSA_POWER_OFF_DURATION = 350; // brief enough to finish before the controller's 2 s health check
-    const I2C_RETRY_WINDOW = 500;
+    const TSA_POWER_OFF_DURATION = 350; // normally brief enough to finish before the controller's 2 s health check
+    const I2C_MAX_RETRIES = 10;
+    const I2C_RETRY_DELAY = 50;
     const I2C_FAULT_DURATION = 8000;
-    const I2C_LOCK_VERIFY_DELAY = 500;
     const I2C_ACTIVITY_DURATION = 520;
     const BANDS = [
       [65800000, 74000000],
@@ -1365,6 +1382,9 @@
     let tsaPowerCycleActive = false;
     let i2cFaultActive = false;
     let i2cRecoveryActive = false;
+    let i2cRecoveryReason = null;
+    let i2cRetryCount = 0;
+    let lastI2cCheckTime = 0;
     let state;
     let timers = {};
     let setPress = null;
@@ -1575,6 +1595,9 @@
       tsaPowerCycleActive = false;
       i2cFaultActive = false;
       i2cRecoveryActive = false;
+      i2cRecoveryReason = null;
+      i2cRetryCount = 0;
+      lastI2cCheckTime = performance.now();
       lockAnimPos = 0;
       lockAnimDirection = 1;
       rfBlinkPhase = false;
@@ -1583,13 +1606,20 @@
       render();
       timers.splash = setTimeout(() => {
         const finishStartup = (reason = 'Startup programming') => {
-          // The sketch performs an initial TSA5511 status read here; a successful read clears POR.
+          // Mirror the sketch's initial status read before attempting to program the TSA5511.
           const startupAddress = I2C_ADDRESSES[saved.pllAddressIndex];
-          pulseI2cActivity();
-          if (addressAcknowledges(startupAddress)) {
-            tsaPorFlag = false;
-          }
           state.screen = 'main';
+          pulseI2cActivity();
+          if (!addressAcknowledges(startupAddress)) {
+            i2cRecoveryReason = 'startup';
+            i2cRetryCount = 1; // the initial failed read counts as the first of ten attempts
+            lastI2cCheckTime = performance.now();
+            logEvent(`Startup status read at 0x${startupAddress.toString(16).toUpperCase()} did not acknowledge; retrying.`);
+            render();
+            return;
+          }
+          tsaPorFlag = false; // a successful TSA5511 status read clears POR
+          lastI2cCheckTime = performance.now();
           render();
           programmePLL(state.currentFreq, { force: true, reason });
         };
@@ -1639,6 +1669,7 @@
       }, 1000);
 
       timers.housekeeping = setInterval(housekeeping, 80);
+      timers.i2cMonitor = setInterval(monitorI2c, 25);
     }
 
     function housekeeping() {
@@ -1688,13 +1719,21 @@
     }
 
     function pulseI2cActivity(duration = I2C_ACTIVITY_DURATION) {
-      if (!i2cLink || !tsaPowered || i2cFaultActive) return;
+      if (!i2cLink || !tsaPowered) return;
       i2cLink.classList.add('busy');
-      updateI2cLinkAriaLabel();
+      updateI2cLinkAriaLabel(
+        i2cLink.classList.contains('down'),
+        i2cLink.classList.contains('fault'),
+        i2cLink.classList.contains('recovering')
+      );
       clearTimeout(timers.i2cActivity);
       timers.i2cActivity = setTimeout(() => {
         i2cLink.classList.remove('busy');
-        updateI2cLinkAriaLabel();
+        updateI2cLinkAriaLabel(
+          i2cLink.classList.contains('down'),
+          i2cLink.classList.contains('fault'),
+          i2cLink.classList.contains('recovering')
+        );
       }, duration);
     }
 
@@ -1740,19 +1779,101 @@
       return address === 0x61 || address === secondaryAddress;
     }
 
+    function beginI2cRecovery(reason, address = I2C_ADDRESSES[saved.pllAddressIndex], eventMessage = '') {
+      i2cRetryCount = 0;
+      if (i2cRecoveryActive) return;
+      abortInteractiveStateForRecovery();
+      i2cRecoveryActive = true;
+      i2cRecoveryReason = reason;
+      state.locked = false;
+      state.screen = 'i2c-error';
+      const operation = reason === 'startup' ? 'startup status read' : reason;
+      logEvent(eventMessage || `I²C ${operation} failed at 0x${address.toString(16).toUpperCase()} after ${I2C_MAX_RETRIES} retries; recovery is active.`);
+      render();
+    }
+
+    function completeI2cRecovery(porDetected) {
+      const recoveryReason = i2cRecoveryReason;
+      abortInteractiveStateForRecovery();
+      i2cRecoveryActive = false;
+      i2cRecoveryReason = null;
+      state.screen = 'main';
+      state.lastActivity = performance.now();
+
+      if (porDetected || recoveryReason === 'write' || recoveryReason === 'startup') {
+        state.locked = false;
+        state.lockPending = false;
+        logEvent(porDetected
+          ? 'POR detected; controller is restoring the TSA5511 configuration.'
+          : 'I²C communication restored after an uncertain write; controller is restoring the TSA5511 configuration.');
+        programmePLL(state.currentFreq, {
+          force: true,
+          reason: porDetected
+            ? 'PLL reprogrammed after TSA5511 power cycle'
+            : recoveryReason === 'startup'
+              ? 'Startup programming after I²C recovery'
+              : 'PLL reprogrammed after I²C write recovery'
+        });
+        return;
+      }
+
+      state.locked = tsaLockFlag;
+      state.lockPending = !tsaLockFlag && saved.pllControl !== 2;
+      logEvent(saved.pllControl === 2
+        ? 'I²C recovery completed; charge pump disabled, PLL remains unlocked.'
+        : tsaLockFlag
+          ? 'I²C recovery completed; existing PLL lock was preserved.'
+          : 'I²C recovery completed; lock acquisition continues.');
+      render();
+    }
+
+    function monitorI2c() {
+      if (!state || state.screen === 'splash' || state.screen === 'i2c-fallback') return;
+
+      const now = performance.now();
+      const interval = i2cRetryCount ? I2C_RETRY_DELAY : I2C_HEALTH_CHECK_INTERVAL;
+      if (now - lastI2cCheckTime < interval) return;
+      lastI2cCheckTime = now;
+
+      const address = I2C_ADDRESSES[saved.pllAddressIndex];
+      pulseI2cActivity();
+      if (!addressAcknowledges(address)) {
+        i2cRetryCount += 1;
+        if (i2cRetryCount < I2C_MAX_RETRIES) return;
+        beginI2cRecovery(i2cRecoveryReason === 'startup' ? 'startup' : 'read', address);
+        return;
+      }
+
+      i2cRetryCount = 0;
+      const porDetected = tsaPorFlag;
+      tsaPorFlag = false; // successful status read clears the TSA5511 POR flag
+
+      if (i2cRecoveryActive || porDetected || i2cRecoveryReason === 'startup') {
+        completeI2cRecovery(porDetected);
+        return;
+      }
+
+      if (state.lockPending && tsaLockFlag) {
+        state.locked = true;
+        state.lockPending = false;
+        state.lastActivity = now;
+        render();
+      }
+    }
+
     function programmePLL(freq, { force = false, reason = 'Frequency programmed' } = {}) {
       const settings = saved;
       const aligned = validateFrequency(freq, settings, true);
       const address = I2C_ADDRESSES[settings.pllAddressIndex];
+      pulseI2cActivity();
       if (!addressAcknowledges(address)) {
         toast(`I²C address 0x${address.toString(16).toUpperCase()} did not acknowledge.`);
-        logEvent(`I²C write failed at 0x${address.toString(16).toUpperCase()}.`);
+        beginI2cRecovery('write', address);
         return false;
       }
 
       if (!force && aligned === state.currentFreq && state.lockPending) return true;
 
-      pulseI2cActivity();
       state.currentFreq = aligned;
       state.targetFreq = aligned;
       saved.lastFreq[bandKey(saved)] = aligned;
@@ -1917,13 +2038,20 @@
       status.lock.className = `state ${tsaPowered ? (tsaLockFlag ? 'good' : 'wait') : 'offline'} state-start`;
       status.por.textContent = tsaPowered ? (tsaPorFlag ? 'HIGH' : 'LOW') : '—';
       status.por.className = `state ${tsaPowered ? (tsaPorFlag ? 'wait' : 'good') : 'offline'}`;
-      status.link.textContent = !tsaPowered ? 'DOWN' : (i2cFaultActive ? 'ERROR' : 'OK');
-      status.link.className = `state ${!tsaPowered || i2cFaultActive ? 'bad' : 'good'}`;
+      const controllerAcknowledges = addressAcknowledges(address);
+      status.link.textContent = !tsaPowered
+        ? 'DOWN'
+        : !controllerAcknowledges
+          ? (i2cFaultActive ? 'ERROR' : 'NO ACK')
+          : i2cRecoveryActive
+            ? 'RECOVERING'
+            : 'OK';
+      status.link.className = `state ${!tsaPowered || !controllerAcknowledges ? 'bad' : i2cRecoveryActive ? 'wait' : 'good'}`;
 
       const linkDown = !tsaPowered;
-      const linkFault = tsaPowered && i2cFaultActive;
-      const linkRecovering = tsaPowered && !i2cFaultActive && i2cRecoveryActive;
-      if (linkDown || linkFault) i2cLink.classList.remove('busy');
+      const linkFault = tsaPowered && !controllerAcknowledges;
+      const linkRecovering = tsaPowered && controllerAcknowledges && i2cRecoveryActive;
+      if (linkDown) i2cLink.classList.remove('busy');
       i2cLink.classList.toggle('down', linkDown);
       i2cLink.classList.toggle('fault', linkFault);
       i2cLink.classList.toggle('recovering', linkRecovering);
@@ -1973,7 +2101,9 @@
       const simulationBusy = tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive || ['splash', 'i2c-fallback', 'i2c-error'].includes(state.screen);
       tsaPowerCycleButton.disabled = simulationBusy;
       i2cErrorButton.disabled = simulationBusy;
-      restartButton.disabled = simulationBusy;
+      // A controller reset is a hardware-level escape path and must remain available
+      // during I²C recovery so SET can restore the fail-safe address 0x61.
+      restartButton.disabled = tsaPowerCycleActive || ['splash', 'i2c-fallback'].includes(state.screen);
       factoryButton.disabled = simulationBusy;
     }
 
@@ -2537,7 +2667,6 @@
 
       clearTimeout(timers.lock);
       clearTimeout(timers.tsaPowerRestore);
-      clearTimeout(timers.tsaPorDetect);
       tsaPowerCycleActive = true;
       tsaPowered = false;
       tsaPorFlag = false;
@@ -2550,21 +2679,10 @@
       timers.tsaPowerRestore = setTimeout(() => {
         tsaPowered = true;
         tsaPorFlag = true;
-        logEvent('Virtual TSA5511 power restored; POR flag asserted HIGH.');
+        tsaPowerCycleActive = false;
+        logEvent('Virtual TSA5511 power restored; POR flag asserted HIGH and awaiting the next controller health check.');
         render();
       }, TSA_POWER_OFF_DURATION);
-
-      timers.tsaPorDetect = setTimeout(() => {
-        if (!tsaPowered || i2cFaultActive) return;
-        abortInteractiveStateForRecovery();
-        state.locked = false;
-        state.screen = 'main';
-        pulseI2cActivity();
-        tsaPorFlag = false; // the successful status read clears POR
-        tsaPowerCycleActive = false;
-        logEvent('POR detected; controller is restoring the TSA5511 configuration.');
-        programmePLL(state.currentFreq, { force: true, reason: 'PLL reprogrammed after TSA5511 power cycle' });
-      }, I2C_HEALTH_CHECK_INTERVAL);
     }
 
     function simulateTemporaryI2CError() {
@@ -2573,40 +2691,14 @@
         return;
       }
 
-      const controllerWasLocked = state.locked;
       i2cFaultActive = true;
-      i2cRecoveryActive = false;
       logEvent('Temporary I²C interruption injected; controller health check pending.');
       render();
 
-      timers.i2cErrorDetect = setTimeout(() => {
-        abortInteractiveStateForRecovery();
-        state.locked = false;
-        state.screen = 'i2c-error';
-        logEvent('I²C communication failed after 10 retries; recovery is active.');
-        render();
-      }, I2C_HEALTH_CHECK_INTERVAL + I2C_RETRY_WINDOW);
-
       timers.i2cFaultClear = setTimeout(() => {
         i2cFaultActive = false;
-        i2cRecoveryActive = true;
-        logEvent('I²C communication restored; verifying TSA5511 status.');
+        logEvent('Temporary I²C interruption cleared; controller recovery checks continue.');
         render();
-
-        timers.i2cVerify = setTimeout(() => {
-          pulseI2cActivity();
-          i2cRecoveryActive = false;
-          state.screen = 'main';
-          state.locked = tsaLockFlag;
-          state.lockPending = !tsaLockFlag && saved.pllControl !== 2;
-          state.lastActivity = performance.now();
-          logEvent(saved.pllControl === 2
-            ? 'I²C recovery completed; charge pump disabled, PLL remains unlocked.'
-            : tsaLockFlag || controllerWasLocked
-              ? 'I²C recovery completed; existing PLL lock was preserved.'
-              : 'I²C recovery completed; lock acquisition continues.');
-          render();
-        }, I2C_LOCK_VERIFY_DELAY);
       }, I2C_FAULT_DURATION);
     }
 
@@ -2742,7 +2834,7 @@
 
     simAddress.addEventListener('change', () => {
       const address = Number(simAddress.value);
-      logEvent(`Virtual TSA5511 secondary address set to 0x${address.toString(16).toUpperCase()} (0x61 remains valid).`);
+      logEvent(`Virtual TSA5511 secondary address set to 0x${address.toString(16).toUpperCase()} (0x61 remains valid); controller detection awaits its next health check.`);
       render();
     });
 
