@@ -1507,8 +1507,8 @@
 
       if (state.lcdOff) lines = ['                ', '                '];
       drawRows(lines, cursor);
-      lockLed.classList.toggle('on', state.locked && !state.lcdOff && state.screen !== 'i2c-error');
-      lockLed.classList.toggle('error', state.screen === 'i2c-error' && !state.lcdOff);
+      lockLed.classList.toggle('on', state.locked && state.screen !== 'i2c-error');
+      lockLed.classList.toggle('error', state.screen === 'i2c-error');
       updateStatus();
     }
 
