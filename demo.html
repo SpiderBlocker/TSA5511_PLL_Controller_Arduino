@@ -96,9 +96,177 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(245px, 310px);
-      gap: 22px;
+      grid-template-columns: minmax(0, 1fr) 54px minmax(245px, 310px);
+      gap: 0;
       align-items: stretch;
+    }
+
+    .i2c-link {
+      display: grid;
+      align-content: center;
+      gap: 23px;
+      min-width: 0;
+      padding: 0 5px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .i2c-channel {
+      --wire-color: #6f9ba1;
+      position: relative;
+      height: 12px;
+    }
+
+    .i2c-channel.scl { --wire-color: #84929a; }
+
+    .i2c-wire {
+      position: absolute;
+      top: 50%;
+      left: -5px;
+      right: -5px;
+      height: 2px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: var(--wire-color);
+      box-shadow: 0 0 5px color-mix(in srgb, var(--wire-color) 30%, transparent);
+      opacity: .78;
+      overflow: hidden;
+      transition: background .18s, box-shadow .18s, opacity .18s;
+    }
+
+    .i2c-wire::before {
+      content: "";
+      position: absolute;
+      inset: -1px auto -1px -30px;
+      width: 30px;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .i2c-channel.sda .i2c-wire::before {
+      background: linear-gradient(90deg,
+        rgba(255,255,255,0),
+        rgba(210, 240, 255, .96) 46%,
+        rgba(255,255,255,0));
+    }
+
+    .i2c-channel.scl .i2c-wire::before {
+      inset: -1px 0;
+      width: auto;
+      background: repeating-linear-gradient(90deg,
+        rgba(214, 236, 248, 0) 0 4px,
+        rgba(214, 236, 248, .92) 4px 8px,
+        rgba(214, 236, 248, 0) 8px 12px);
+      background-size: 24px 100%;
+      transform: translateX(0);
+    }
+
+    .i2c-link.busy .i2c-wire {
+      opacity: 1;
+      box-shadow:
+        0 0 8px color-mix(in srgb, var(--wire-color) 58%, transparent),
+        0 0 14px color-mix(in srgb, var(--wire-color) 22%, transparent);
+    }
+
+    .i2c-link.busy .i2c-channel.sda .i2c-wire::before {
+      opacity: 1;
+      animation: i2cDataFlow .52s linear 1;
+    }
+
+    .i2c-link.busy .i2c-channel.scl .i2c-wire::before {
+      opacity: 1;
+      animation: i2cClockPulse .52s linear 1;
+    }
+
+    .i2c-link.busy .i2c-label {
+      color: #d7e6ec;
+      border-color: rgba(134, 159, 169, .54);
+    }
+
+    .i2c-channel::before,
+    .i2c-channel::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      transform: translateY(-50%);
+      border: 1px solid #182126;
+      border-radius: 50%;
+      background: var(--wire-color);
+      box-shadow: 0 0 0 1px rgba(153, 178, 188, .16);
+      transition: background .18s, opacity .18s;
+    }
+
+    .i2c-channel::before { left: -7px; }
+    .i2c-channel::after { right: -7px; }
+
+    .i2c-label {
+      position: absolute;
+      z-index: 3;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 1px 4px;
+      border: 1px solid rgba(95, 111, 119, .44);
+      border-radius: 4px;
+      background: #161c1f;
+      color: #aebbc1;
+      font: 650 .53rem/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .08em;
+      text-shadow: 0 1px #000;
+      transition: color .18s, border-color .18s, opacity .18s;
+    }
+
+    @keyframes i2cDataFlow {
+      from { transform: translate(-110%, 0); }
+      to { transform: translate(calc(100% + 30px), 0); }
+    }
+
+    @keyframes i2cClockPulse {
+      from { transform: translateX(0); opacity: .22; }
+      35% { opacity: .95; }
+      to { transform: translateX(24px); opacity: .12; }
+    }
+
+    .i2c-link.down .i2c-wire {
+      height: 0;
+      border-top: 2px dashed #526066;
+      background: transparent;
+      box-shadow: none;
+      opacity: .5;
+    }
+
+    .i2c-link.down .i2c-channel::before,
+    .i2c-link.down .i2c-channel::after {
+      background: #526066;
+      opacity: .62;
+    }
+
+    .i2c-link.down .i2c-label {
+      color: #78868d;
+      opacity: .8;
+    }
+
+    .i2c-link.fault .i2c-channel { --wire-color: #b97864; }
+    .i2c-link.fault .i2c-wire {
+      height: 0;
+      border-top: 2px dashed var(--wire-color);
+      background: transparent;
+      box-shadow: none;
+      opacity: .72;
+    }
+    .i2c-link.fault .i2c-label {
+      color: #d19a88;
+      border-color: rgba(185, 120, 100, .48);
+    }
+
+    .i2c-link.recovering .i2c-channel { --wire-color: #a79260; }
+    .i2c-link.recovering .i2c-label {
+      color: #c5b27c;
+      border-color: rgba(167, 146, 96, .42);
     }
 
     .controller {
@@ -383,7 +551,7 @@
       width: min(100%, 620px);
       margin: 30px auto 0;
       display: grid;
-      gap: 6px;
+      gap: 12px;
       color: #b7c2c8;
       font-size: .79rem;
       text-align: center;
@@ -542,12 +710,14 @@
     .controller-footer {
       width: min(100%, 620px);
       margin: auto auto;
-      padding-top: 22px;
+      padding-top: 30px;
       border-top: 1px solid rgba(103, 119, 127, .34);
       display: grid;
       grid-template-columns: 158px minmax(0, 1fr);
       gap: 14px 18px;
       align-items: stretch;
+      transform: translateY(var(--footer-align-offset, 0px));
+      transition: transform .16s ease;
     }
 
     .controller-actions {
@@ -693,10 +863,83 @@
 
     .fit-stage.mobile-layout .workspace { grid-template-columns: 1fr; }
     .fit-stage.mobile-layout .side-panel { width: min(100%, 620px); margin: 0 auto; }
+    .fit-stage.mobile-layout .i2c-link {
+      width: min(100%, 620px);
+      height: 56px;
+      margin: 0 auto;
+      padding: 0;
+      grid-template-columns: repeat(2, 34px);
+      justify-content: center;
+      align-content: stretch;
+      gap: 24px;
+    }
+    .fit-stage.mobile-layout .i2c-channel { height: auto; }
+    .fit-stage.mobile-layout .i2c-wire {
+      top: -1px;
+      bottom: -1px;
+      left: 50%;
+      right: auto;
+      width: 2px;
+      height: auto;
+      transform: translateX(-50%);
+    }
+    .fit-stage.mobile-layout .i2c-channel.sda .i2c-wire::before {
+      inset: -24px -1px auto -1px;
+      width: auto;
+      height: 24px;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0),
+        rgba(210, 240, 255, .96) 46%,
+        rgba(255,255,255,0));
+    }
+    .fit-stage.mobile-layout .i2c-channel.scl .i2c-wire::before {
+      inset: 0 -1px;
+      width: auto;
+      height: auto;
+      background: repeating-linear-gradient(180deg,
+        rgba(214, 236, 248, 0) 0 4px,
+        rgba(214, 236, 248, .92) 4px 8px,
+        rgba(214, 236, 248, 0) 8px 12px);
+      background-size: 100% 24px;
+      transform: translateY(0);
+    }
+    .fit-stage.mobile-layout .i2c-link.busy .i2c-channel.sda .i2c-wire::before {
+      animation-name: i2cDataFlowVertical;
+    }
+    .fit-stage.mobile-layout .i2c-link.busy .i2c-channel.scl .i2c-wire::before {
+      animation-name: i2cClockPulseVertical;
+    }
+    .fit-stage.mobile-layout .i2c-channel::before,
+    .fit-stage.mobile-layout .i2c-channel::after {
+      left: 50%;
+      right: auto;
+      top: auto;
+      transform: translateX(-50%);
+    }
+    .fit-stage.mobile-layout .i2c-channel::before { top: -3px; }
+    .fit-stage.mobile-layout .i2c-channel::after { bottom: -3px; }
+    .fit-stage.mobile-layout .i2c-link.down .i2c-wire,
+    .fit-stage.mobile-layout .i2c-link.fault .i2c-wire {
+      width: 0;
+      height: auto;
+      border-top: 0;
+      border-left: 2px dashed var(--wire-color, #526066);
+    }
+    @keyframes i2cDataFlowVertical {
+      from { transform: translateY(-110%); }
+      to { transform: translateY(calc(100% + 24px)); }
+    }
+
+    @keyframes i2cClockPulseVertical {
+      from { transform: translateY(0); opacity: .22; }
+      35% { opacity: .95; }
+      to { transform: translateY(24px); opacity: .12; }
+    }
+
     .fit-stage.mobile-layout .controls-wrap { grid-template-columns: 1fr; justify-items: center; }
     .fit-stage.mobile-layout .help-strip {
       margin-top: 28px;
-      gap: 11px;
+      gap: 15px;
     }
     .fit-stage.mobile-layout .help-line:nth-child(2) {
       display: grid;
@@ -706,8 +949,9 @@
     .fit-stage.mobile-layout .controller-footer {
       grid-template-columns: 1fr;
       margin: 36px auto 0;
-      padding-top: 26px;
+      padding-top: 34px;
       row-gap: 18px;
+      transform: none;
     }
     .fit-stage.mobile-layout .controller-actions { gap: 12px; }
 
@@ -728,14 +972,15 @@
     .fit-stage.compact-layout .controller::before { margin-bottom: 14px; }
     .fit-stage.compact-layout .help-strip {
       margin-top: 30px;
-      gap: 12px;
+      gap: 14px;
       font-size: .72rem;
     }
     .fit-stage.compact-layout .help-line:nth-child(2) { gap: 14px; }
     .fit-stage.compact-layout .controller-footer {
       margin-top: 38px;
-      padding-top: 28px;
+      padding-top: 36px;
       row-gap: 20px;
+      transform: none;
     }
     .fit-stage.compact-layout .controller-actions { gap: 14px; }
 
@@ -803,6 +1048,11 @@
           </div>
         </div>
       </section>
+
+      <div class="i2c-link" id="i2c-link" role="img" aria-label="I²C connection active: SDA and SCL">
+        <div class="i2c-channel sda"><span class="i2c-wire"></span><span class="i2c-label">SDA</span></div>
+        <div class="i2c-channel scl"><span class="i2c-wire"></span><span class="i2c-label">SCL</span></div>
+      </div>
 
       <aside class="side-panel" aria-label="Virtual TSA5511 status">
         <h2>Virtual TSA5511</h2>
@@ -874,6 +1124,7 @@
     const I2C_RETRY_WINDOW = 500;
     const I2C_FAULT_DURATION = 8000;
     const I2C_LOCK_VERIFY_DELAY = 500;
+    const I2C_ACTIVITY_DURATION = 520;
     const BANDS = [
       [65800000, 74000000],
       [76000000, 95000000],
@@ -1038,9 +1289,12 @@
     const lcd = document.getElementById('lcd');
     const rowElements = [document.getElementById('lcd-row-0'), document.getElementById('lcd-row-1')];
     const lockLed = document.getElementById('lock-led');
+    const i2cLink = document.getElementById('i2c-link');
     const toastEl = document.getElementById('toast');
     const eventText = document.getElementById('event-text');
     const simAddress = document.getElementById('sim-address');
+    const controllerFooter = document.querySelector('.controller-footer');
+    const portStatusSection = document.querySelector('.port-status');
     const status = {
       address: document.getElementById('status-address'),
       xtal: document.getElementById('status-xtal'),
@@ -1087,6 +1341,16 @@
       }, '*');
     }
 
+    function syncFooterSeparatorAlignment() {
+      if (!controllerFooter || !portStatusSection) return;
+      controllerFooter.style.setProperty('--footer-align-offset', '0px');
+      if (fitStage.classList.contains('mobile-layout') || fitStage.classList.contains('compact-layout')) return;
+      const footerTop = controllerFooter.getBoundingClientRect().top;
+      const portTop = portStatusSection.getBoundingClientRect().top;
+      const delta = Math.round((portTop - footerTop) * 100) / 100;
+      controllerFooter.style.setProperty('--footer-align-offset', `${delta}px`);
+    }
+
     function applyAutoFit() {
       const availableWidth = window.innerWidth;
       const compactLayout = availableWidth <= 430;
@@ -1106,6 +1370,7 @@
       fitCanvas.style.setProperty('--fit-scale', scale.toFixed(4));
 
       requestAnimationFrame(() => {
+        syncFooterSeparatorAlignment();
         fitStage.style.height = `${Math.ceil(fitCanvas.scrollHeight * scale)}px`;
         reportEmbeddedHeight();
       });
@@ -1268,7 +1533,10 @@
         const finishStartup = (reason = 'Startup programming') => {
           // The sketch performs an initial TSA5511 status read here; a successful read clears POR.
           const startupAddress = I2C_ADDRESSES[saved.pllAddressIndex];
-          if (addressAcknowledges(startupAddress)) tsaPorFlag = false;
+          pulseI2cActivity();
+          if (addressAcknowledges(startupAddress)) {
+            tsaPorFlag = false;
+          }
           state.screen = 'main';
           render();
           programmePLL(state.currentFreq, { force: true, reason });
@@ -1353,6 +1621,31 @@
       lcd.style.setProperty('--lcd-transition', `${duration}ms`);
     }
 
+    function updateI2cLinkAriaLabel(linkDown = !tsaPowered, linkFault = tsaPowered && i2cFaultActive, linkRecovering = tsaPowered && !i2cFaultActive && i2cRecoveryActive) {
+      const busy = i2cLink.classList.contains('busy') && !linkDown && !linkFault;
+      i2cLink.setAttribute(
+        'aria-label',
+        linkDown
+          ? 'I²C connection down: SDA and SCL'
+          : linkFault
+            ? 'I²C connection error: SDA and SCL'
+            : linkRecovering
+              ? (busy ? 'I²C connection recovering with data transfer on SDA and SCL' : 'I²C connection recovering: SDA and SCL')
+              : (busy ? 'I²C connection active with data transfer on SDA and SCL' : 'I²C connection active: SDA and SCL')
+      );
+    }
+
+    function pulseI2cActivity(duration = I2C_ACTIVITY_DURATION) {
+      if (!i2cLink || !tsaPowered || i2cFaultActive) return;
+      i2cLink.classList.add('busy');
+      updateI2cLinkAriaLabel();
+      clearTimeout(timers.i2cActivity);
+      timers.i2cActivity = setTimeout(() => {
+        i2cLink.classList.remove('busy');
+        updateI2cLinkAriaLabel();
+      }, duration);
+    }
+
     function activity() {
       if (!state) return false;
       state.lastActivity = performance.now();
@@ -1407,6 +1700,7 @@
 
       if (!force && aligned === state.currentFreq && state.lockPending) return true;
 
+      pulseI2cActivity();
       state.currentFreq = aligned;
       state.targetFreq = aligned;
       saved.lastFreq[bandKey(saved)] = aligned;
@@ -1510,6 +1804,7 @@
       lockLed.classList.toggle('on', state.locked && state.screen !== 'i2c-error');
       lockLed.classList.toggle('error', state.screen === 'i2c-error');
       updateStatus();
+      requestAnimationFrame(syncFooterSeparatorAlignment);
     }
 
     function drawRows(lines, cursor) {
@@ -1573,6 +1868,15 @@
       status.por.className = `state ${tsaPowered ? (tsaPorFlag ? 'wait' : 'good') : 'offline'}`;
       status.link.textContent = !tsaPowered ? 'DOWN' : (i2cFaultActive ? 'ERROR' : 'OK');
       status.link.className = `state ${!tsaPowered || i2cFaultActive ? 'bad' : 'good'}`;
+
+      const linkDown = !tsaPowered;
+      const linkFault = tsaPowered && i2cFaultActive;
+      const linkRecovering = tsaPowered && !i2cFaultActive && i2cRecoveryActive;
+      if (linkDown || linkFault) i2cLink.classList.remove('busy');
+      i2cLink.classList.toggle('down', linkDown);
+      i2cLink.classList.toggle('fault', linkFault);
+      i2cLink.classList.toggle('recovering', linkRecovering);
+      updateI2cLinkAriaLabel(linkDown, linkFault, linkRecovering);
 
       const levels = {
         lock: registersValid && tsaLockFlag,
@@ -1783,6 +2087,7 @@
       const pending = deepClone(state.pending);
       pending.stationName = normalizeName(state.stationBuffer);
       const requestedAddress = I2C_ADDRESSES[pending.pllAddressIndex];
+      pulseI2cActivity();
       if (!addressAcknowledges(requestedAddress)) {
         const previousIndex = saved.pllAddressIndex;
         pending.pllAddressIndex = previousIndex;
@@ -1913,6 +2218,7 @@
           state.menuIndex = 0;
           render();
         } else if (index === 3) {
+          pulseI2cActivity();
           state.rfOutputEnabled = !state.rfOutputEnabled;
           state.lastActivity = performance.now();
           logEvent(`RF drive override ${state.rfOutputEnabled ? 'enabled' : 'disabled'}.`);
@@ -2202,6 +2508,7 @@
         abortInteractiveStateForRecovery();
         state.locked = false;
         state.screen = 'main';
+        pulseI2cActivity();
         tsaPorFlag = false; // the successful status read clears POR
         tsaPowerCycleActive = false;
         logEvent('POR detected; controller is restoring the TSA5511 configuration.');
@@ -2236,6 +2543,7 @@
         render();
 
         timers.i2cVerify = setTimeout(() => {
+          pulseI2cActivity();
           i2cRecoveryActive = false;
           state.screen = 'main';
           state.locked = tsaLockFlag;
