@@ -717,6 +717,11 @@
       gap: 14px 18px;
       align-items: stretch;
       transform: translateY(var(--footer-align-offset, 0px));
+      visibility: hidden;
+    }
+
+    .fit-stage.footer-aligned .controller-footer {
+      visibility: visible;
     }
 
     .controller-actions {
@@ -861,9 +866,13 @@
     }
 
     .fit-stage.mobile-layout .workspace { grid-template-columns: 1fr; }
-    .fit-stage.mobile-layout .side-panel { width: min(100%, 620px); margin: 0 auto; }
+    .fit-stage.mobile-layout .controller,
+    .fit-stage.mobile-layout .side-panel {
+      width: min(92%, 560px);
+      margin-inline: auto;
+    }
     .fit-stage.mobile-layout .i2c-link {
-      width: min(100%, 620px);
+      width: min(92%, 560px);
       height: 56px;
       margin: 0 auto;
       padding: 0;
@@ -955,6 +964,11 @@
     .fit-stage.mobile-layout .controller-actions { gap: 12px; }
 
     .fit-stage.compact-layout .demo-shell { padding: 10px; }
+    .fit-stage.compact-layout .controller,
+    .fit-stage.compact-layout .side-panel,
+    .fit-stage.compact-layout .i2c-link {
+      width: min(94%, 410px);
+    }
     .fit-stage.compact-layout .controller { padding: 16px 11px 22px; border-radius: 17px; }
     .fit-stage.compact-layout .lcd-assembly { padding: 18px 29px 24px; }
     .fit-stage.compact-layout .lcd-assembly::before {
@@ -1342,24 +1356,24 @@
 
     function syncFooterSeparatorAlignment() {
       if (!controllerFooter || !portStatusSection) return;
+
+      controllerFooter.style.setProperty('--footer-align-offset', '0px');
       if (fitStage.classList.contains('mobile-layout') || fitStage.classList.contains('compact-layout')) {
-        controllerFooter.style.setProperty('--footer-align-offset', '0px');
+        fitStage.classList.add('footer-aligned');
         return;
       }
 
       const canvasRect = fitCanvas.getBoundingClientRect();
       const canvasScale = fitCanvas.offsetWidth ? canvasRect.width / fitCanvas.offsetWidth : 1;
-      const currentOffset = Number.parseFloat(
-        getComputedStyle(controllerFooter).getPropertyValue('--footer-align-offset')
-      ) || 0;
       const footerTop = controllerFooter.getBoundingClientRect().top;
       const portTop = portStatusSection.getBoundingClientRect().top;
-      const correction = (portTop - footerTop) / (canvasScale || 1);
-      const targetOffset = Math.round((currentOffset + correction) * 1000) / 1000;
+      const targetOffset = Math.round(((portTop - footerTop) / (canvasScale || 1)) * 1000) / 1000;
       controllerFooter.style.setProperty('--footer-align-offset', `${targetOffset}px`);
+      fitStage.classList.add('footer-aligned');
     }
 
     function applyAutoFit() {
+      fitStage.classList.remove('footer-aligned');
       const availableWidth = window.innerWidth;
       const compactLayout = availableWidth <= 430;
       const mobileLayout = availableWidth <= 842;
@@ -1812,7 +1826,6 @@
       lockLed.classList.toggle('on', state.locked && state.screen !== 'i2c-error');
       lockLed.classList.toggle('error', state.screen === 'i2c-error');
       updateStatus();
-      requestAnimationFrame(syncFooterSeparatorAlignment);
     }
 
     function drawRows(lines, cursor) {
@@ -2729,12 +2742,19 @@
 
     window.addEventListener('resize', scheduleAutoFit, { passive: true });
     if ('ResizeObserver' in window) {
-      const fitObserver = new ResizeObserver(scheduleAutoFit);
+      let initialFitObservation = true;
+      const fitObserver = new ResizeObserver(() => {
+        if (initialFitObservation) {
+          initialFitObservation = false;
+          return;
+        }
+        scheduleAutoFit();
+      });
       fitObserver.observe(fitCanvas);
     }
 
-    applyAutoFit();
     resetRuntime();
+    applyAutoFit();
   })();
   </script>
 </body>
