@@ -717,7 +717,6 @@
       gap: 14px 18px;
       align-items: stretch;
       transform: translateY(var(--footer-align-offset, 0px));
-      transition: transform .16s ease;
     }
 
     .controller-actions {
@@ -1343,12 +1342,21 @@
 
     function syncFooterSeparatorAlignment() {
       if (!controllerFooter || !portStatusSection) return;
-      controllerFooter.style.setProperty('--footer-align-offset', '0px');
-      if (fitStage.classList.contains('mobile-layout') || fitStage.classList.contains('compact-layout')) return;
+      if (fitStage.classList.contains('mobile-layout') || fitStage.classList.contains('compact-layout')) {
+        controllerFooter.style.setProperty('--footer-align-offset', '0px');
+        return;
+      }
+
+      const canvasRect = fitCanvas.getBoundingClientRect();
+      const canvasScale = fitCanvas.offsetWidth ? canvasRect.width / fitCanvas.offsetWidth : 1;
+      const currentOffset = Number.parseFloat(
+        getComputedStyle(controllerFooter).getPropertyValue('--footer-align-offset')
+      ) || 0;
       const footerTop = controllerFooter.getBoundingClientRect().top;
       const portTop = portStatusSection.getBoundingClientRect().top;
-      const delta = Math.round((portTop - footerTop) * 100) / 100;
-      controllerFooter.style.setProperty('--footer-align-offset', `${delta}px`);
+      const correction = (portTop - footerTop) / (canvasScale || 1);
+      const targetOffset = Math.round((currentOffset + correction) * 1000) / 1000;
+      controllerFooter.style.setProperty('--footer-align-offset', `${targetOffset}px`);
     }
 
     function applyAutoFit() {
