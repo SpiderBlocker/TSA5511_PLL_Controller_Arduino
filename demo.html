@@ -614,6 +614,8 @@
         0 18px 40px rgba(0,0,0,.22),
         inset 0 1px rgba(255,255,255,.08),
         inset 0 -2px 5px rgba(0,0,0,.35);
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .side-panel h2 {
@@ -791,6 +793,15 @@
     }
 
     .controller-event p { margin: 0; }
+
+    .status-grid dd,
+    .port-grid .port-map,
+    .port-grid .port-level,
+    .port-bitmap output,
+    .controller-event p {
+      user-select: text;
+      -webkit-user-select: text;
+    }
 
     .port-status {
       margin-top: auto;
