@@ -1875,6 +1875,17 @@
     function programmePLL(freq, { force = false, reason = 'Frequency programmed' } = {}) {
       const settings = saved;
       const aligned = validateFrequency(freq, settings, true);
+
+      // Match configurePLL(false) in the sketch: confirming the already-programmed
+      // frequency returns before any I²C write and leaves the current lock intact.
+      if (!force && aligned === state.currentFreq) {
+        state.targetFreq = aligned;
+        state.lastActivity = performance.now();
+        logEvent(`Frequency unchanged at ${formatMHz(aligned, settings.decimals)} MHz; PLL programming skipped.`);
+        render();
+        return true;
+      }
+
       const address = I2C_ADDRESSES[settings.pllAddressIndex];
       pulseI2cActivity();
       if (!addressAcknowledges(address)) {
@@ -1882,8 +1893,6 @@
         beginI2cRecovery('write', address);
         return false;
       }
-
-      if (!force && aligned === state.currentFreq && state.lockPending) return true;
 
       state.currentFreq = aligned;
       state.targetFreq = aligned;
@@ -2328,7 +2337,7 @@
       if (state.screen === 'frequency') {
         const target = state.targetFreq;
         state.screen = 'main';
-        programmePLL(target, { force: true, reason: `Frequency set to ${formatMHz(target, saved.decimals)} MHz` });
+        programmePLL(target, { reason: `Frequency set to ${formatMHz(target, saved.decimals)} MHz` });
         return;
       }
 
