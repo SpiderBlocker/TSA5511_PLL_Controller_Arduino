@@ -562,7 +562,7 @@
       width: min(100%, 620px);
       margin: 30px auto 0;
       display: grid;
-      gap: 12px;
+      gap: 16px;
       color: #b7c2c8;
       font-size: .79rem;
       text-align: center;
@@ -985,9 +985,9 @@
     .fit-stage.mobile-layout .controls-wrap { grid-template-columns: 1fr; justify-items: center; }
     .fit-stage.mobile-layout .help-strip {
       margin-top: 28px;
-      gap: 15px;
+      gap: 19px;
     }
-    .fit-stage.mobile-layout .help-line:nth-child(2) {
+    .fit-stage.mobile-layout .help-line:nth-child(1) {
       display: grid;
       gap: 11px;
     }
@@ -1032,10 +1032,10 @@
     .fit-stage.compact-layout .controller::before { margin-bottom: 14px; }
     .fit-stage.compact-layout .help-strip {
       margin-top: 30px;
-      gap: 14px;
+      gap: 18px;
       font-size: .72rem;
     }
-    .fit-stage.compact-layout .help-line:nth-child(2) { gap: 14px; }
+    .fit-stage.compact-layout .help-line:nth-child(1) { gap: 14px; }
     .fit-stage.compact-layout .controller-footer {
       margin-top: 38px;
       padding-top: 36px;
@@ -1085,15 +1085,15 @@
 
         <div class="help-strip" aria-label="Controller instructions">
           <div class="help-line">
+            <span>Hold <kbd>SET</kbd> for the <strong>Quick menu</strong> or to return</span>
+            <span class="help-sep">•</span>
+            <span>Double-press <kbd>SET</kbd> for <strong>System settings</strong></span>
+          </div>
+          <div class="help-line">
             <span class="help-label">Controls</span>
             <span><kbd>↓</kbd> DOWN</span>
             <span><kbd>Enter</kbd> SET</span>
             <span><kbd>↑</kbd> UP</span>
-          </div>
-          <div class="help-line">
-            <span>Double-press <kbd>SET</kbd> for <strong>System settings</strong></span>
-            <span class="help-sep">•</span>
-            <span>Hold <kbd>SET</kbd> for the <strong>Quick menu</strong> or to return</span>
           </div>
         </div>
 
