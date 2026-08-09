@@ -6,6 +6,13 @@
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
 It features an intuitive menu interface for configuring system settings, a quick menu for frequently used functions and a hidden service menu for diagnostics, system information and maintenance functions, as described in detail below. Persistent system settings and user memories are stored in EEPROM and automatically recalled upon restart.
 
+# Interactive demo
+A browser-based interactive demo is available to explore the virtual 16x2 LCD interface, button controls, System Menu, Quick Menu, hidden Service Menu, live diagnostics, virtual TSA5511 status/output ports and simulated I²C/POR recovery scenarios without requiring physical hardware.
+
+[Launch the interactive demo](https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/demo.html)
+
+The demo is a functional simulation for demonstration purposes and does not communicate with a physical TSA5511 or Arduino controller. Saved demo settings remain local to the browser.
+
 # Hardware
 - Circuit diagram
 ![Circuit diagram](images/PLL_CTRL_CCT.png)
@@ -83,8 +90,8 @@ It features an intuitive menu interface for configuring system settings, a quick
 
 ```text
 
-    ■ SERVICE MENU     => • DIAGNOSTICS      > Shows live TSA5511 lock/input status, live/completed PLL lock acquisition timing, unexpected POR and I²C recovery counts
-                                               since initialization, and the last successfully programmed output-port bitmap. Use UP/DOWN to browse the read-only pages;
+    ■ SERVICE MENU     => • DIAGNOSTICS      > Shows live TSA5511 lock/input status, live/completed PLL lock acquisition timing, unexpected POR and successfully completed
+                                               I²C recovery counts since initialization, and the last successfully programmed output-port bitmap. Use UP/DOWN to browse the read-only pages;
                                                select RETURN TO MENU or hold SET to return to the SERVICE MENU.
                           • SYSTEM INFO      > Shows the full firmware version and copyright information.
                           • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation.
@@ -97,4 +104,4 @@ It features an intuitive menu interface for configuring system settings, a quick
 - Change VCO frequency using UP/DOWN and confirm with a short SET press. Holding SET cancels the frequency change and returns to the main screen unchanged. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. If no confirmation is given, the frequency edit will time out unchanged.
 - PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes the live lock/input information for display without overriding the operational lock state or output-port control; unexpected POR indications remain handled by the normal recovery logic.
 - If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be turned off completely from the QUICK MENU and will be restored by pressing any button.
-- I²C communication loss is indicated and retried automatically. Any active menu is closed and any unconfirmed frequency edit is cancelled, except that DIAGNOSTICS retains the selected page during recovery; a fixed `!` at the upper-right marks the displayed values as temporarily stale while the fault indicator blinks. Any pending settings are still discarded for safety. After communication is restored, the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset. After a read-only interruption without POR, the existing programming is retained; if lock was lost, acquisition control and lock verification are resumed.
+- I²C communication loss is indicated and retried automatically. Any active menu is closed and any unconfirmed frequency edit is cancelled, except that DIAGNOSTICS retains the selected page during recovery; a fixed `!` at the upper-right marks the displayed values as temporarily stale while the fault indicator blinks. Pressing any button briefly shows the `I2C ERROR` / `retrying...` message without performing an action, then returns to the frozen diagnostics page. Any pending settings are still discarded for safety. The I²C recovery counter is incremented only after a recovery has been successfully completed. After communication is restored, the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset. After a read-only interruption without POR, the existing programming is retained; if lock was lost, acquisition control and lock verification are resumed.
