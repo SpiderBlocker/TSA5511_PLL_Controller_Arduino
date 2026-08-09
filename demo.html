@@ -303,7 +303,7 @@
     }
 
     .controller::before {
-      content: "PLL CONTROLLER TSA5511  •  DEMO";
+      content: "TSA5511 PLL CONTROLLER  •  DEMO";
       display: block;
       margin-bottom: 18px;
       color: #c4cbd0;
@@ -1054,7 +1054,7 @@
     <div class="fit-canvas" id="fit-canvas">
       <main class="demo-shell">
     <header class="intro">
-      <h1></h1>
+      <h1>TSA5511 PLL Controller — Interactive Demo</h1>
     </header>
 
     <noscript><div class="noscript">This demonstration requires JavaScript.</div></noscript>
@@ -1087,7 +1087,9 @@
           <div class="help-line">
             <span>Hold <kbd>SET</kbd> for the <strong>Quick menu</strong> or to return</span>
             <span class="help-sep">•</span>
-            <span>Double-press <kbd>SET</kbd> for <strong>System settings</strong></span>
+            <span>Double-press <kbd>SET</kbd> for the <strong>System menu</strong></span>
+            <span class="help-sep">•</span>
+            <span>Hold <kbd>↓</kbd> + <kbd>↑</kbd> for 1 s for the <strong>Service menu</strong></span>
           </div>
           <div class="help-line">
             <span class="help-label">Controls</span>
@@ -1167,12 +1169,16 @@
     const DIM_LEVEL = 0.30;
     const LCD_OFF_FADE_DURATION = 400;
     const MENU_TIMEOUT = 20000;
+    const SERVICE_MENU_TIMEOUT = 300000;
     const FREQ_TIMEOUT = 5000;
     const SET_LONG_PRESS = 800;
     const SET_DOUBLE_CLICK = 350;
     const BUTTON_REPEAT_DELAY = 1000;
     const MEMORY_SLOTS = 6;
-    const STORAGE_KEY = 'pll-tsa5511-demo-v4.7';
+    const DIAGNOSTICS_INTERVAL = 50;
+    const SERVICE_CHORD_WINDOW = 150;
+    const SERVICE_MENU_HOLD_DELAY = 1000;
+    const STORAGE_KEY = 'pll-tsa5511-demo-v5.0.0';
     const EMPTY_FREQ = null;
     const XTALS = [1600000, 3200000];
     const MAX_DECIMALS = [3, 2];
@@ -1183,6 +1189,7 @@
     const TSA_POWER_OFF_DURATION = 350; // normally brief enough to finish before the controller's 2 s health check
     const I2C_MAX_RETRIES = 10;
     const I2C_RETRY_DELAY = 50;
+    const I2C_ERROR_FEEDBACK_DELAY = 1000;
     const I2C_FAULT_DURATION = 8000;
     const I2C_ACTIVITY_DURATION = 520;
     const BANDS = [
@@ -1325,18 +1332,22 @@
       VCO: 'vco',
       PLL: 'pll',
       GENERAL: 'general',
+      SERVICE: 'service',
+      DIAGNOSTICS: 'diagnostics',
       EXIT: 'exit',
       QUICK: 'quick',
       MEMORY: 'memory'
     });
 
     const MENU_ITEMS = Object.freeze({
-      [MENU.SYSTEM_MAIN]: ['VCO SETTINGS', 'PLL SETTINGS', 'GENERAL SETTINGS', 'EXIT SETTINGS'],
+      [MENU.SYSTEM_MAIN]: ['VCO SETTINGS', 'PLL SETTINGS', 'GENERAL SETTINGS', 'EXIT MENU'],
       [MENU.VCO]: ['FREQUENCY BAND', 'PRECISION', 'RETURN TO MENU'],
       [MENU.PLL]: ['I2C ADDRESS', 'XTAL FREQUENCY', 'CHARGE PUMP', 'PORT MAPPING', 'RETURN TO MENU'],
-      [MENU.GENERAL]: ['STATION NAME', 'BACKLIGHT DIMMER', 'SHOW MENU TITLE', 'FACTORY RESET', 'RETURN TO MENU'],
+      [MENU.GENERAL]: ['STATION NAME', 'BACKLIGHT DIMMER', 'SHOW MENU TITLE', 'RETURN TO MENU'],
+      [MENU.SERVICE]: ['DIAGNOSTICS', 'SYSTEM INFO', 'FACTORY RESET', 'EXIT MENU'],
+      [MENU.DIAGNOSTICS]: ['PLL STATUS', 'PLL LOCK TIME', 'INPUTS', 'OUTPUT PORTS', 'I2C RECOVERIES', 'RETURN TO MENU'],
       [MENU.EXIT]: ['save changes', 'discard', 'cancel'],
-      [MENU.QUICK]: ['RECALL MEMORY', 'SAVE MEMORY', 'CLEAR MEMORY', 'RF DRIVE', 'LCD OFF', 'EXIT QUICK MENU']
+      [MENU.QUICK]: ['RECALL MEMORY', 'SAVE MEMORY', 'CLEAR MEMORY', 'RF DRIVE', 'LCD OFF', 'EXIT MENU']
     });
 
     const fitStage = document.getElementById('fit-stage');
@@ -1384,6 +1395,7 @@
     let i2cRecoveryActive = false;
     let i2cRecoveryReason = null;
     let i2cRetryCount = 0;
+    let i2cLockVerifyCount = 0;
     let lastI2cCheckTime = 0;
     let state;
     let timers = {};
@@ -1391,10 +1403,12 @@
     let lastSetClick = 0;
     let menuEntryBusy = false;
     let downUpPresses = { down: null, up: null };
+    let serviceChord = { active: false, holdTimer: null };
     let toastTimer = null;
     let lockAnimPos = 0;
     let lockAnimDirection = 1;
     let rfBlinkPhase = false;
+    let displayedLockPending = null;
 
     function reportEmbeddedHeight() {
       if (window.parent === window) return;
@@ -1569,6 +1583,11 @@
         targetFreq: initialFreq,
         locked: false,
         lockPending: false,
+        lockTime: 0,
+        porCount: 0,
+        i2cRecoveryCount: 0,
+        lastStatusByte: 0,
+        lastPortBitmap: 0,
         rfOutputEnabled: true,
         lcdOff: false,
         dimmed: false,
@@ -1597,6 +1616,7 @@
       i2cRecoveryActive = false;
       i2cRecoveryReason = null;
       i2cRetryCount = 0;
+      i2cLockVerifyCount = 0;
       lastI2cCheckTime = performance.now();
       lockAnimPos = 0;
       lockAnimDirection = 1;
@@ -1618,6 +1638,7 @@
             render();
             return;
           }
+          state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0);
           tsaPorFlag = false; // a successful TSA5511 status read clears POR
           lastI2cCheckTime = performance.now();
           render();
@@ -1648,7 +1669,10 @@
       timers = {};
       Object.values(downUpPresses).forEach(press => {
         if (press?.timer) clearTimeout(press.timer);
+        if (press?.deferTimer) clearTimeout(press.deferTimer);
       });
+      if (serviceChord.holdTimer) clearTimeout(serviceChord.holdTimer);
+      serviceChord = { active: false, holdTimer: null };
       downUpPresses = { down: null, up: null };
     }
 
@@ -1683,11 +1707,17 @@
         render();
       }
 
-      if (state.screen === 'menu' && state.menuLevel !== MENU.EXIT && now - state.lastMenuActivity > MENU_TIMEOUT) {
-        if ([MENU.QUICK, MENU.MEMORY].includes(state.menuLevel)) {
-          exitToMain('Quick menu timed out.');
-        } else {
-          discardSystemChanges('System settings timed out; unsaved changes discarded.');
+      if (state.screen === 'menu' && state.menuLevel !== MENU.EXIT) {
+        const serviceMode = [MENU.SERVICE, MENU.DIAGNOSTICS].includes(state.menuLevel);
+        const timeout = serviceMode ? SERVICE_MENU_TIMEOUT : MENU_TIMEOUT;
+        if (now - state.lastMenuActivity > timeout) {
+          if ([MENU.QUICK, MENU.MEMORY].includes(state.menuLevel)) {
+            exitToMain('Quick menu timed out.');
+          } else if (serviceMode) {
+            exitToMain('Service menu timed out.');
+          } else {
+            discardSystemChanges('System menu timed out; unsaved changes discarded.');
+          }
         }
       }
 
@@ -1781,24 +1811,43 @@
 
     function beginI2cRecovery(reason, address = I2C_ADDRESSES[saved.pllAddressIndex], eventMessage = '') {
       i2cRetryCount = 0;
+      i2cLockVerifyCount = 0;
       if (i2cRecoveryActive) return;
+      const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
       abortInteractiveStateForRecovery();
       i2cRecoveryActive = true;
       i2cRecoveryReason = reason;
       state.locked = false;
-      state.screen = 'i2c-error';
+      if (reason === 'write') state.lockPending = false;
+      state.screen = diagnosticsActive ? 'menu' : 'i2c-error';
       const operation = reason === 'startup' ? 'startup status read' : reason;
       logEvent(eventMessage || `I²C ${operation} failed at 0x${address.toString(16).toUpperCase()} after ${I2C_MAX_RETRIES} retries; recovery is active.`);
-      render();
+
+      if (diagnosticsActive) {
+        // Match the firmware: keep the complete diagnostics page frozen while recovery is active.
+        // Only the stale-data marker is written directly; the recovery counter is updated after
+        // communication has actually recovered and the page is redrawn.
+        drawTextRange(0, LCD_COLUMNS - 1, '!');
+        lockLed.classList.remove('on');
+        lockLed.classList.add('error');
+        updateStatus();
+      } else {
+        render();
+      }
     }
 
     function completeI2cRecovery(porDetected) {
       const recoveryReason = i2cRecoveryReason;
+      const recoveryWasActive = i2cRecoveryActive;
+      const resumeDiagnostics = state.menuLevel === MENU.DIAGNOSTICS;
       abortInteractiveStateForRecovery();
       i2cRecoveryActive = false;
       i2cRecoveryReason = null;
-      state.screen = 'main';
+      clearTimeout(timers.i2cFeedback);
+      delete timers.i2cFeedback;
+      state.screen = resumeDiagnostics ? 'menu' : 'main';
       state.lastActivity = performance.now();
+      if (resumeDiagnostics) state.lastMenuActivity = state.lastActivity;
 
       if (porDetected || recoveryReason === 'write' || recoveryReason === 'startup') {
         state.locked = false;
@@ -1806,19 +1855,26 @@
         logEvent(porDetected
           ? 'POR detected; controller is restoring the TSA5511 configuration.'
           : 'I²C communication restored after an uncertain write; controller is restoring the TSA5511 configuration.');
-        programmePLL(state.currentFreq, {
+        if (programmePLL(state.currentFreq, {
           force: true,
           reason: porDetected
             ? 'PLL reprogrammed after TSA5511 power cycle'
             : recoveryReason === 'startup'
               ? 'Startup programming after I²C recovery'
               : 'PLL reprogrammed after I²C write recovery'
-        });
+        }) && recoveryWasActive) {
+          state.i2cRecoveryCount = Math.min(100, state.i2cRecoveryCount + 1);
+          if (resumeDiagnostics) render();
+        }
         return;
       }
 
       state.locked = tsaLockFlag;
-      state.lockPending = !tsaLockFlag && saved.pllControl !== 2;
+      if (tsaLockFlag && state.lockPending) state.lockTime = performance.now() - state.lockTime;
+      else if (!tsaLockFlag && !state.lockPending) state.lockTime = performance.now();
+      state.lockPending = !tsaLockFlag;
+      state.lastPortBitmap = commandedPortBitmap(state.locked);
+      if (recoveryWasActive) state.i2cRecoveryCount = Math.min(100, state.i2cRecoveryCount + 1);
       logEvent(saved.pllControl === 2
         ? 'I²C recovery completed; charge pump disabled, PLL remains unlocked.'
         : tsaLockFlag
@@ -1831,12 +1887,13 @@
       if (!state || state.screen === 'splash' || state.screen === 'i2c-fallback') return;
 
       const now = performance.now();
-      const interval = i2cRetryCount ? I2C_RETRY_DELAY : I2C_HEALTH_CHECK_INTERVAL;
+      const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
+      const interval = (i2cRetryCount || i2cLockVerifyCount) ? I2C_RETRY_DELAY : i2cRecoveryActive ? I2C_HEALTH_CHECK_INTERVAL : state.lockPending ? 0 : diagnosticsActive ? DIAGNOSTICS_INTERVAL : I2C_HEALTH_CHECK_INTERVAL;
       if (now - lastI2cCheckTime < interval) return;
       lastI2cCheckTime = now;
 
       const address = I2C_ADDRESSES[saved.pllAddressIndex];
-      pulseI2cActivity();
+      pulseI2cActivity(diagnosticsActive ? 35 : I2C_ACTIVITY_DURATION);
       if (!addressAcknowledges(address)) {
         i2cRetryCount += 1;
         if (i2cRetryCount < I2C_MAX_RETRIES) return;
@@ -1846,7 +1903,17 @@
 
       i2cRetryCount = 0;
       const porDetected = tsaPorFlag;
+      state.lastStatusByte = (porDetected ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0);
+      if (porDetected) state.porCount = Math.min(100, state.porCount + 1);
       tsaPorFlag = false; // successful status read clears the TSA5511 POR flag
+
+      // Match monitorPLL(): after a read-only interruption of an already locked PLL,
+      // do not declare lock lost from one low FL sample. Verify it over ten reads first.
+      if (i2cRecoveryActive && i2cRecoveryReason === 'read' && !state.lockPending && !porDetected && !tsaLockFlag) {
+        i2cLockVerifyCount += 1;
+        if (i2cLockVerifyCount < I2C_MAX_RETRIES) return;
+      }
+      i2cLockVerifyCount = 0;
 
       if (i2cRecoveryActive || porDetected || i2cRecoveryReason === 'startup') {
         completeI2cRecovery(porDetected);
@@ -1855,10 +1922,21 @@
 
       if (state.lockPending && tsaLockFlag) {
         state.locked = true;
+        state.lockTime = now - state.lockTime;
         state.lockPending = false;
+        state.lastPortBitmap = commandedPortBitmap(true);
         state.lastActivity = now;
-        render();
       }
+      if (diagnosticsActive) refreshDiagnosticsDisplay();
+      else if (state.locked && !state.lockPending) render();
+    }
+
+    function commandedPortBitmap(locked, settings = saved) {
+      let bitmap = 0;
+      const add = port => { if (port >= 0 && port < 8) bitmap |= (1 << port); };
+      add(locked ? settings.portLock : settings.portUnlock);
+      if (locked && state.rfOutputEnabled) add(settings.portRF);
+      return bitmap;
     }
 
     function programmePLL(freq, { force = false, reason = 'Frequency programmed' } = {}) {
@@ -1885,8 +1963,11 @@
       saved.lastFreq[bandKey(saved)] = aligned;
       persist();
       state.locked = false;
-      state.lockPending = settings.pllControl !== 2;
+      state.lockPending = true;
+      state.lockTime = performance.now();
+      state.lastPortBitmap = commandedPortBitmap(false, settings);
       tsaLockFlag = false;
+      state.lastStatusByte &= ~0x40;
       tsaRegistersProgrammed = true;
       state.lastActivity = performance.now();
       setLcdBrightness(1, 100);
@@ -1903,12 +1984,17 @@
       timers.lock = setTimeout(() => {
         tsaLockFlag = true;
         if (!i2cFaultActive && !i2cRecoveryActive && state.screen !== 'i2c-error') {
+          const now = performance.now();
+          state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | 0x40;
           state.locked = true;
+          if (state.lockPending) state.lockTime = now - state.lockTime;
           state.lockPending = false;
-          state.lastActivity = performance.now();
+          state.lastPortBitmap = commandedPortBitmap(true, settings);
+          state.lastActivity = now;
           logEvent('TSA5511 lock flag asserted HIGH.');
         }
-        render();
+        if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS) refreshDiagnosticsDisplay();
+        else render();
       }, LOCK_DELAY);
       logEvent(`${reason}; acquiring lock for ${(LOCK_DELAY / 1000).toFixed(1)} s.`);
       render();
@@ -1948,14 +2034,25 @@
       return chars.join('');
     }
 
-    function render() {
+    function render(allowRecoveryRefresh = false) {
       if (!state) return;
+
+      // Firmware-equivalent diagnostics behavior during I²C recovery: preserve the
+      // already displayed page byte-for-byte and only maintain the stale-data '!'.
+      if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive && !allowRecoveryRefresh) {
+        drawTextRange(0, LCD_COLUMNS - 1, '!');
+        lockLed.classList.remove('on');
+        lockLed.classList.add('error');
+        updateStatus();
+        return;
+      }
+
       let lines = ['                ', '                '];
       let cursor = null;
 
       if (state.screen === 'splash') {
-        lines[0] = padLine('PLL Control V4.9');
-        lines[1] = padLine('(C)2026 Loenie');
+        lines[0] = centerLine('PLL CONTROLLER');
+        lines[1] = centerLine('V5.0.0');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -1963,7 +2060,7 @@
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = rightCompose('SET ', formatFrequencyRight(state.targetFreq, saved.decimals));
       } else if (state.screen === 'menu-title') {
-        lines = state.messageOverride || [centerLine(state.menuLevel === MENU.QUICK ? 'QUICK MENU' : 'SYSTEM SETTINGS'), '                '];
+        lines = state.messageOverride || [centerLine(state.menuLevel === MENU.QUICK ? 'QUICK MENU' : state.menuLevel === MENU.SERVICE ? 'SERVICE MENU' : 'SYSTEM MENU'), '                '];
       } else if (state.screen === 'menu') {
         lines = renderMenuLines();
       } else if (state.screen === 'station-editor') {
@@ -1978,11 +2075,39 @@
         lines[1] = padLine('retrying...');
       }
 
+      if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive) {
+        lines[0] = `${padLine(lines[0]).slice(0, 15)}!`;
+      }
       if (state.lcdOff) lines = ['                ', '                '];
       drawRows(lines, cursor);
-      lockLed.classList.toggle('on', state.locked && state.screen !== 'i2c-error');
-      lockLed.classList.toggle('error', state.screen === 'i2c-error');
+      displayedLockPending = state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && state.menuIndex === 1
+        ? state.lockPending
+        : null;
+      lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive);
+      lockLed.classList.toggle('error', i2cRecoveryActive);
       updateStatus();
+    }
+
+    function createLcdCell(character, cursor = false) {
+      const glyph = LCD_FONT[character] || LCD_FONT['?'];
+      const cell = document.createElement('span');
+      cell.className = 'lcd-cell';
+      cell.setAttribute('aria-label', character === ' ' ? 'space' : character);
+      if (cursor) cell.classList.add('cursor');
+
+      for (let dotIndex = 0; dotIndex < 48; dotIndex += 1) {
+        const dotRow = Math.floor(dotIndex / 6);
+        const dotColumn = dotIndex % 6;
+        const dot = document.createElement('i');
+        const classes = ['lcd-dot'];
+        if (dotColumn === 5) classes.push('spacer');
+        else if (glyph[dotRow][dotColumn] === '1') classes.push('on');
+        if (cursor && dotRow === 7 && dotColumn < 5) classes.push('cursor-underline');
+        dot.className = classes.join(' ');
+        dot.setAttribute('aria-hidden', 'true');
+        cell.appendChild(dot);
+      }
+      return cell;
     }
 
     function drawRows(lines, cursor) {
@@ -1990,34 +2115,54 @@
         const text = padLine(lines[rowIndex] || '');
         const fragment = document.createDocumentFragment();
         for (let col = 0; col < LCD_COLUMNS; col += 1) {
-          const character = text[col] || ' ';
-          const glyph = LCD_FONT[character] || LCD_FONT['?'];
-          const cell = document.createElement('span');
-          cell.className = 'lcd-cell';
-          cell.setAttribute('aria-label', character === ' ' ? 'space' : character);
-          if (cursor && cursor.row === rowIndex && cursor.col === col) cell.classList.add('cursor');
-
-          for (let dotIndex = 0; dotIndex < 48; dotIndex += 1) {
-            const dotRow = Math.floor(dotIndex / 6);
-            const dotColumn = dotIndex % 6;
-            const dot = document.createElement('i');
-            const isSpacerColumn = dotColumn === 5;
-            const isUnderline = cursor && cursor.row === rowIndex && cursor.col === col && dotRow === 7 && dotColumn < 5;
-            const classes = ['lcd-dot'];
-            if (isSpacerColumn) {
-              classes.push('spacer');
-            } else if (glyph[dotRow][dotColumn] === '1') {
-              classes.push('on');
-            }
-            if (isUnderline) classes.push('cursor-underline');
-            dot.className = classes.join(' ');
-            dot.setAttribute('aria-hidden', 'true');
-            cell.appendChild(dot);
-          }
-          fragment.appendChild(cell);
+          fragment.appendChild(createLcdCell(text[col] || ' ', Boolean(cursor && cursor.row === rowIndex && cursor.col === col)));
         }
         row.replaceChildren(fragment);
       });
+    }
+
+    function drawTextRange(rowIndex, startCol, text) {
+      const row = rowElements[rowIndex];
+      for (let offset = 0; offset < text.length && startCol + offset < LCD_COLUMNS; offset += 1) {
+        const col = startCol + offset;
+        if (!row.children[col]) return false;
+        row.children[col].replaceWith(createLcdCell(text[offset] || ' '));
+      }
+      return true;
+    }
+
+    function formatLockTimeField(elapsed, pending) {
+      let field;
+      if (elapsed < (pending ? 1000000 : 100000)) {
+        field = `${Math.floor(elapsed / 1000)}.${Math.floor((elapsed % 1000) / 100)} s`;
+        if (elapsed < 10000) field += pending ? '  ' : ' ';
+        else if (pending && elapsed < 100000) field += ' ';
+      } else if (elapsed < 10000000) {
+        field = `${Math.floor(elapsed / 1000)} s`;
+        if (pending || elapsed < 1000000) field += ' ';
+      } else {
+        field = '>9999 s';
+      }
+      if (!pending && elapsed < 10000000) field = ` ${field}`;
+      return field.slice(0, 7).padEnd(7, ' ');
+    }
+
+    function refreshDiagnosticsDisplay() {
+      if (state.screen !== 'menu' || state.menuLevel !== MENU.DIAGNOSTICS || i2cRecoveryActive) return;
+      if (state.menuIndex !== 1) {
+        render();
+        return;
+      }
+
+      if (displayedLockPending !== state.lockPending) {
+        drawTextRange(1, 0, state.lockPending ? 'locking: ' : 'locked in');
+        displayedLockPending = state.lockPending;
+      }
+      const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
+      drawTextRange(1, 9, formatLockTimeField(elapsed, state.lockPending));
+      lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive);
+      lockLed.classList.toggle('error', i2cRecoveryActive);
+      updateStatus();
     }
 
     function updateStatus() {
@@ -2118,7 +2263,7 @@
       const index = state.menuIndex;
 
       if (state.menuLevel === MENU.EXIT) {
-        return [padLine('EXIT SETTINGS'), padLine(`> ${MENU_ITEMS[MENU.EXIT][index]}`)];
+        return [padLine('EXIT MENU'), padLine(`> ${MENU_ITEMS[MENU.EXIT][index]}`)];
       }
 
       if (state.menuLevel === MENU.QUICK) {
@@ -2144,6 +2289,44 @@
       if (state.menuLevel === MENU.SYSTEM_MAIN) {
         const top = MENU_ITEMS[MENU.SYSTEM_MAIN][index];
         return [padLine(top), padLine(index === 3 ? 'SET to proceed' : 'SET to enter')];
+      }
+
+      if (state.menuLevel === MENU.SERVICE) {
+        if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
+        if (index === 1) return state.menuEdit
+          ? [padLine('VERSION: V5.0.0'), padLine('(C)2026 Loenie')]
+          : [padLine('SYSTEM INFO'), padLine('SET to view')];
+        if (index === 2) {
+          const top = state.factoryFinal ? 'CLEAR ALL DATA?' : 'FACTORY RESET';
+          return [padLine(top), state.menuEdit ? padLine(`> ${state.factoryChoice ? 'yes' : 'no'}`) : padLine('SET to select')];
+        }
+        return [padLine('EXIT MENU'), padLine('SET to confirm')];
+      }
+
+      if (state.menuLevel === MENU.DIAGNOSTICS) {
+        if (index === 0) {
+          const count = state.porCount < 100 ? state.porCount : '99+';
+          return [padLine('PLL STATUS'), padLine(`FL:${(state.lastStatusByte & 0x40) ? 1 : 0} POR cnt:${count}`)];
+        }
+        if (index === 1) {
+          const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
+          return [padLine('PLL LOCK TIME'), `${state.lockPending ? 'locking: ' : 'locked in'}${formatLockTimeField(elapsed, state.lockPending)}`];
+        }
+        if (index === 2) {
+          const bits = [5, 4, 3].map(bit => (state.lastStatusByte >> bit) & 1);
+          const adc = [2, 1, 0].map(bit => (state.lastStatusByte >> bit) & 1).join('');
+          return [padLine('P7 P5 P4 P6-ADC'), padLine(`${bits[0]}  ${bits[1]}  ${bits[2]}  ${adc}`)];
+        }
+        if (index === 3) {
+          const hex = state.lastPortBitmap.toString(16).toUpperCase().padStart(2, '0');
+          const bits = state.lastPortBitmap.toString(2).padStart(8, '0');
+          return [padLine(`PORT CMD 0x${hex}`), padLine(`P7..P0 ${bits}`)];
+        }
+        if (index === 4) {
+          const count = state.i2cRecoveryCount < 100 ? state.i2cRecoveryCount : '99+';
+          return [padLine('I2C RECOVERIES'), padLine(`total: ${count}`)];
+        }
+        return [padLine('RETURN TO MENU'), padLine('SET to confirm')];
       }
 
       if (state.menuLevel === MENU.VCO) {
@@ -2186,16 +2369,11 @@
         if (index === 0) return [padLine('STATION NAME'), padLine('SET to edit')];
         if (index === 1) return [padLine('BACKLIGHT DIMMER'), state.menuEdit ? padLine(`> ${settings.dimmer ? 'on' : 'off'}`) : padLine('SET to select')];
         if (index === 2) return [padLine('SHOW MENU TITLE'), state.menuEdit ? padLine(`> ${settings.showMenuTitle ? 'on' : 'off'}`) : padLine('SET to select')];
-        if (index === 3) {
-          const top = state.factoryFinal ? 'CLEAR ALL DATA?' : 'FACTORY RESET';
-          return [padLine(top), state.menuEdit ? padLine(`> ${state.factoryChoice ? 'yes' : 'no'}`) : padLine('SET to select')];
-        }
         return [padLine('RETURN TO MENU'), padLine('SET to confirm')];
       }
 
       return ['                ', '                '];
     }
-
     function beginMenu(level) {
       state.menuLevel = level;
       state.menuIndex = 0;
@@ -2219,16 +2397,18 @@
         render();
         return;
       }
+      const titleText = level === MENU.QUICK ? 'QUICK MENU' : level === MENU.SERVICE ? 'SERVICE MENU' : 'SYSTEM MENU';
+      const targetText = level === MENU.QUICK ? 'RECALL MEMORY' : level === MENU.SERVICE ? 'DIAGNOSTICS' : 'VCO SETTINGS';
       menuEntryBusy = true;
       state.screen = 'menu-title';
-      state.messageOverride = [centerLine(level === MENU.QUICK ? 'QUICK MENU' : 'SYSTEM SETTINGS'), '                '];
+      state.messageOverride = [centerLine(titleText), '                '];
       render();
       timers.menuTitle = setTimeout(() => {
         let step = 0;
-        const target = padLine(level === MENU.QUICK ? 'RECALL MEMORY' : 'VCO SETTINGS');
+        const target = padLine(targetText);
         timers.menuTitleAnim = setInterval(() => {
           step += 1;
-          const title = centerLine(level === MENU.QUICK ? 'QUICK MENU' : 'SYSTEM SETTINGS').split('');
+          const title = centerLine(titleText).split('');
           const reveal = Math.max(0, step - 3);
           for (let i = 0; i < Math.min(8, step); i += 1) {
             title[i] = ' ';
@@ -2250,7 +2430,6 @@
         }, 70);
       }, 1000);
     }
-
     function exitToMain(message) {
       state.screen = 'main';
       state.menuLevel = null;
@@ -2268,6 +2447,14 @@
       state.pending = null;
       state.systemSnapshot = null;
       exitToMain(message);
+    }
+
+    function systemSettingsChanged() {
+      if (!state.pending || !state.systemSnapshot) return false;
+      const keys = ['stationName', 'dimmer', 'showMenuTitle', 'decimals', 'pllControl', 'xtalIndex',
+        'pllAddressIndex', 'portLock', 'portUnlock', 'portRF'];
+      return keys.some(key => JSON.stringify(state.pending[key]) !== JSON.stringify(state.systemSnapshot[key])) ||
+        JSON.stringify(state.pending.bandIndex) !== JSON.stringify(state.systemSnapshot.bandIndex);
     }
 
     function saveSystemChanges() {
@@ -2305,7 +2492,7 @@
     }
 
     function handleSetShort() {
-      if (menuEntryBusy || !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (menuEntryBusy || !state || i2cRecoveryActive || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
       if (state.lcdOff) return;
 
       if (state.screen === 'main') {
@@ -2313,7 +2500,7 @@
         if (lastSetClick && now - lastSetClick >= 50 && now - lastSetClick < SET_DOUBLE_CLICK) {
           lastSetClick = 0;
           beginMenu(MENU.SYSTEM_MAIN);
-          logEvent('SYSTEM SETTINGS opened.');
+          logEvent('SYSTEM MENU opened.');
         } else {
           lastSetClick = now;
         }
@@ -2342,7 +2529,7 @@
     }
 
     function handleSetLong() {
-      if (menuEntryBusy || !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (menuEntryBusy || !state || i2cRecoveryActive || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
       if (state.lcdOff) return;
 
       if (state.screen === 'main') {
@@ -2377,6 +2564,19 @@
         state.menuLevel = MENU.SYSTEM_MAIN;
         state.menuIndex = 3;
         render();
+      } else if (state.menuLevel === MENU.DIAGNOSTICS) {
+        state.menuLevel = MENU.SERVICE;
+        state.menuIndex = 0;
+        render();
+      } else if (state.menuLevel === MENU.SERVICE) {
+        if (state.menuEdit) {
+          state.menuEdit = false;
+          state.factoryFinal = false;
+          state.factoryChoice = false;
+          render();
+        } else {
+          exitToMain('Service menu closed.');
+        }
       } else if (state.menuEdit) {
         state.menuEdit = false;
         state.outputPortPhase = 0;
@@ -2384,16 +2584,19 @@
         state.factoryChoice = false;
         render();
       } else if (state.menuLevel === MENU.SYSTEM_MAIN) {
-        state.menuLevel = MENU.EXIT;
-        state.menuIndex = 0;
-        render();
+        if (!systemSettingsChanged()) {
+          exitToMain('System menu closed; no changes to save.');
+        } else {
+          state.menuLevel = MENU.EXIT;
+          state.menuIndex = 0;
+          render();
+        }
       } else {
         state.menuLevel = MENU.SYSTEM_MAIN;
         state.menuIndex = state.previousSystemIndex;
         render();
       }
     }
-
     function handleMenuSetShort() {
       const level = state.menuLevel;
       const index = state.menuIndex;
@@ -2406,7 +2609,17 @@
           render();
         } else if (index === 3) {
           pulseI2cActivity();
+          const previous = state.rfOutputEnabled;
           state.rfOutputEnabled = !state.rfOutputEnabled;
+          if (state.locked) {
+            const address = I2C_ADDRESSES[saved.pllAddressIndex];
+            if (!addressAcknowledges(address)) {
+              state.rfOutputEnabled = previous;
+              beginI2cRecovery('write', address);
+              return;
+            }
+            state.lastPortBitmap = commandedPortBitmap(true);
+          }
           state.lastActivity = performance.now();
           logEvent(`RF drive override ${state.rfOutputEnabled ? 'enabled' : 'disabled'}.`);
           render();
@@ -2464,13 +2677,69 @@
         return;
       }
 
+      if (level === MENU.DIAGNOSTICS) {
+        if (index === MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) {
+          state.menuLevel = MENU.SERVICE;
+          state.menuIndex = 0;
+          render();
+        }
+        return;
+      }
+
+      if (level === MENU.SERVICE) {
+        if (state.menuEdit) {
+          if (index === 1) {
+            state.menuEdit = false;
+            render();
+            return;
+          }
+          if (index === 2) {
+            if (state.factoryChoice) {
+              if (state.factoryFinal) {
+                eraseSavedData(true);
+                return;
+              }
+              state.factoryFinal = true;
+              state.factoryChoice = false;
+              render();
+              return;
+            }
+            state.menuEdit = false;
+            state.factoryFinal = false;
+            state.factoryChoice = false;
+            render();
+          }
+          return;
+        }
+
+        if (index === 0) {
+          state.menuLevel = MENU.DIAGNOSTICS;
+          state.menuIndex = 0;
+          render();
+        } else if (index === 1 || index === 2) {
+          state.menuEdit = true;
+          state.factoryFinal = false;
+          state.factoryChoice = false;
+          render();
+        } else {
+          exitToMain('Service menu closed.');
+        }
+        return;
+      }
+
       if (!state.menuEdit) {
         if (level === MENU.SYSTEM_MAIN) {
           state.previousSystemIndex = index;
           if (index === 0) { state.menuLevel = MENU.VCO; state.menuIndex = 0; }
           else if (index === 1) { state.menuLevel = MENU.PLL; state.menuIndex = 0; }
           else if (index === 2) { state.menuLevel = MENU.GENERAL; state.menuIndex = 0; }
-          else { state.menuLevel = MENU.EXIT; state.menuIndex = 0; }
+          else if (!systemSettingsChanged()) {
+            exitToMain('System menu closed; no changes to save.');
+            return;
+          } else {
+            state.menuLevel = MENU.EXIT;
+            state.menuIndex = 0;
+          }
           render();
           return;
         }
@@ -2492,8 +2761,6 @@
         }
 
         state.menuEdit = true;
-        state.factoryFinal = false;
-        state.factoryChoice = false;
         state.outputPortPhase = 0;
         render();
         return;
@@ -2506,24 +2773,10 @@
           return;
         }
         state.outputPortPhase = 0;
-      } else if (level === MENU.GENERAL && index === 3) {
-        if (state.factoryChoice) {
-          if (state.factoryFinal) {
-            eraseSavedData(true);
-            return;
-          }
-          state.factoryFinal = true;
-          state.factoryChoice = false;
-          render();
-          return;
-        }
-        state.factoryFinal = false;
-        state.factoryChoice = false;
       }
       state.menuEdit = false;
       render();
     }
-
     function finishStationEditor() {
       state.pending.stationName = normalizeName(state.stationBuffer);
       state.stationBuffer = state.pending.stationName;
@@ -2535,7 +2788,7 @@
     }
 
     function handleDirection(direction, isRepeat = false) {
-      if (menuEntryBusy || !state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (menuEntryBusy || !state || i2cRecoveryActive || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
       if (state.lcdOff) return;
       const delta = direction === 'up' ? 1 : -1;
 
@@ -2624,7 +2877,7 @@
         settings.dimmer = delta > 0;
       } else if (level === MENU.GENERAL && index === 2) {
         settings.showMenuTitle = delta > 0;
-      } else if (level === MENU.GENERAL && index === 3) {
+      } else if (level === MENU.SERVICE && index === 2) {
         state.factoryChoice = delta > 0;
       }
     }
@@ -2657,9 +2910,10 @@
 
     function abortInteractiveStateForRecovery() {
       if (state.screen === 'frequency') state.targetFreq = state.currentFreq;
+      const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
       state.pending = null;
       state.systemSnapshot = null;
-      state.menuLevel = null;
+      state.menuLevel = diagnosticsActive ? MENU.DIAGNOSTICS : null;
       state.menuEdit = false;
       state.stationEditPosition = 0;
       state.factoryFinal = false;
@@ -2686,7 +2940,7 @@
       tsaPorFlag = false;
       tsaLockFlag = false;
       tsaRegistersProgrammed = false;
-      state.lockPending = false;
+      state.lastStatusByte &= ~0x40;
       logEvent(`Virtual TSA5511 supply removed for ${TSA_POWER_OFF_DURATION} ms.`);
       render();
 
@@ -2731,6 +2985,48 @@
       return Boolean(setPress) || pressedKeys.has('Enter');
     }
 
+    function cancelServiceChord() {
+      if (serviceChord.holdTimer) clearTimeout(serviceChord.holdTimer);
+      serviceChord = { active: false, holdTimer: null };
+      for (const press of Object.values(downUpPresses)) {
+        if (!press) continue;
+        if (press.deferTimer) clearTimeout(press.deferTimer);
+        if (press.timer) clearTimeout(press.timer);
+        press.chord = true;
+      }
+    }
+
+    function openServiceMenuFromChord() {
+      if (!downUpPresses.down || !downUpPresses.up || setPress || state.screen !== 'main') return;
+      serviceChord.holdTimer = null;
+      beginMenu(MENU.SERVICE);
+      logEvent('SERVICE MENU opened.');
+    }
+
+    function startDeferredDirection(name, element) {
+      const press = { started: performance.now(), element, deferred: true, acted: false, chord: false, timer: null, deferTimer: null };
+      downUpPresses[name] = press;
+      const otherName = name === 'down' ? 'up' : 'down';
+      const other = downUpPresses[otherName];
+
+      if (other && other.deferred && !other.acted && performance.now() - other.started <= SERVICE_CHORD_WINDOW) {
+        if (other.deferTimer) clearTimeout(other.deferTimer);
+        press.chord = other.chord = true;
+        serviceChord.active = true;
+        serviceChord.holdTimer = setTimeout(openServiceMenuFromChord, SERVICE_MENU_HOLD_DELAY);
+        return;
+      }
+
+      press.deferTimer = setTimeout(() => {
+        if (!downUpPresses[name] || press.chord || state.screen !== 'main') return;
+        press.deferred = false;
+        press.acted = true;
+        handleDirection(name);
+        const remaining = Math.max(0, BUTTON_REPEAT_DELAY - SERVICE_CHORD_WINDOW);
+        press.timer = setTimeout(() => repeatDirection(name), remaining);
+      }, SERVICE_CHORD_WINDOW);
+    }
+
     function buttonDown(name, element) {
       if (!state) return;
       const woke = activity();
@@ -2740,17 +3036,37 @@
         return;
       }
 
+      if (i2cRecoveryActive) {
+        element.dataset.suppress = 'true';
+        if (state.menuLevel === MENU.DIAGNOSTICS) {
+          state.screen = 'i2c-error';
+          render();
+          clearTimeout(timers.i2cFeedback);
+          timers.i2cFeedback = setTimeout(() => {
+            delete timers.i2cFeedback;
+            if (!i2cRecoveryActive || state.menuLevel !== MENU.DIAGNOSTICS) return;
+            state.screen = 'menu';
+            render(true);
+          }, I2C_ERROR_FEEDBACK_DELAY);
+        }
+        return;
+      }
+
       if (name === 'set') {
         if (setPress) return;
+        if (serviceChord.active) cancelServiceChord();
         setPress = { started: performance.now(), long: false, element };
         setPress.timer = setTimeout(() => {
           if (!setPress) return;
           setPress.long = true;
           handleSetLong();
         }, SET_LONG_PRESS);
+      } else if (state.screen === 'main') {
+        if (downUpPresses[name]) return;
+        startDeferredDirection(name, element);
       } else {
         handleDirection(name);
-        const press = { started: performance.now(), element };
+        const press = { started: performance.now(), element, chord: false };
         downUpPresses[name] = press;
         press.timer = setTimeout(() => repeatDirection(name), BUTTON_REPEAT_DELAY);
       }
@@ -2758,7 +3074,7 @@
 
     function repeatDirection(name) {
       const press = downUpPresses[name];
-      if (!press) return;
+      if (!press || press.chord || i2cRecoveryActive) return;
       handleDirection(name, true);
       let interval = 80;
       if (state.screen === 'frequency') {
@@ -2786,8 +3102,19 @@
         if (!wasLong) handleSetShort();
       } else {
         const press = downUpPresses[name];
-        if (press?.timer) clearTimeout(press.timer);
+        if (!press) return;
+        if (press.deferTimer) clearTimeout(press.deferTimer);
+        if (press.timer) clearTimeout(press.timer);
+        const wasChord = press.chord;
+        const shouldApplyShortTap = press.deferred && !press.acted && !wasChord && state.screen === 'main';
         downUpPresses[name] = null;
+        if (wasChord) {
+          if (serviceChord.holdTimer) clearTimeout(serviceChord.holdTimer);
+          serviceChord.holdTimer = null;
+          if (!downUpPresses.down && !downUpPresses.up) serviceChord.active = false;
+          return;
+        }
+        if (shouldApplyShortTap) handleDirection(name);
       }
     }
 
@@ -2800,7 +3127,10 @@
       } else {
         const press = downUpPresses[name];
         if (press?.timer) clearTimeout(press.timer);
+        if (press?.deferTimer) clearTimeout(press.deferTimer);
         downUpPresses[name] = null;
+        if (press?.chord && serviceChord.holdTimer) clearTimeout(serviceChord.holdTimer);
+        if (!downUpPresses.down && !downUpPresses.up) serviceChord = { active: false, holdTimer: null };
       }
     }
 

@@ -1,15 +1,10 @@
 # TSA5511 PLL Controller for Arduino
 
+**Current firmware: v5.0.0**
+
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
-It features an intuitive menu interface for configuring system settings and a quick menu for frequently used functions, as described in detail below. Persistent system settings and user memories are stored in EEPROM and automatically recalled upon restart.
-
-# Interactive demo
-A browser-based interactive demo is available to explore the virtual 16x2 LCD interface, button controls, System Settings, Quick Menu, TSA5511 status information and simulated recovery scenarios without requiring physical hardware.
-
-[Launch the interactive demo](https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/demo.html)
-
-The demo is a functional simulation for demonstration purposes and does not communicate with a physical TSA5511 or Arduino controller. Saved demo settings remain local to the browser.
+It features an intuitive menu interface for configuring system settings, a quick menu for frequently used functions and a hidden service menu for diagnostics, system information and maintenance functions, as described in detail below. Persistent system settings and user memories are stored in EEPROM and automatically recalled upon restart.
 
 # Hardware
 - Circuit diagram
@@ -19,10 +14,10 @@ The demo is a functional simulation for demonstration purposes and does not comm
 - LCD backlight control is available if connected to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid on common Arduino boards.
 - The current EEPROM layout requires at least 1 kB EEPROM, as provided by ATmega328P-based Arduino Nano boards.
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication, such as 1 or 2 kΩ.
-- If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation.
+- If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation. This also allows unexpected TSA5511 POR events to be detected and counted; if both devices are power-cycled together, the POR count is reset with the controller.
 
 # Usage
-- Double-clicking SET opens the SYSTEM SETTINGS menu. In system submenus, holding SET returns one level back while keeping pending changes in the temporary menu state until they are explicitly saved or discarded. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary name until it is explicitly saved or discarded. The available system settings are as follows:
+- Double-clicking SET opens the SYSTEM MENU. In system submenus, holding SET returns one level back while keeping pending changes in the temporary menu state until they are explicitly saved or discarded. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary name until it is explicitly saved or discarded. The available system settings are as follows:
 
 ```text
 
@@ -60,12 +55,11 @@ The demo is a functional simulation for demonstration purposes and does not comm
     ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in the idle locked state. Select characters using UP/DOWN and confirm each
                                                character with SET. Hold UP/DOWN to auto-scroll characters; hold SET to return from the editor.
                           • BACKLIGHT DIMMER > This toggles the automatic LCD backlight dimmer function (on or off).
-                          • SHOW MENU TITLE  > This toggles the animated title screen when entering SYSTEM SETTINGS or QUICK MENU.
-                          • FACTORY RESET    > This clears all stored settings and user memories and restores the default settings after double confirmation. This action
-                                               is applied immediately and does not require EXIT SETTINGS > save changes.
+                          • SHOW MENU TITLE  > This toggles the animated title screen when entering SYSTEM MENU, QUICK MENU or SERVICE MENU.
                           • RETURN           > Returns to the main settings menu.
 
-    ■ EXIT SETTINGS    => • save changes     > Stores any changes to EEPROM and returns to the main interface.
+    ■ EXIT MENU        => Returns directly to the main interface if no settings were changed. Otherwise:
+                          • save changes     > Stores any changes to EEPROM and returns to the main interface.
                           • discard          > Discards any changes and returns to the main interface.
                           • cancel           > Returns to the first index of the main menu.
 
@@ -80,14 +74,27 @@ The demo is a functional simulation for demonstration purposes and does not comm
                           • CLEAR MEMORY     > Clears one of the user memory slots for the current VCO frequency band and XTAL frequency.
                           • RF DRIVE         > Temporarily enables or disables the RF drive output without storing the state in EEPROM.
                                                When off, the station name alternates with an RF DRIVE: OFF status message.
-                          • LCD OFF          > Smoothly fades out and turns off the LCD backlight until any button is pressed.
-                          • EXIT QUICK MENU  > Returns to the main interface.
+                          • LCD OFF          > Turns off the LCD backlight until any button is pressed.
+                          • EXIT MENU        > Returns to the main interface.
 
 ```
 
-- The SYSTEM SETTINGS menu will time out after a preset period of inactivity, discarding any unsaved changes and returning to the main screen — except when the save/discard/cancel exit menu is active, which requires explicit user confirmation.
+- Hold UP and DOWN together for 1 second from the main interface to open the hidden SERVICE MENU. A brief chord-acquisition window delays the first individual UP/DOWN action just long enough to recognize the combination without briefly entering frequency-set mode. The SERVICE MENU provides service information and maintenance functions:
+
+```text
+
+    ■ SERVICE MENU     => • DIAGNOSTICS      > Shows live TSA5511 lock/input status, live/completed PLL lock acquisition timing, unexpected POR and I²C recovery counts
+                                               since initialization, and the last successfully programmed output-port bitmap. Use UP/DOWN to browse the read-only pages;
+                                               select RETURN TO MENU or hold SET to return to the SERVICE MENU.
+                          • SYSTEM INFO      > Shows the full firmware version and copyright information.
+                          • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation.
+                          • EXIT MENU        > Returns to the main interface.
+
+```
+
+- The SYSTEM MENU will time out after a preset period of inactivity, discarding any unsaved changes and returning to the main screen. The save/discard/cancel exit menu requires explicit user action. The SERVICE MENU and DIAGNOSTICS use a longer inactivity timeout before returning to the main screen.
 - The QUICK MENU will also time out after a preset period of inactivity and return to the main screen; its actions are applied immediately.
 - Change VCO frequency using UP/DOWN and confirm with a short SET press. Holding SET cancels the frequency change and returns to the main screen unchanged. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. If no confirmation is given, the frequency edit will time out unchanged.
-- PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing.
-- If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be smoothly faded out and turned off completely from the QUICK MENU and will be restored by pressing any button.
-- I²C communication loss is indicated and retried automatically. Any active menu is closed with unsaved changes discarded and any unconfirmed frequency edit is cancelled. After communication is restored, the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset. After a read-only interruption without POR, the existing programming is retained; if lock was lost, acquisition control and lock verification are resumed.
+- PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes the live lock/input information for display without overriding the operational lock state or output-port control; unexpected POR indications remain handled by the normal recovery logic.
+- If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be turned off completely from the QUICK MENU and will be restored by pressing any button.
+- I²C communication loss is indicated and retried automatically. Any active menu is closed and any unconfirmed frequency edit is cancelled, except that DIAGNOSTICS retains the selected page during recovery; a fixed `!` at the upper-right marks the displayed values as temporarily stale while the fault indicator blinks. Any pending settings are still discarded for safety. After communication is restored, the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset. After a read-only interruption without POR, the existing programming is retained; if lock was lost, acquisition control and lock verification are resumed.
