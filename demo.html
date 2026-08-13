@@ -1090,6 +1090,8 @@
             <span>Double-press <kbd>SET</kbd> for the <strong>System menu</strong></span>
             <span class="help-sep">•</span>
             <span>Hold <kbd>↓</kbd> + <kbd>↑</kbd> for 1 s for the <strong>Service menu</strong></span>
+            <span class="help-sep">•</span>
+            <span>Hold <kbd>SET</kbd> during startup for the <strong>Service menu + I²C fallback</strong></span>
           </div>
           <div class="help-line">
             <span class="help-label">Controls</span>
@@ -1135,6 +1137,30 @@
               <option value="99">0x63</option>
             </select>
           </label>
+          <label>Digital inputs P7 / P5 / P4
+            <select id="sim-digital-inputs" aria-label="Simulated TSA5511 digital inputs P7 P5 P4">
+              <option value="0" selected>0 / 0 / 0</option>
+              <option value="1">0 / 0 / 1</option>
+              <option value="2">0 / 1 / 0</option>
+              <option value="3">0 / 1 / 1</option>
+              <option value="4">1 / 0 / 0</option>
+              <option value="5">1 / 0 / 1</option>
+              <option value="6">1 / 1 / 0</option>
+              <option value="7">1 / 1 / 1</option>
+            </select>
+          </label>
+          <label>P6 ADC input (3-bit)
+            <select id="sim-p6-adc" aria-label="Simulated TSA5511 P6 ADC input">
+              <option value="0" selected>000</option>
+              <option value="1">001</option>
+              <option value="2">010</option>
+              <option value="3">011</option>
+              <option value="4">100</option>
+              <option value="5">101</option>
+              <option value="6">110</option>
+              <option value="7">111</option>
+            </select>
+          </label>
           <div class="sim-actions" role="group" aria-label="TSA5511 fault simulation">
             <button class="utility-button" id="tsa-power-cycle-button" type="button">Power-cycle TSA5511</button>
             <button class="utility-button" id="i2c-error-button" type="button">Simulate temporary I²C error</button>
@@ -1178,7 +1204,9 @@
     const DIAGNOSTICS_INTERVAL = 50;
     const SERVICE_CHORD_WINDOW = 150;
     const SERVICE_MENU_HOLD_DELAY = 1000;
-    const STORAGE_KEY = 'pll-tsa5511-demo-v5.0.0';
+    const BUTTON_TIMING_TOLERANCE = 50;
+    const STORAGE_KEY = 'pll-tsa5511-demo-v5.1.0';
+    const PREVIOUS_STORAGE_KEY = 'pll-tsa5511-demo-v5.0.0';
     const EMPTY_FREQ = null;
     const XTALS = [1600000, 3200000];
     const MAX_DECIMALS = [3, 2];
@@ -1201,6 +1229,7 @@
       [470000000, 862000000],
       [64000000, 1300000000]
     ];
+    const BAND_LABELS = ['FM OIRT', 'FM Japan', 'FM World', '2 m', '70 cm', 'UHF', '64-1300 MHz'];
 
 
     // Compact 5×8 character generator inspired by the HD44780/1602A LCD ROM.
@@ -1344,8 +1373,8 @@
       [MENU.VCO]: ['FREQUENCY BAND', 'PRECISION', 'RETURN TO MENU'],
       [MENU.PLL]: ['I2C ADDRESS', 'XTAL FREQUENCY', 'CHARGE PUMP', 'PORT MAPPING', 'RETURN TO MENU'],
       [MENU.GENERAL]: ['STATION NAME', 'BACKLIGHT DIMMER', 'SHOW MENU TITLE', 'RETURN TO MENU'],
-      [MENU.SERVICE]: ['DIAGNOSTICS', 'SYSTEM INFO', 'FACTORY RESET', 'EXIT MENU'],
-      [MENU.DIAGNOSTICS]: ['PLL STATUS', 'PLL LOCK TIME', 'INPUTS', 'OUTPUT PORTS', 'I2C RECOVERIES', 'RETURN TO MENU'],
+      [MENU.SERVICE]: ['DIAGNOSTICS', 'SYSTEM INFO', 'I2C FALLBACK', 'FACTORY RESET', 'EXIT MENU'],
+      [MENU.DIAGNOSTICS]: ['PLL STATUS', 'INPUTS', 'PLL LOCK TIME', 'OUTPUT PORTS', 'I2C RECOVERIES', 'RETURN TO MENU'],
       [MENU.EXIT]: ['save changes', 'discard', 'cancel'],
       [MENU.QUICK]: ['RECALL MEMORY', 'SAVE MEMORY', 'CLEAR MEMORY', 'RF DRIVE', 'LCD OFF', 'EXIT MENU']
     });
@@ -1364,6 +1393,8 @@
     const toastEl = document.getElementById('toast');
     const eventText = document.getElementById('event-text');
     const simAddress = document.getElementById('sim-address');
+    const simDigitalInputs = document.getElementById('sim-digital-inputs');
+    const simP6Adc = document.getElementById('sim-p6-adc');
     const controllerFooter = document.querySelector('.controller-footer');
     const portStatusSection = document.querySelector('.port-status');
     const status = {
@@ -1486,7 +1517,7 @@
 
     function loadSaved() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(PREVIOUS_STORAGE_KEY) || 'null');
         if (!isRecord(parsed)) return deepClone(DEFAULTS);
         const merged = { ...deepClone(DEFAULTS), ...parsed };
         merged.stationName = normalizeName(merged.stationName);
@@ -1587,6 +1618,7 @@
         porCount: 0,
         i2cRecoveryCount: 0,
         lastStatusByte: 0,
+        statusValid: false,
         lastPortBitmap: 0,
         rfOutputEnabled: true,
         lcdOff: false,
@@ -1606,7 +1638,8 @@
         lastActivity: performance.now(),
         lastMenuActivity: performance.now(),
         lastFreqActivity: performance.now(),
-        messageOverride: null
+        messageOverride: null,
+        startupServiceMode: false
       };
       menuEntryBusy = false;
       lastSetClick = 0;
@@ -1625,40 +1658,44 @@
       logEvent('Power applied.');
       render();
       timers.splash = setTimeout(() => {
-        const finishStartup = (reason = 'Startup programming') => {
-          // Mirror the sketch's initial status read before attempting to program the TSA5511.
-          const startupAddress = I2C_ADDRESSES[saved.pllAddressIndex];
-          state.screen = 'main';
-          pulseI2cActivity();
-          if (!addressAcknowledges(startupAddress)) {
-            i2cRecoveryReason = 'startup';
-            i2cRetryCount = 1; // the initial failed read counts as the first of ten attempts
-            lastI2cCheckTime = performance.now();
-            logEvent(`Startup status read at 0x${startupAddress.toString(16).toUpperCase()} did not acknowledge; retrying.`);
-            render();
-            return;
-          }
-          state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0);
-          tsaPorFlag = false; // a successful TSA5511 status read clears POR
-          lastI2cCheckTime = performance.now();
-          render();
-          programmePLL(state.currentFreq, { force: true, reason });
-        };
-
-        const failSafeRequested = startupSetHeld || isSetHeldDuringRestart();
-        if (failSafeRequested) {
-          saved.pllAddressIndex = DEFAULT_PLL_ADDR_INDEX;
-          persist();
-          state.screen = 'i2c-fallback';
-          render();
-          logEvent('SET detected at the end of the splash screen; safe I²C address 0x61 restored.');
-          timers.startupFallback = setTimeout(() => finishStartup('Startup programming after I²C fallback'), I2C_FALLBACK_DELAY);
+        const startupServiceRequested = startupSetHeld || isSetHeldDuringRestart();
+        if (startupServiceRequested) {
+          state.startupServiceMode = true;
+          if (setPress) setPress.long = true; // suppress the SET release that entered startup service mode
+          beginMenu(MENU.SERVICE);
+          logEvent('Startup SERVICE MENU opened before normal PLL initialization.');
           return;
         }
 
         finishStartup();
       }, SPLASH_DELAY);
       startBackgroundTimers();
+    }
+
+    function finishStartup(reason = 'Startup programming') {
+      // Resume the sketch's normal initialization after explicit startup SERVICE MENU exit or factory reset.
+      state.startupServiceMode = false;
+      state.menuLevel = null;
+      state.menuEdit = false;
+      state.pending = null;
+      state.systemSnapshot = null;
+      const startupAddress = I2C_ADDRESSES[saved.pllAddressIndex];
+      state.screen = 'main';
+      pulseI2cActivity();
+      if (!addressAcknowledges(startupAddress)) {
+        i2cRecoveryReason = 'startup';
+        i2cRetryCount = 1; // the initial failed read counts as the first of ten attempts
+        lastI2cCheckTime = performance.now();
+        logEvent(`Startup status read at 0x${startupAddress.toString(16).toUpperCase()} did not acknowledge; retrying.`);
+        render();
+        return;
+      }
+      state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0) | simulatedInputBits();
+      state.statusValid = true;
+      tsaPorFlag = false; // a successful TSA5511 status read clears POR
+      lastI2cCheckTime = performance.now();
+      render();
+      programmePLL(state.currentFreq, { force: true, reason });
     }
 
     function clearAllTimers() {
@@ -1707,7 +1744,7 @@
         render();
       }
 
-      if (state.screen === 'menu' && state.menuLevel !== MENU.EXIT) {
+      if (!state.startupServiceMode && state.screen === 'menu' && state.menuLevel !== MENU.EXIT) {
         const serviceMode = [MENU.SERVICE, MENU.DIAGNOSTICS].includes(state.menuLevel);
         const timeout = serviceMode ? SERVICE_MENU_TIMEOUT : MENU_TIMEOUT;
         if (now - state.lastMenuActivity > timeout) {
@@ -1809,6 +1846,10 @@
       return address === 0x61 || address === secondaryAddress;
     }
 
+    function simulatedInputBits() {
+      return ((Number(simDigitalInputs.value) & 0x07) << 3) | (Number(simP6Adc.value) & 0x07);
+    }
+
     function beginI2cRecovery(reason, address = I2C_ADDRESSES[saved.pllAddressIndex], eventMessage = '') {
       i2cRetryCount = 0;
       i2cLockVerifyCount = 0;
@@ -1827,7 +1868,7 @@
         // Match the firmware: keep the complete diagnostics page frozen while recovery is active.
         // Only the stale-data marker is written directly; the recovery counter is updated after
         // communication has actually recovered and the page is redrawn.
-        drawTextRange(0, LCD_COLUMNS - 1, '!');
+        if (state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) drawTextRange(0, LCD_COLUMNS - 1, '!');
         lockLed.classList.remove('on');
         lockLed.classList.add('error');
         updateStatus();
@@ -1888,6 +1929,32 @@
 
       const now = performance.now();
       const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
+
+      // v5.1.0 startup DIAGNOSTICS: raw read-only probing only; never enter normal I²C recovery
+      // or program the PLL, but do count communication that returns after the normal retry threshold.
+      if (state.startupServiceMode) {
+        if (!diagnosticsActive || state.screen !== 'menu' || now - lastI2cCheckTime < DIAGNOSTICS_INTERVAL) return;
+        lastI2cCheckTime = now;
+        const address = I2C_ADDRESSES[saved.pllAddressIndex];
+        pulseI2cActivity(35);
+        if (addressAcknowledges(address)) {
+          if (i2cRetryCount >= I2C_MAX_RETRIES) state.i2cRecoveryCount = Math.min(100, state.i2cRecoveryCount + 1);
+          const porDetected = tsaPorFlag;
+          if (state.statusValid && porDetected) state.porCount = Math.min(100, state.porCount + 1);
+          i2cRetryCount = 0;
+          state.lastStatusByte = (porDetected ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0) | simulatedInputBits();
+          state.statusValid = true;
+          tsaPorFlag = false; // a successful hardware status read clears POR; only post-baseline POR events are counted
+          render();
+        } else {
+          i2cRetryCount = Math.min(I2C_MAX_RETRIES, i2cRetryCount + 1);
+          render();
+          if (state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) drawTextRange(0, LCD_COLUMNS - 1, '!');
+          updateStatus();
+        }
+        return;
+      }
+
       const interval = (i2cRetryCount || i2cLockVerifyCount) ? I2C_RETRY_DELAY : i2cRecoveryActive ? I2C_HEALTH_CHECK_INTERVAL : state.lockPending ? 0 : diagnosticsActive ? DIAGNOSTICS_INTERVAL : I2C_HEALTH_CHECK_INTERVAL;
       if (now - lastI2cCheckTime < interval) return;
       lastI2cCheckTime = now;
@@ -1903,8 +1970,9 @@
 
       i2cRetryCount = 0;
       const porDetected = tsaPorFlag;
-      state.lastStatusByte = (porDetected ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0);
-      if (porDetected) state.porCount = Math.min(100, state.porCount + 1);
+      if (state.statusValid && porDetected) state.porCount = Math.min(100, state.porCount + 1);
+      state.lastStatusByte = (porDetected ? 0x80 : 0) | (tsaLockFlag ? 0x40 : 0) | simulatedInputBits();
+      state.statusValid = true;
       tsaPorFlag = false; // successful status read clears the TSA5511 POR flag
 
       // Match monitorPLL(): after a read-only interruption of an already locked PLL,
@@ -1985,7 +2053,7 @@
         tsaLockFlag = true;
         if (!i2cFaultActive && !i2cRecoveryActive && state.screen !== 'i2c-error') {
           const now = performance.now();
-          state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | 0x40;
+          state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | 0x40 | simulatedInputBits();
           state.locked = true;
           if (state.lockPending) state.lockTime = now - state.lockTime;
           state.lockPending = false;
@@ -2040,7 +2108,7 @@
       // Firmware-equivalent diagnostics behavior during I²C recovery: preserve the
       // already displayed page byte-for-byte and only maintain the stale-data '!'.
       if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive && !allowRecoveryRefresh) {
-        drawTextRange(0, LCD_COLUMNS - 1, '!');
+        if (state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) drawTextRange(0, LCD_COLUMNS - 1, '!');
         lockLed.classList.remove('on');
         lockLed.classList.add('error');
         updateStatus();
@@ -2052,7 +2120,7 @@
 
       if (state.screen === 'splash') {
         lines[0] = centerLine('PLL CONTROLLER');
-        lines[1] = centerLine('V5.0.0');
+        lines[1] = centerLine('V5.1.0');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -2075,12 +2143,12 @@
         lines[1] = padLine('retrying...');
       }
 
-      if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive) {
+      if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive && state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) {
         lines[0] = `${padLine(lines[0]).slice(0, 15)}!`;
       }
       if (state.lcdOff) lines = ['                ', '                '];
       drawRows(lines, cursor);
-      displayedLockPending = state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && state.menuIndex === 1
+      displayedLockPending = state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && state.menuIndex === 2
         ? state.lockPending
         : null;
       lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive);
@@ -2149,13 +2217,13 @@
 
     function refreshDiagnosticsDisplay() {
       if (state.screen !== 'menu' || state.menuLevel !== MENU.DIAGNOSTICS || i2cRecoveryActive) return;
-      if (state.menuIndex !== 1) {
+      if (state.menuIndex !== 2) {
         render();
         return;
       }
 
       if (displayedLockPending !== state.lockPending) {
-        drawTextRange(1, 0, state.lockPending ? 'locking: ' : 'locked in');
+        drawTextRange(1, 0, state.lockPending ? 'locking  ' : 'locked in');
         displayedLockPending = state.lockPending;
       }
       const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
@@ -2294,9 +2362,10 @@
       if (state.menuLevel === MENU.SERVICE) {
         if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
         if (index === 1) return state.menuEdit
-          ? [padLine('VERSION: V5.0.0'), padLine('(C)2026 Loenie')]
+          ? [padLine('VERSION: V5.1.0'), padLine('(C)2026 Loenie')]
           : [padLine('SYSTEM INFO'), padLine('SET to view')];
-        if (index === 2) {
+        if (index === 2) return [padLine('I2C FALLBACK'), padLine('SET to restore')];
+        if (index === 3) {
           const top = state.factoryFinal ? 'CLEAR ALL DATA?' : 'FACTORY RESET';
           return [padLine(top), state.menuEdit ? padLine(`> ${state.factoryChoice ? 'yes' : 'no'}`) : padLine('SET to select')];
         }
@@ -2306,18 +2375,22 @@
       if (state.menuLevel === MENU.DIAGNOSTICS) {
         if (index === 0) {
           const count = state.porCount < 100 ? state.porCount : '99+';
-          return [padLine('PLL STATUS'), padLine(`FL:${(state.lastStatusByte & 0x40) ? 1 : 0} POR cnt:${count}`)];
+          const fl = state.statusValid ? ((state.lastStatusByte & 0x40) ? 1 : 0) : '-';
+          return [padLine('PLL STATUS'), padLine(`FL:${fl} POR cnt:${count}`)];
         }
         if (index === 1) {
-          const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
-          return [padLine('PLL LOCK TIME'), `${state.lockPending ? 'locking: ' : 'locked in'}${formatLockTimeField(elapsed, state.lockPending)}`];
-        }
-        if (index === 2) {
+          if (!state.statusValid) return [padLine('P7 P5 P4 P6-ADC'), padLine('-  -  -  ---')];
           const bits = [5, 4, 3].map(bit => (state.lastStatusByte >> bit) & 1);
           const adc = [2, 1, 0].map(bit => (state.lastStatusByte >> bit) & 1).join('');
           return [padLine('P7 P5 P4 P6-ADC'), padLine(`${bits[0]}  ${bits[1]}  ${bits[2]}  ${adc}`)];
         }
+        if (index === 2) {
+          if (state.startupServiceMode) return [padLine('PLL LOCK TIME'), padLine('not initialized')];
+          const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
+          return [padLine('PLL LOCK TIME'), `${state.lockPending ? 'locking  ' : 'locked in'}${formatLockTimeField(elapsed, state.lockPending)}`];
+        }
         if (index === 3) {
+          if (state.startupServiceMode) return [padLine('PORT CMD'), padLine('not initialized')];
           const hex = state.lastPortBitmap.toString(16).toUpperCase().padStart(2, '0');
           const bits = state.lastPortBitmap.toString(2).padStart(8, '0');
           return [padLine(`PORT CMD 0x${hex}`), padLine(`P7..P0 ${bits}`)];
@@ -2332,8 +2405,7 @@
       if (state.menuLevel === MENU.VCO) {
         if (index === 0) {
           if (!state.menuEdit) return [padLine('FREQUENCY BAND'), padLine('SET to select')];
-          const [low, high] = getBandLimits(settings);
-          return [padLine('FREQUENCY BAND'), padLine(`> ${Math.floor(low / 1000000)}-${Math.floor(high / 1000000)} MHz`)];
+          return [padLine('FREQUENCY BAND'), padLine(`> ${BAND_LABELS[settings.bandIndex[settings.xtalIndex]]}`)];
         }
         if (index === 1) {
           return [padLine('PRECISION'), state.menuEdit ? padLine(`> ${settings.decimals} ${settings.decimals === 1 ? 'decimal' : 'decimals'}`) : padLine('SET to select')];
@@ -2431,6 +2503,11 @@
       }, 1000);
     }
     function exitToMain(message) {
+      if (state.startupServiceMode) {
+        if (message) logEvent(message);
+        finishStartup('Startup programming after service menu');
+        return;
+      }
       state.screen = 'main';
       state.menuLevel = null;
       state.menuEdit = false;
@@ -2693,7 +2770,7 @@
             render();
             return;
           }
-          if (index === 2) {
+          if (index === 3) {
             if (state.factoryChoice) {
               if (state.factoryFinal) {
                 eraseSavedData(true);
@@ -2716,13 +2793,28 @@
           state.menuLevel = MENU.DIAGNOSTICS;
           state.menuIndex = 0;
           render();
-        } else if (index === 1 || index === 2) {
+        } else if (index === 1 || index === 3) {
           state.menuEdit = true;
           state.factoryFinal = false;
           state.factoryChoice = false;
           render();
+        } else if (index === 2 && state.startupServiceMode) {
+          saved.pllAddressIndex = DEFAULT_PLL_ADDR_INDEX;
+          persist();
+          state.screen = 'i2c-fallback';
+          render();
+          logEvent('Fail-safe I²C address 0x61 restored from startup SERVICE MENU.');
+          timers.startupFallback = setTimeout(() => {
+            delete timers.startupFallback;
+            state.screen = 'menu';
+            state.menuLevel = MENU.SERVICE;
+            state.menuIndex = 2;
+            state.lastMenuActivity = performance.now();
+            render();
+            logEvent('I²C fallback complete; startup SERVICE MENU remains active.');
+          }, I2C_FALLBACK_DELAY);
         } else {
-          exitToMain('Service menu closed.');
+          exitToMain(state.startupServiceMode ? 'Startup service menu closed.' : 'Service menu closed.');
         }
         return;
       }
@@ -2843,6 +2935,9 @@
         state.menuIndex = (state.menuIndex + delta + length) % length;
       } else {
         state.menuIndex = Math.max(0, Math.min(length - 1, state.menuIndex + delta));
+        if (state.menuLevel === MENU.SERVICE && !state.startupServiceMode && state.menuIndex === 2) {
+          state.menuIndex += delta; // skip startup-only I2C FALLBACK during normal operation
+        }
       }
       render();
     }
@@ -2877,7 +2972,7 @@
         settings.dimmer = delta > 0;
       } else if (level === MENU.GENERAL && index === 2) {
         settings.showMenuTitle = delta > 0;
-      } else if (level === MENU.SERVICE && index === 2) {
+      } else if (level === MENU.SERVICE && index === 3) {
         state.factoryChoice = delta > 0;
       }
     }
@@ -2896,11 +2991,25 @@
     }
 
     function eraseSavedData(fromMenu = false) {
-      try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage may be unavailable */ }
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(PREVIOUS_STORAGE_KEY);
+      } catch { /* storage may be unavailable */ }
       saved = deepClone(DEFAULTS);
       persist();
       toast('Saved demo data erased.');
-      if (fromMenu) {
+      if (fromMenu && state?.startupServiceMode) {
+        const initialFreq = getStoredBandFrequency(saved);
+        state.currentFreq = initialFreq;
+        state.targetFreq = initialFreq;
+        state.pending = null;
+        state.systemSnapshot = null;
+        state.menuEdit = false;
+        state.factoryFinal = false;
+        state.factoryChoice = false;
+        logEvent('Factory reset completed from startup SERVICE MENU.');
+        finishStartup('Startup programming after factory reset');
+      } else if (fromMenu) {
         resetRuntime();
         logEvent('Factory reset completed.');
       } else {
@@ -3029,11 +3138,32 @@
 
     function buttonDown(name, element) {
       if (!state) return;
+      const now = performance.now();
+      const previousFreqActivity = state.lastFreqActivity;
+      const previousTargetFreq = state.targetFreq;
       const woke = activity();
       element.classList.add('pressed');
       if (woke) {
         element.dataset.suppress = 'true';
         return;
+      }
+
+      if (name !== 'set' && state.screen === 'frequency') {
+        const otherName = name === 'down' ? 'up' : 'down';
+        const other = downUpPresses[otherName];
+        if (other) {
+          if (other.timer) clearTimeout(other.timer);
+          if (other.deferTimer) clearTimeout(other.deferTimer);
+          other.chord = true;
+          downUpPresses[name] = { started: now, element, chord: true, timer: null, deferTimer: null };
+          state.lastFreqActivity = previousFreqActivity; // multi-button lockout is not frequency-edit activity
+          if (now - other.started <= BUTTON_TIMING_TOLERANCE) {
+            state.targetFreq = other.previousTargetFreq ?? previousTargetFreq;
+            state.lastFreqActivity = other.previousFreqActivity ?? previousFreqActivity;
+            render();
+          }
+          return;
+        }
       }
 
       if (i2cRecoveryActive) {
@@ -3066,7 +3196,7 @@
         startDeferredDirection(name, element);
       } else {
         handleDirection(name);
-        const press = { started: performance.now(), element, chord: false };
+        const press = { started: now, element, chord: false, previousFreqActivity, previousTargetFreq };
         downUpPresses[name] = press;
         press.timer = setTimeout(() => repeatDirection(name), BUTTON_REPEAT_DELAY);
       }
@@ -3179,6 +3309,16 @@
     simAddress.addEventListener('change', () => {
       const address = Number(simAddress.value);
       logEvent(`Virtual TSA5511 secondary address set to 0x${address.toString(16).toUpperCase()} (0x61 remains valid); controller detection awaits its next health check.`);
+      render();
+    });
+
+    simDigitalInputs.addEventListener('change', () => {
+      logEvent(`Virtual TSA5511 inputs changed: P7/P5/P4 = ${simDigitalInputs.options[simDigitalInputs.selectedIndex].text}.`);
+      render();
+    });
+
+    simP6Adc.addEventListener('change', () => {
+      logEvent(`Virtual TSA5511 P6 ADC changed to ${simP6Adc.options[simP6Adc.selectedIndex].text}.`);
       render();
     });
 
