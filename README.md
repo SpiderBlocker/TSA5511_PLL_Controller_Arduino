@@ -1,6 +1,6 @@
 # TSA5511 PLL Controller for Arduino
 
-**Current firmware: v5.1.0**
+**Current firmware: v5.1.1**
 
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
