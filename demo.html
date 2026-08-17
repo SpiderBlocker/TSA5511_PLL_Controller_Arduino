@@ -1209,15 +1209,15 @@
     const BUTTON_REPEAT_DELAY = 1000;
     const MEMORY_SLOTS = 6;
     const DIAGNOSTICS_INTERVAL = 50;
-    const I2C_ERROR_FEEDBACK_DELAY = 1000;
     const DIAGNOSTIC_COUNT_SATURATION = 100;
     const SERVICE_CHORD_WINDOW = 150;
     const SERVICE_MENU_HOLD_DELAY = 1000;
     const BUTTON_TIMING_TOLERANCE = 50;
-    const STORAGE_KEY = 'pll-tsa5511-demo-v5.1.2';
-    const PREVIOUS_STORAGE_KEY = 'pll-tsa5511-demo-v5.1.1';
-    const LEGACY_STORAGE_KEY = 'pll-tsa5511-demo-v5.1.0';
-    const OLDEST_STORAGE_KEY = 'pll-tsa5511-demo-v5.0.0';
+    const STORAGE_KEY = 'pll-tsa5511-demo-v5.1.3';
+    const PREVIOUS_STORAGE_KEY = 'pll-tsa5511-demo-v5.1.2';
+    const LEGACY_STORAGE_KEY = 'pll-tsa5511-demo-v5.1.1';
+    const OLDEST_STORAGE_KEY = 'pll-tsa5511-demo-v5.1.0';
+    const EARLIEST_STORAGE_KEY = 'pll-tsa5511-demo-v5.0.0';
     const EMPTY_FREQ = null;
     const XTALS = [1600000, 3200000];
     const MAX_DECIMALS = [3, 2];
@@ -1528,7 +1528,7 @@
 
     function loadSaved() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(PREVIOUS_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || localStorage.getItem(OLDEST_STORAGE_KEY) || 'null');
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(PREVIOUS_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || localStorage.getItem(OLDEST_STORAGE_KEY) || localStorage.getItem(EARLIEST_STORAGE_KEY) || 'null');
         if (!isRecord(parsed)) return deepClone(DEFAULTS);
         const merged = { ...deepClone(DEFAULTS), ...parsed };
         merged.stationName = normalizeName(merged.stationName);
@@ -1885,45 +1885,59 @@
       return ((Number(simDigitalInputs.value) & 0x07) << 3) | (Number(simP6Adc.value) & 0x07);
     }
 
+    function isRecoverySafeMenu() {
+      return [MENU.SERVICE, MENU.DIAGNOSTICS].includes(state?.menuLevel);
+    }
+
+    function cancelMenuEntryAnimation() {
+      if (!menuEntryBusy) return;
+      clearTimeout(timers.menuTitle);
+      clearInterval(timers.menuTitleAnim);
+      delete timers.menuTitle;
+      delete timers.menuTitleAnim;
+      menuEntryBusy = false;
+      state.screen = 'menu';
+      state.messageOverride = null;
+    }
+
     function beginI2cRecovery(reason, address = I2C_ADDRESSES[saved.pllAddressIndex], eventMessage = '') {
       i2cRetryCount = 0;
       i2cLockVerifyCount = 0;
-      if (i2cRecoveryActive) return;
+      if (i2cRecoveryActive) {
+        if (reason === 'write') {
+          i2cRecoveryReason = 'write';
+          state.lockPending = false;
+        }
+        return;
+      }
       const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
+      const recoveryMenuActive = isRecoverySafeMenu();
       abortInteractiveStateForRecovery();
       i2cRecoveryActive = true;
       i2cRecoveryReason = reason;
       state.locked = false;
+      if (reason === 'read') state.lockTime = NaN;
       if (reason === 'write') state.lockPending = false;
-      state.screen = diagnosticsActive ? 'menu' : 'i2c-error';
+      if (!recoveryMenuActive) {
+        cancelMenuEntryAnimation();
+        state.screen = 'i2c-error';
+      } else if (state.screen !== 'menu-title') state.screen = 'menu';
       const operation = reason === 'startup' ? 'startup status read' : reason;
       logEvent(eventMessage || `I²C ${operation} failed at 0x${address.toString(16).toUpperCase()} after ${I2C_MAX_RETRIES} retries; recovery is active.`);
-
-      if (diagnosticsActive) {
-        // Match the firmware: keep the complete diagnostics page frozen while recovery is active.
-        // Only the stale-data marker is written directly; the recovery counter is updated after
-        // communication has actually recovered and the page is redrawn.
-        if (state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) drawTextRange(0, LCD_COLUMNS - 1, '!');
-        lockLed.classList.remove('on');
-        lockLed.classList.add('error');
-        updateStatus();
-      } else {
-        render();
-      }
+      render(); // diagnostics redraws unavailable live fields immediately; SERVICE MENU remains usable
     }
 
     function completeI2cRecovery(porDetected) {
       const recoveryReason = i2cRecoveryReason;
       const recoveryWasActive = i2cRecoveryActive;
-      const resumeDiagnostics = state.menuLevel === MENU.DIAGNOSTICS;
+      const resumeMenu = isRecoverySafeMenu();
       abortInteractiveStateForRecovery();
       i2cRecoveryActive = false;
       i2cRecoveryReason = null;
-      clearTimeout(timers.i2cFeedback);
-      delete timers.i2cFeedback;
-      state.screen = resumeDiagnostics ? 'menu' : 'main';
+      if (resumeMenu) cancelMenuEntryAnimation();
+      state.screen = resumeMenu ? 'menu' : 'main';
       state.lastActivity = performance.now();
-      if (resumeDiagnostics) state.lastMenuActivity = state.lastActivity;
+      if (resumeMenu) state.lastMenuActivity = state.lastActivity;
 
       if (porDetected || recoveryReason === 'write' || recoveryReason === 'startup') {
         state.locked = false;
@@ -1940,14 +1954,17 @@
               : 'PLL reprogrammed after I²C write recovery'
         }) && recoveryWasActive) {
           state.i2cRecoveryCount = Math.min(DIAGNOSTIC_COUNT_SATURATION, state.i2cRecoveryCount + 1);
-          if (resumeDiagnostics) render();
+          if (resumeMenu) render();
         }
         return;
       }
 
       state.locked = tsaLockFlag;
-      if (tsaLockFlag && state.lockPending) state.lockTime = performance.now() - state.lockTime;
-      else if (!tsaLockFlag && !state.lockPending) state.lockTime = performance.now();
+      if (tsaLockFlag && state.lockPending) {
+        if (Number.isFinite(state.lockTime)) state.lockTime = performance.now() - state.lockTime;
+      } else if (!tsaLockFlag && !state.lockPending) {
+        state.lockTime = performance.now(); // new uninterrupted acquisition starts after recovery
+      }
       state.lockPending = !tsaLockFlag;
       state.lastPortBitmap = commandedPortBitmap(state.locked);
       if (recoveryWasActive) state.i2cRecoveryCount = Math.min(DIAGNOSTIC_COUNT_SATURATION, state.i2cRecoveryCount + 1);
@@ -2025,7 +2042,7 @@
 
       if (state.lockPending && tsaLockFlag) {
         state.locked = true;
-        state.lockTime = now - state.lockTime;
+        if (Number.isFinite(state.lockTime)) state.lockTime = now - state.lockTime;
         state.lockPending = false;
         state.lastPortBitmap = commandedPortBitmap(true);
         state.lastActivity = now;
@@ -2090,7 +2107,7 @@
           const now = performance.now();
           state.lastStatusByte = (tsaPorFlag ? 0x80 : 0) | 0x40 | simulatedInputBits();
           state.locked = true;
-          if (state.lockPending) state.lockTime = now - state.lockTime;
+          if (state.lockPending && Number.isFinite(state.lockTime)) state.lockTime = now - state.lockTime;
           state.lockPending = false;
           state.lastPortBitmap = commandedPortBitmap(true, settings);
           state.lastActivity = now;
@@ -2137,25 +2154,15 @@
       return chars.join('');
     }
 
-    function render(allowRecoveryRefresh = false) {
+    function render() {
       if (!state) return;
-
-      // Firmware-equivalent diagnostics behavior during I²C recovery: preserve the
-      // already displayed page byte-for-byte and only maintain the stale-data '!'.
-      if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive && !allowRecoveryRefresh) {
-        if (state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) drawTextRange(0, LCD_COLUMNS - 1, '!');
-        lockLed.classList.remove('on');
-        lockLed.classList.add('error');
-        updateStatus();
-        return;
-      }
 
       let lines = ['                ', '                '];
       let cursor = null;
 
       if (state.screen === 'splash') {
         lines[0] = centerLine('PLL CONTROLLER');
-        lines[1] = centerLine('V5.1.2');
+        lines[1] = centerLine('V5.1.3');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -2252,6 +2259,7 @@
 
     function refreshDiagnosticsDisplay() {
       if (state.screen !== 'menu' || state.menuLevel !== MENU.DIAGNOSTICS || i2cRecoveryActive) return;
+      if (state.menuIndex === 2 && !Number.isFinite(state.lockTime)) { render(); return; }
       if (state.menuIndex !== 2) {
         render();
         return;
@@ -2400,7 +2408,7 @@
       if (state.menuLevel === MENU.SERVICE) {
         if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
         if (index === 1) return state.menuEdit
-          ? [padLine('VERSION: V5.1.2'), padLine('(C)2026 Loenie')]
+          ? [padLine('VERSION: V5.1.3'), padLine('(C)2026 Loenie')]
           : [padLine('SYSTEM INFO'), padLine('SET to view')];
         if (index === 2) return [padLine('I2C FALLBACK'), padLine('SET to restore')];
         if (index === 3) {
@@ -2413,17 +2421,18 @@
       if (state.menuLevel === MENU.DIAGNOSTICS) {
         if (index === 0) {
           const count = state.porCount < DIAGNOSTIC_COUNT_SATURATION ? state.porCount : '99+';
-          const fl = state.statusValid ? ((state.lastStatusByte & 0x40) ? 1 : 0) : '-';
+          const fl = state.statusValid && !i2cRecoveryActive ? ((state.lastStatusByte & 0x40) ? 1 : 0) : '-';
           return [padLine('PLL STATUS'), padLine(`FL:${fl} POR cnt:${count}`)];
         }
         if (index === 1) {
-          if (!state.statusValid) return [padLine('P7 P5 P4 P6-ADC'), padLine('-  -  -  ---')];
+          if (!state.statusValid || i2cRecoveryActive) return [padLine('P7 P5 P4 P6-ADC'), padLine('-  -  -  ---')];
           const bits = [5, 4, 3].map(bit => (state.lastStatusByte >> bit) & 1);
           const adc = [2, 1, 0].map(bit => (state.lastStatusByte >> bit) & 1).join('');
           return [padLine('P7 P5 P4 P6-ADC'), padLine(`${bits[0]}  ${bits[1]}  ${bits[2]}  ${adc}`)];
         }
         if (index === 2) {
           if (state.startupServiceMode) return [padLine('PLL LOCK TIME'), padLine('not initialized')];
+          if (i2cRecoveryActive || !Number.isFinite(state.lockTime)) return [padLine('PLL LOCK TIME'), padLine('<unknown>')];
           const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
           return [padLine('PLL LOCK TIME'), `${state.lockPending ? 'locking  ' : 'locked in'}${formatLockTimeField(elapsed, state.lockPending)}`];
         }
@@ -2532,9 +2541,11 @@
           render();
           if (step >= 11) {
             clearInterval(timers.menuTitleAnim);
+            delete timers.menuTitleAnim;
             menuEntryBusy = false;
             state.screen = 'menu';
             state.messageOverride = null;
+            state.lastMenuActivity = performance.now(); // match firmware timeout start after entry animation completes
             render();
           }
         }, 70);
@@ -2546,7 +2557,8 @@
         finishStartup('Startup programming after service menu');
         return;
       }
-      state.screen = 'main';
+      cancelMenuEntryAnimation();
+      state.screen = i2cRecoveryActive ? 'i2c-error' : 'main';
       state.menuLevel = null;
       state.menuEdit = false;
       state.pending = null;
@@ -2607,7 +2619,8 @@
     }
 
     function handleSetShort() {
-      if (menuEntryBusy || !state || i2cRecoveryActive || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (menuEntryBusy) { cancelMenuEntryAnimation(); render(); }
       if (state.lcdOff) return;
 
       if (state.screen === 'main') {
@@ -2644,7 +2657,8 @@
     }
 
     function handleSetLong() {
-      if (menuEntryBusy || !state || i2cRecoveryActive || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (menuEntryBusy) { cancelMenuEntryAnimation(); render(); }
       if (state.lcdOff) return;
 
       if (state.screen === 'main') {
@@ -2919,7 +2933,8 @@
     }
 
     function handleDirection(direction, isRepeat = false) {
-      if (menuEntryBusy || !state || i2cRecoveryActive || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (menuEntryBusy) { cancelMenuEntryAnimation(); render(); }
       if (state.lcdOff) return;
       const delta = direction === 'up' ? 1 : -1;
 
@@ -3035,6 +3050,7 @@
         localStorage.removeItem(PREVIOUS_STORAGE_KEY);
         localStorage.removeItem(LEGACY_STORAGE_KEY);
         localStorage.removeItem(OLDEST_STORAGE_KEY);
+        localStorage.removeItem(EARLIEST_STORAGE_KEY);
       } catch { /* storage may be unavailable */ }
       saved = deepClone(DEFAULTS);
       persist();
@@ -3060,10 +3076,10 @@
 
     function abortInteractiveStateForRecovery() {
       if (state.screen === 'frequency') state.targetFreq = state.currentFreq;
-      const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
+      const recoveryMenuLevel = isRecoverySafeMenu() ? state.menuLevel : null;
       state.pending = null;
       state.systemSnapshot = null;
-      state.menuLevel = diagnosticsActive ? MENU.DIAGNOSTICS : null;
+      state.menuLevel = recoveryMenuLevel;
       state.menuEdit = false;
       state.stationEditPosition = 0;
       state.factoryFinal = false;
@@ -3171,7 +3187,7 @@
     }
 
     function openServiceMenuFromChord() {
-      if (!downUpPresses.down || !downUpPresses.up || setPress || state.screen !== 'main') return;
+      if (!downUpPresses.down || !downUpPresses.up || setPress || !(state.screen === 'main' || (i2cRecoveryActive && state.screen === 'i2c-error'))) return;
       serviceChord.holdTimer = null;
       beginMenu(MENU.SERVICE);
       logEvent('SERVICE MENU opened.');
@@ -3192,9 +3208,10 @@
       }
 
       press.deferTimer = setTimeout(() => {
-        if (!downUpPresses[name] || press.chord || state.screen !== 'main') return;
+        if (!downUpPresses[name] || press.chord || !(state.screen === 'main' || (i2cRecoveryActive && state.screen === 'i2c-error'))) return;
         press.deferred = false;
         press.acted = true;
+        if (state.screen === 'i2c-error') return; // single UP/DOWN remains inert during recovery; only the chord opens SERVICE MENU
         handleDirection(name);
         const remaining = Math.max(0, BUTTON_REPEAT_DELAY - SERVICE_CHORD_WINDOW);
         press.timer = setTimeout(() => repeatDirection(name), remaining);
@@ -3231,23 +3248,14 @@
         }
       }
 
-      if (i2cRecoveryActive) {
+      const recoveryChordSource = i2cRecoveryActive && state.screen === 'i2c-error';
+      if (i2cRecoveryActive && !isRecoverySafeMenu() && !recoveryChordSource) {
         element.dataset.suppress = 'true';
-        if (state.menuLevel === MENU.DIAGNOSTICS) {
-          state.screen = 'i2c-error';
-          render();
-          clearTimeout(timers.i2cFeedback);
-          timers.i2cFeedback = setTimeout(() => {
-            delete timers.i2cFeedback;
-            if (!i2cRecoveryActive || state.menuLevel !== MENU.DIAGNOSTICS) return;
-            state.screen = 'menu';
-            render(true);
-          }, I2C_ERROR_FEEDBACK_DELAY);
-        }
         return;
       }
 
       if (name === 'set') {
+        if (recoveryChordSource) { element.dataset.suppress = 'true'; return; }
         if (setPress) return;
         if (serviceChord.active) cancelServiceChord();
         setPress = { started: performance.now(), long: false, element };
@@ -3256,7 +3264,7 @@
           setPress.long = true;
           handleSetLong();
         }, SET_LONG_PRESS);
-      } else if (state.screen === 'main') {
+      } else if (state.screen === 'main' || recoveryChordSource) {
         if (downUpPresses[name]) return;
         startDeferredDirection(name, element);
       } else {
@@ -3269,7 +3277,7 @@
 
     function repeatDirection(name) {
       const press = downUpPresses[name];
-      if (!press || press.chord || i2cRecoveryActive) return;
+      if (!press || press.chord || (i2cRecoveryActive && !isRecoverySafeMenu())) return;
       handleDirection(name, true);
       let interval = 80;
       if (state.screen === 'frequency') {
