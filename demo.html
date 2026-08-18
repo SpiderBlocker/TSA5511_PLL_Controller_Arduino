@@ -2046,9 +2046,9 @@
         state.lockPending = false;
         state.lastPortBitmap = commandedPortBitmap(true);
         state.lastActivity = now;
+        if (!diagnosticsActive) render();
       }
       if (diagnosticsActive) refreshDiagnosticsDisplay();
-      else if (state.locked && !state.lockPending) render();
     }
 
     function commandedPortBitmap(locked, settings = saved) {
