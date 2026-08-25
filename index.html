@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>TSA5511 PLL Controller for Arduino | FM Exciter Frequency Control</title>
-    <meta name="description" content="Arduino Nano-based TSA5511 PLL controller v5.1.4 for FM exciter and VCO projects, with an interactive browser demo, System, Quick and hidden Service menus, live diagnostics, user memories, RF-drive control, EEPROM storage and automatic I²C/POR recovery.">
+    <meta name="description" content="Arduino Nano-based TSA5511 PLL controller v5.1.5 for FM exciter and VCO projects, with an interactive browser demo, System, Quick and hidden Service menus, live diagnostics, user memories, RF-drive control, EEPROM storage and automatic I²C/POR recovery.">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="Loenie">
     <meta name="theme-color" content="#087ea4">
@@ -15,7 +15,7 @@
 
     <meta property="og:type" content="website">
     <meta property="og:title" content="TSA5511 PLL Controller for Arduino">
-    <meta property="og:description" content="Arduino Nano-based TSA5511 PLL controller v5.1.4 with an interactive browser demo, System, Quick and hidden Service menus, live diagnostics, EEPROM storage, RF-drive control and automatic I²C/POR recovery.">
+    <meta property="og:description" content="Arduino Nano-based TSA5511 PLL controller v5.1.5 with an interactive browser demo, System, Quick and hidden Service menus, live diagnostics, EEPROM storage, RF-drive control and automatic I²C/POR recovery.">
     <meta property="og:url" content="https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/">
 
     <script type="application/ld+json">
@@ -24,8 +24,8 @@
       "@type": "SoftwareSourceCode",
       "name": "TSA5511 PLL Controller for Arduino",
       "headline": "Arduino-based TSA5511 PLL controller for FM exciter and VCO projects",
-      "description": "An Arduino Nano-based TSA5511 PLL controller v5.1.4 with an interactive browser demo, System Menu, Quick Menu and hidden Service Menu, live TSA5511 diagnostics, configurable VCO bands, user memories, EEPROM storage, automatic I²C and POR recovery, charge-pump and varicap-drive control, port mapping, RF-drive control, station-name editing, menu-title display control, factory reset and backlight dimming.",
-      "softwareVersion": "5.1.4",
+      "description": "An Arduino Nano-based TSA5511 PLL controller v5.1.5 with an interactive browser demo, System Menu, Quick Menu and hidden Service Menu, live TSA5511 diagnostics, configurable VCO bands, user memories, EEPROM storage, automatic I²C and POR recovery, charge-pump and varicap-drive control, port mapping, RF-drive control, station-name editing, menu-title display control, factory reset and backlight dimming.",
+      "softwareVersion": "5.1.5",
       "url": "https://spiderblocker.github.io/TSA5511_PLL_Controller_Arduino/",
       "codeRepository": "https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino",
       "programmingLanguage": "C++",
@@ -265,7 +265,7 @@
         <section class="hero">
             <p class="eyebrow">Arduino PLL control project</p>
             <h1>TSA5511 PLL Controller for Arduino</h1>
-            <p class="intro">A PLL controller for TSA5511-based FM exciter and VCO projects. Version 5.1.4 combines an Arduino Nano, a 16x2 LCD and three pushbuttons with a System Menu, Quick Menu, hidden Service Menu, live diagnostics, carefully managed EEPROM storage and automatic PLL communication recovery.</p>
+            <p class="intro">A PLL controller for TSA5511-based FM exciter and VCO projects. Version 5.1.5 combines an Arduino Nano, a 16x2 LCD and three pushbuttons with a System Menu, Quick Menu, hidden Service Menu, live diagnostics, carefully managed EEPROM storage and automatic PLL communication recovery.</p>
             <div class="actions">
                 <a class="button primary" href="demo.html">Try the interactive demo</a>
                 <a class="button secondary" href="https://github.com/SpiderBlocker/TSA5511_PLL_Controller_Arduino">View source code on GitHub</a>
@@ -285,13 +285,13 @@
             </article>
             <article class="card">
                 <h2>EEPROM aware</h2>
-                <p>Persistent system settings, per-band operating states and user memories are restored after restart, while temporary actions stay out of EEPROM.</p>
+                <p>Persistent system settings, per-band operating states and user memories are restored after restart, while temporary actions stay out of EEPROM. A compile-time boundary check protects the 1 kB EEPROM layout.</p>
             </article>
         </section>
 
         <section id="demo" class="content-section callout">
             <h2>Interactive browser demo</h2>
-            <p>Explore a functional simulation of the v5.1.4 controller without physical hardware. Operate the virtual 16x2 LCD and buttons, navigate the System, Quick and hidden Service menus, inspect live diagnostics and the virtual TSA5511 status/output ports, and trigger simulated I²C communication loss or a TSA5511 power cycle to observe the recovery behaviour.</p>
+            <p>Explore a functional simulation of the v5.1.5 controller without physical hardware. Operate the virtual 16x2 LCD and buttons, navigate the System, Quick and hidden Service menus, inspect live diagnostics and the virtual TSA5511 status/output ports, and trigger simulated I²C communication loss or a TSA5511 power cycle to observe the recovery behaviour.</p>
             <p>The simulation does not communicate with a physical Arduino or TSA5511. Any saved demo settings remain local to the browser.</p>
             <p><a class="button primary" href="demo.html">Launch the interactive demo</a></p>
         </section>
@@ -368,7 +368,7 @@
                 <li><strong>Quick Menu:</strong> press and hold SET to recall, save or clear user memories, temporarily toggle RF drive, turn off the LCD backlight, or select <code>EXIT MENU</code>.</li>
                 <li><strong>Service Menu:</strong> hold UP and DOWN together for one second from the main interface, or hold SET through the startup splash screen to enter it before normal PLL initialization. It provides DIAGNOSTICS, SYSTEM INFO, FACTORY RESET and <code>EXIT MENU</code>; startup entry additionally exposes <code>I2C FALLBACK</code> to restore address 0x61. Startup DIAGNOSTICS uses read-only probing; values remain <code>-</code> until the first valid status read; failed reads mark affected pages with <code>!</code> immediately, while sustained startup failures replace stale live FL/input values with <code>-</code>.</li>
             </ul>
-            <p>In normal use, the VCO frequency is adjusted with UP and DOWN and confirmed with a short SET press. A brief chord-acquisition window allows the UP+DOWN Service Menu gesture to be recognized without briefly entering frequency edit mode, and the same gesture remains available during runtime I²C recovery. Holding SET cancels a pending frequency change, while holding UP or DOWN starts an accelerated sweep. A chord that begins during frequency editing is consumed until both buttons are released, so it cannot open the Service Menu after the edit times out. The System Menu discards unsaved changes on timeout; during normal operation the Service Menu and DIAGNOSTICS use a longer timeout, while startup Service Menu/DIAGNOSTICS do not time out and resume initialization only after explicit exit. Quick Menu actions are applied immediately. PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling stops after lock has been detected, while periodic TSA5511 status monitoring remains active. DIAGNOSTICS refreshes raw status information without overriding operational lock state or output-port control. Before PLL initialization, the first valid status read establishes the expected POR baseline; lock timing and output-port command data remain marked as not initialized. During runtime I²C recovery, DIAGNOSTICS remains browsable; affected data pages carry a fixed <code>!</code> in the upper-right, unavailable FL/input values are shown as <code>-</code> and interrupted lock timing is shown as <code>&lt;unknown&gt;</code>, while RETURN TO MENU remains unmarked. A read-only interruption invalidates the measured lock time until a new uninterrupted acquisition starts. The recovery counter is incremented only after recovery has successfully completed. After communication is restored, existing PLL programming is retained after a read-only interruption without POR; full reprogramming is performed only after an uncertain write or an unexpected TSA5511 reset indicated by POR.</p>
+            <p>In normal use, the VCO frequency is adjusted with UP and DOWN and confirmed with a short SET press. A brief chord-acquisition window allows the UP+DOWN Service Menu gesture to be recognized without briefly entering frequency edit mode, and the same gesture remains available during runtime I²C recovery. Holding SET cancels a pending frequency change, while holding UP or DOWN starts an accelerated sweep. A chord that begins during frequency editing is consumed until both buttons are released, so it cannot open the Service Menu after the edit times out. The System Menu discards unsaved changes on timeout; during normal operation the Service Menu and DIAGNOSTICS use a longer timeout, while startup Service Menu/DIAGNOSTICS do not time out and resume initialization only after explicit exit. Quick Menu actions are applied immediately. PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling stops after lock has been detected, while periodic TSA5511 status monitoring remains active. DIAGNOSTICS refreshes raw status information without overriding operational lock state or output-port control. Before PLL initialization, the first valid status read establishes the expected POR baseline; lock timing and output-port command data are marked as not initialized, and the output-port command remains so until the first successful PLL programming. During runtime I²C recovery, DIAGNOSTICS remains browsable; affected data pages carry a fixed <code>!</code> in the upper-right, unavailable FL/input values are shown as <code>-</code> and interrupted lock timing is shown as <code>&lt;unknown&gt;</code>, while RETURN TO MENU remains unmarked. A read-only interruption invalidates the measured lock time until a new uninterrupted acquisition starts. The recovery counter is incremented only after recovery has successfully completed. After communication is restored, existing PLL programming is retained after a read-only interruption without POR; full reprogramming is performed only after an uncertain write or an unexpected TSA5511 reset indicated by POR.</p>
         </section>
 
         <section id="about-this-page" class="content-section callout">

@@ -1655,6 +1655,7 @@
         lastStatusByte: 0,
         statusValid: false,
         lastPortBitmap: 0,
+        pllInitialized: false,
         rfOutputEnabled: true,
         lcdOff: false,
         dimmed: false,
@@ -2080,6 +2081,7 @@
 
       state.currentFreq = aligned;
       state.targetFreq = aligned;
+      state.pllInitialized = true;
       saved.lastFreq[bandKey(saved)] = aligned;
       persist();
       state.locked = false;
@@ -2162,7 +2164,7 @@
 
       if (state.screen === 'splash') {
         lines[0] = centerLine('PLL CONTROLLER');
-        lines[1] = centerLine('V5.1.4');
+        lines[1] = centerLine('V5.1.5');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -2408,7 +2410,7 @@
       if (state.menuLevel === MENU.SERVICE) {
         if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
         if (index === 1) return state.menuEdit
-          ? [padLine('VERSION: V5.1.4'), padLine('(C)2026 Loenie')]
+          ? [padLine('VERSION: V5.1.5'), padLine('(C)2026 Loenie')]
           : [padLine('SYSTEM INFO'), padLine('SET to view')];
         if (index === 2) return [padLine('I2C FALLBACK'), padLine('SET to restore')];
         if (index === 3) {
@@ -2437,7 +2439,7 @@
           return [padLine('PLL LOCK TIME'), `${state.lockPending ? 'locking  ' : 'locked in'}${formatLockTimeField(elapsed, state.lockPending)}`];
         }
         if (index === 3) {
-          if (state.startupServiceMode) return [padLine('PORT COMMAND'), padLine('not initialized')];
+          if (state.startupServiceMode || !state.pllInitialized) return [padLine('PORT COMMAND'), padLine('not initialized')];
           const hex = state.lastPortBitmap.toString(16).toUpperCase().padStart(2, '0');
           const bits = state.lastPortBitmap.toString(2).padStart(8, '0');
           return [padLine(`PORT CMD 0x${hex}`), padLine(`P7..P0 ${bits}`)];

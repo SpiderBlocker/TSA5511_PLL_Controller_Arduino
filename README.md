@@ -1,6 +1,6 @@
 # TSA5511 PLL Controller for Arduino
 
-**Current firmware: v5.1.4**
+**Current firmware: v5.1.5**
 
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
@@ -19,7 +19,7 @@ The demo is a functional simulation for demonstration purposes and does not comm
 
 - The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator. The lock status is also shown on the LCD display.
 - LCD backlight control is available if connected to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid on common Arduino boards.
-- The current EEPROM layout requires at least 1 kB EEPROM, as provided by ATmega328P-based Arduino Nano boards.
+- The current EEPROM layout requires at least 1 kB EEPROM, as provided by ATmega328P-based Arduino Nano boards. A compile-time boundary check prevents the user-memory bank from exceeding this capacity.
 - Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication, such as 1 or 2 kΩ.
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation. This also allows unexpected TSA5511 POR events to be detected and counted; if both devices are power-cycled together, the POR count is reset with the controller.
 
@@ -98,8 +98,9 @@ The demo is a functional simulation for demonstration purposes and does not comm
                                                the read-only pages; select RETURN TO MENU or hold SET to return to the SERVICE MENU. Before normal PLL initialization, the
                                                DIAGNOSTICS function uses read-only I²C probing; values remain '-' until the first successful status read; failed reads
                                                mark affected pages with '!' immediately, while sustained startup failures replace stale live values with '-'. The first successful read establishes the expected
-                                               power-on POR baseline; later POR events and sustained I²C losses that subsequently recover are counted. Lock timing and
-                                               output-port command data are shown as not initialized.
+                                               power-on POR baseline; later POR events and sustained I²C losses that subsequently recover are counted. Before normal
+                                               PLL initialization, lock timing and output-port command data are shown as not initialized; the output-port command remains
+                                               so until the first successful PLL programming.
                           • SYSTEM INFO      > Shows the full firmware version and copyright information.
                           • I2C FALLBACK     > Available only when the SERVICE MENU is entered during startup; restores the fail-safe I²C address (0x61) and returns to
                                                the startup SERVICE MENU. Normal initialization resumes only after explicitly leaving the menu.
