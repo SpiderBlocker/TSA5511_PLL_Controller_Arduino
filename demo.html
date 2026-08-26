@@ -535,6 +535,7 @@
       text-shadow: 0 1px 1px rgba(0,0,0,.65);
       outline: none;
       -webkit-tap-highlight-color: transparent;
+      touch-action: none;
       transition: transform .05s ease, box-shadow .05s ease, filter .12s ease, border-color .12s ease;
     }
 
@@ -1451,6 +1452,7 @@
     let lockAnimDirection = 1;
     let rfBlinkPhase = false;
     let displayedLockPending = null;
+    let frequencyRenderFrame = null;
 
     function reportEmbeddedHeight() {
       if (window.parent === window) return;
@@ -1745,6 +1747,8 @@
         if (press?.deferTimer) clearTimeout(press.deferTimer);
       });
       if (serviceChord.holdTimer) clearTimeout(serviceChord.holdTimer);
+      if (frequencyRenderFrame !== null) cancelAnimationFrame(frequencyRenderFrame);
+      frequencyRenderFrame = null;
       serviceChord = { active: false, holdTimer: null };
       downUpPresses = { down: null, up: null };
     }
@@ -2241,6 +2245,16 @@
         row.children[col].replaceWith(createLcdCell(text[offset] || ' '));
       }
       return true;
+    }
+
+    // Keep high-rate frequency repeats independent of DOM/LCD repaint cost.
+    function scheduleFrequencyTargetRender() {
+      if (frequencyRenderFrame !== null) return;
+      frequencyRenderFrame = requestAnimationFrame(() => {
+        frequencyRenderFrame = null;
+        if (!state || state.screen !== 'frequency' || state.lcdOff) return;
+        drawTextRange(1, 0, rightCompose('SET ', formatFrequencyRight(state.targetFreq, saved.decimals)));
+      });
     }
 
     function formatLockTimeField(elapsed, pending) {
@@ -2959,7 +2973,8 @@
         if (value > high) value = low;
         state.targetFreq = value;
         state.lastFreqActivity = performance.now();
-        render();
+        if (isRepeat) scheduleFrequencyTargetRender();
+        else render();
         return;
       }
 
@@ -3285,7 +3300,8 @@
       if (state.screen === 'frequency') {
         const held = performance.now() - press.started - BUTTON_REPEAT_DELAY;
         const target = getVisibleStep(saved) / 500;
-        interval = Math.max(14, target / (0.7 + held / BUTTON_REPEAT_DELAY));
+        // Match firmware acceleration; browser/timer latency is the practical lower bound.
+        interval = target / (0.7 + held / BUTTON_REPEAT_DELAY);
       } else if (state.screen === 'station-editor') {
         interval = 200;
       }
@@ -3342,12 +3358,11 @@
     document.querySelectorAll('.hardware-button').forEach(button => {
       const name = button.dataset.button;
       button.addEventListener('pointerdown', event => {
-        event.preventDefault();
+        // Do not preventDefault here: Firefox/Android can otherwise suppress multi-touch pointers.
         button.setPointerCapture?.(event.pointerId);
         buttonDown(name, button);
       });
-      button.addEventListener('pointerup', event => {
-        event.preventDefault();
+      button.addEventListener('pointerup', () => {
         buttonUp(name, button);
       });
       button.addEventListener('pointercancel', () => cancelButtonPress(name, button));
