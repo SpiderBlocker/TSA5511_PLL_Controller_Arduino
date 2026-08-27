@@ -1,6 +1,6 @@
 # TSA5511 PLL Controller for Arduino
 
-**Current firmware: v5.1.5**
+**Current firmware: v5.1.6**
 
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
@@ -24,7 +24,7 @@ The demo is a functional simulation for demonstration purposes and does not comm
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation. This also allows unexpected TSA5511 POR events to be detected and counted; if both devices are power-cycled together, the POR count is reset with the controller.
 
 # Usage
-- Double-clicking SET opens the SYSTEM MENU. In system submenus, holding SET returns one level back while keeping pending changes in the temporary menu state until they are explicitly saved or discarded. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary name until it is explicitly saved or discarded. The available system settings are as follows:
+- Double-clicking SET opens the SYSTEM MENU. All system-setting edits remain in a temporary menu state and do not affect the active PLL/runtime configuration until **save changes** is selected. In system submenus, holding SET returns one level back while keeping pending changes until they are explicitly saved or discarded. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary name until it is explicitly saved or discarded. The available system settings are as follows:
 
 ```text
 
@@ -104,7 +104,8 @@ The demo is a functional simulation for demonstration purposes and does not comm
                           • SYSTEM INFO      > Shows the full firmware version and copyright information.
                           • I2C FALLBACK     > Available only when the SERVICE MENU is entered during startup; restores the fail-safe I²C address (0x61) and returns to
                                                the startup SERVICE MENU. Normal initialization resumes only after explicitly leaving the menu.
-                          • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation.
+                          • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation. During the reset,
+                                               the dedicated FACTORY RESET / resetting... status remains visible for at least 750 ms (or longer if the reset itself takes longer).
                           • EXIT MENU        > Returns to the main interface, or resumes normal initialization when the SERVICE MENU was entered during startup.
 
 ```

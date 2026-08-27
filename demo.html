@@ -1225,6 +1225,7 @@
     const I2C_ADDRESSES = [0x60, 0x61, 0x62, 0x63];
     const DEFAULT_PLL_ADDR_INDEX = 1;
     const I2C_FALLBACK_DELAY = 2500;
+    const FACTORY_RESET_MIN_DISPLAY_TIME = 750;
     const I2C_HEALTH_CHECK_INTERVAL = 2000;
     const TSA_POWER_OFF_DURATION = 350; // normally brief enough to finish before the controller's 2 s health check
     const I2C_MAX_RETRIES = 10;
@@ -1637,7 +1638,7 @@
     }
 
     function currentSettings() {
-      return state?.pending || saved;
+      return state?.pending && (state.screen === 'menu' || state.screen === 'station-editor') ? state.pending : saved;
     }
 
     function resetRuntime({ startupSetHeld = false } = {}) {
@@ -1662,7 +1663,6 @@
         lcdOff: false,
         dimmed: false,
         pending: null,
-        systemSnapshot: null,
         menuLevel: null,
         menuIndex: 0,
         previousSystemIndex: 0,
@@ -1716,7 +1716,6 @@
       state.menuLevel = null;
       state.menuEdit = false;
       state.pending = null;
-      state.systemSnapshot = null;
       const startupAddress = I2C_ADDRESSES[saved.pllAddressIndex];
       state.screen = 'main';
       pulseI2cActivity();
@@ -1784,7 +1783,7 @@
         render();
       }
 
-      if (!state.startupServiceMode && state.screen === 'menu' && state.menuLevel !== MENU.EXIT) {
+      if (!state.startupServiceMode && ['menu', 'station-editor'].includes(state.screen) && state.menuLevel !== MENU.EXIT) {
         const serviceMode = [MENU.SERVICE, MENU.DIAGNOSTICS].includes(state.menuLevel);
         const timeout = serviceMode ? SERVICE_MENU_TIMEOUT : MENU_TIMEOUT;
         if (now - state.lastMenuActivity > timeout) {
@@ -1950,7 +1949,7 @@
         logEvent(porDetected
           ? 'POR detected; controller is restoring the TSA5511 configuration.'
           : 'I²C communication restored after an uncertain write; controller is restoring the TSA5511 configuration.');
-        if (programmePLL(state.currentFreq, {
+        if (programmePLL(state.targetFreq, {
           force: true,
           reason: porDetected
             ? 'PLL reprogrammed after TSA5511 power cycle'
@@ -1982,7 +1981,7 @@
     }
 
     function monitorI2c() {
-      if (!state || state.screen === 'splash' || state.screen === 'i2c-fallback') return;
+      if (!state || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'factory-reset') return;
 
       const now = performance.now();
       const diagnosticsActive = state.menuLevel === MENU.DIAGNOSTICS;
@@ -2168,7 +2167,7 @@
 
       if (state.screen === 'splash') {
         lines[0] = centerLine('PLL CONTROLLER');
-        lines[1] = centerLine('V5.1.5');
+        lines[1] = centerLine('V5.1.6');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -2183,6 +2182,9 @@
         lines[0] = padLine('STATION NAME');
         lines[1] = padLine(state.stationBuffer);
         cursor = { row: 1, col: state.stationEditPosition };
+      } else if (state.screen === 'factory-reset') {
+        lines[0] = padLine('FACTORY RESET');
+        lines[1] = padLine('resetting...');
       } else if (state.screen === 'i2c-fallback') {
         lines[0] = padLine('I2C FALLBACK');
         lines[1] = padLine(`restoring 0x${I2C_ADDRESSES[saved.pllAddressIndex].toString(16).toUpperCase()}`);
@@ -2377,14 +2379,14 @@
       }
 
       simTsaPower.value = tsaPowered ? 'on' : 'off';
-      const simulationBusy = tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive || ['splash', 'i2c-fallback', 'i2c-error'].includes(state.screen);
+      const simulationBusy = tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive || ['splash', 'i2c-fallback', 'i2c-error', 'factory-reset'].includes(state.screen);
       simTsaPower.disabled = tsaPowerCycleActive || i2cFaultActive;
       tsaPowerCycleButton.disabled = simulationBusy || !tsaPowered;
       i2cErrorButton.disabled = simulationBusy || !tsaPowered;
       // A controller reset is a hardware-level escape path and must remain available
       // during I²C recovery so SET can restore the fail-safe address 0x61.
-      restartButton.disabled = tsaPowerCycleActive || ['splash', 'i2c-fallback'].includes(state.screen);
-      powerCycleBothButton.disabled = ['splash', 'i2c-fallback'].includes(state.screen);
+      restartButton.disabled = tsaPowerCycleActive || ['splash', 'i2c-fallback', 'factory-reset'].includes(state.screen);
+      powerCycleBothButton.disabled = ['splash', 'i2c-fallback', 'factory-reset'].includes(state.screen);
       factoryButton.disabled = simulationBusy;
     }
 
@@ -2424,7 +2426,7 @@
       if (state.menuLevel === MENU.SERVICE) {
         if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
         if (index === 1) return state.menuEdit
-          ? [padLine('VERSION: V5.1.5'), padLine('(C)2026 Loenie')]
+          ? [padLine('VERSION: V5.1.6'), padLine('(C)2026 Loenie')]
           : [padLine('SYSTEM INFO'), padLine('SET to view')];
         if (index === 2) return [padLine('I2C FALLBACK'), padLine('SET to restore')];
         if (index === 3) {
@@ -2518,7 +2520,6 @@
       state.factoryFinal = false;
       state.factoryChoice = false;
       if (level === MENU.SYSTEM_MAIN) {
-        state.systemSnapshot = deepClone(saved);
         state.pending = deepClone(saved);
         state.stationBuffer = state.pending.stationName;
       }
@@ -2578,7 +2579,6 @@
       state.menuLevel = null;
       state.menuEdit = false;
       state.pending = null;
-      state.systemSnapshot = null;
       state.stationEditPosition = 0;
       state.lastActivity = performance.now();
       if (message) logEvent(message);
@@ -2586,18 +2586,16 @@
     }
 
     function discardSystemChanges(message = 'Unsaved system settings discarded.') {
-      if (state.systemSnapshot) saved = deepClone(state.systemSnapshot);
       state.pending = null;
-      state.systemSnapshot = null;
       exitToMain(message);
     }
 
     function systemSettingsChanged() {
-      if (!state.pending || !state.systemSnapshot) return false;
+      if (!state.pending) return false;
       const keys = ['stationName', 'dimmer', 'showMenuTitle', 'decimals', 'pllControl', 'xtalIndex',
         'pllAddressIndex', 'portLock', 'portUnlock', 'portRF'];
-      return keys.some(key => JSON.stringify(state.pending[key]) !== JSON.stringify(state.systemSnapshot[key])) ||
-        JSON.stringify(state.pending.bandIndex) !== JSON.stringify(state.systemSnapshot.bandIndex);
+      return keys.some(key => JSON.stringify(state.pending[key]) !== JSON.stringify(saved[key])) ||
+        JSON.stringify(state.pending.bandIndex) !== JSON.stringify(saved.bandIndex);
     }
 
     function saveSystemChanges() {
@@ -2625,7 +2623,6 @@
       const newFreq = getStoredBandFrequency(saved);
       persist();
       state.pending = null;
-      state.systemSnapshot = null;
       state.screen = 'main';
       state.menuLevel = null;
       state.menuEdit = false;
@@ -2635,7 +2632,7 @@
     }
 
     function handleSetShort() {
-      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error' || state.screen === 'factory-reset') return;
       if (menuEntryBusy) { cancelMenuEntryAnimation(); render(); }
       if (state.lcdOff) return;
 
@@ -2673,7 +2670,7 @@
     }
 
     function handleSetLong() {
-      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error' || state.screen === 'factory-reset') return;
       if (menuEntryBusy) { cancelMenuEntryAnimation(); render(); }
       if (state.lcdOff) return;
 
@@ -2949,7 +2946,7 @@
     }
 
     function handleDirection(direction, isRepeat = false) {
-      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error') return;
+      if (!state || (i2cRecoveryActive && !isRecoverySafeMenu()) || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error' || state.screen === 'factory-reset') return;
       if (menuEntryBusy) { cancelMenuEntryAnimation(); render(); }
       if (state.lcdOff) return;
       const delta = direction === 'up' ? 1 : -1;
@@ -3061,7 +3058,7 @@
       settings[key] = value;
     }
 
-    function eraseSavedData(fromMenu = false) {
+    function clearSavedDemoStorage() {
       try {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(PREVIOUS_STORAGE_KEY);
@@ -3069,33 +3066,74 @@
         localStorage.removeItem(OLDEST_STORAGE_KEY);
         localStorage.removeItem(EARLIEST_STORAGE_KEY);
       } catch { /* storage may be unavailable */ }
-      saved = deepClone(DEFAULTS);
-      persist();
-      toast('Saved demo data erased.');
-      if (fromMenu && state?.startupServiceMode) {
-        const initialFreq = getStoredBandFrequency(saved);
-        state.currentFreq = initialFreq;
-        state.targetFreq = initialFreq;
+    }
+
+    function eraseSavedData(fromMenu = false) {
+      if (fromMenu) {
+        const resetStart = performance.now();
+        const startupReset = Boolean(state?.startupServiceMode);
+        cancelMenuEntryAnimation();
+        state.screen = 'factory-reset';
         state.pending = null;
-        state.systemSnapshot = null;
         state.menuEdit = false;
         state.factoryFinal = false;
         state.factoryChoice = false;
-        logEvent('Factory reset completed from startup SERVICE MENU.');
-        finishStartup('Startup programming after factory reset');
-      } else if (fromMenu) {
-        resetRuntime();
-        logEvent('Factory reset completed.');
-      } else {
-        resetRuntime();
+        state.rfOutputEnabled = true;
+        state.lcdOff = false;
+        state.dimmed = false;
+        setLcdBrightness(1, 0);
+        render();
+
+        requestAnimationFrame(() => {
+          clearSavedDemoStorage();
+          saved = deepClone(DEFAULTS);
+          persist();
+          toast('Saved demo data erased.');
+
+          const completeFactoryReset = () => {
+            delete timers.factoryReset;
+            if (startupReset) {
+              logEvent('Factory reset completed from startup SERVICE MENU.');
+              finishStartup('Startup programming after factory reset');
+              return;
+            }
+
+            state.menuLevel = null;
+            state.menuIndex = 0;
+            state.outputPortPhase = 0;
+            state.stationEditPosition = 0;
+            state.screen = i2cRecoveryActive ? 'i2c-error' : 'main';
+            state.lastActivity = performance.now();
+            const defaultFreq = getStoredBandFrequency(saved);
+            state.targetFreq = defaultFreq;
+            logEvent('Factory reset completed.');
+
+            if (i2cRecoveryActive) {
+              i2cRecoveryReason = 'write';
+              state.lockPending = false;
+              render();
+            } else {
+              programmePLL(defaultFreq, { force: true, reason: 'PLL configuration restored after factory reset' });
+            }
+          };
+
+          const remaining = Math.max(0, FACTORY_RESET_MIN_DISPLAY_TIME - (performance.now() - resetStart));
+          timers.factoryReset = setTimeout(completeFactoryReset, remaining);
+        });
+        return;
       }
+
+      clearSavedDemoStorage();
+      saved = deepClone(DEFAULTS);
+      persist();
+      toast('Saved demo data erased.');
+      resetRuntime();
     }
 
     function abortInteractiveStateForRecovery() {
       if (state.screen === 'frequency') state.targetFreq = state.currentFreq;
       const recoveryMenuLevel = isRecoverySafeMenu() ? state.menuLevel : null;
       state.pending = null;
-      state.systemSnapshot = null;
       state.menuLevel = recoveryMenuLevel;
       state.menuEdit = false;
       state.stationEditPosition = 0;
@@ -3107,7 +3145,7 @@
     }
 
     function simulationUnavailable() {
-      return !state || !tsaPowered || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error' || tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive;
+      return !state || !tsaPowered || state.screen === 'splash' || state.screen === 'i2c-fallback' || state.screen === 'i2c-error' || state.screen === 'factory-reset' || tsaPowerCycleActive || i2cFaultActive || i2cRecoveryActive;
     }
 
     function setTsaPower(powered) {
