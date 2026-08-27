@@ -2231,11 +2231,19 @@
     function drawRows(lines, cursor) {
       rowElements.forEach((row, rowIndex) => {
         const text = padLine(lines[rowIndex] || '');
+        const cursorCol = cursor && cursor.row === rowIndex ? cursor.col : -1;
+
+        // Preserve unchanged LCD cells so background status refreshes do not restart
+        // the browser's cursor animation; on hardware the LCD cursor keeps blinking independently.
+        if (row.dataset.renderText === text && Number(row.dataset.cursorCol) === cursorCol) return;
+
         const fragment = document.createDocumentFragment();
         for (let col = 0; col < LCD_COLUMNS; col += 1) {
-          fragment.appendChild(createLcdCell(text[col] || ' ', Boolean(cursor && cursor.row === rowIndex && cursor.col === col)));
+          fragment.appendChild(createLcdCell(text[col] || ' ', cursorCol === col));
         }
         row.replaceChildren(fragment);
+        row.dataset.renderText = text;
+        row.dataset.cursorCol = String(cursorCol);
       });
     }
 
@@ -2246,6 +2254,8 @@
         if (!row.children[col]) return false;
         row.children[col].replaceWith(createLcdCell(text[offset] || ' '));
       }
+      delete row.dataset.renderText;
+      delete row.dataset.cursorCol;
       return true;
     }
 
