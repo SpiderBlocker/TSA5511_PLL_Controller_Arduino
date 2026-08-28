@@ -2167,7 +2167,7 @@
 
       if (state.screen === 'splash') {
         lines[0] = centerLine('PLL CONTROLLER');
-        lines[1] = centerLine('V5.1.6');
+        lines[1] = centerLine('V5.1.7');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -2436,7 +2436,7 @@
       if (state.menuLevel === MENU.SERVICE) {
         if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
         if (index === 1) return state.menuEdit
-          ? [padLine('VERSION: V5.1.6'), padLine('(C)2026 Loenie')]
+          ? [padLine('VERSION: V5.1.7'), padLine('(C)2026 Loenie')]
           : [padLine('SYSTEM INFO'), padLine('SET to view')];
         if (index === 2) return [padLine('I2C FALLBACK'), padLine('SET to restore')];
         if (index === 3) {
@@ -3033,8 +3033,11 @@
       } else if (level === MENU.PLL && index === 0) {
         settings.pllAddressIndex = Math.max(0, Math.min(I2C_ADDRESSES.length - 1, settings.pllAddressIndex + delta));
       } else if (level === MENU.PLL && index === 1) {
-        settings.xtalIndex = Math.max(0, Math.min(XTALS.length - 1, settings.xtalIndex + delta));
-        settings.decimals = MAX_DECIMALS[settings.xtalIndex];
+        const newIndex = Math.max(0, Math.min(XTALS.length - 1, settings.xtalIndex + delta));
+        if (newIndex !== settings.xtalIndex) {
+          settings.xtalIndex = newIndex;
+          settings.decimals = MAX_DECIMALS[settings.xtalIndex];
+        }
       } else if (level === MENU.PLL && index === 2) {
         // Match the sketch: UP moves high -> low -> disabled; DOWN moves disabled -> low -> high.
         if (delta > 0) {
