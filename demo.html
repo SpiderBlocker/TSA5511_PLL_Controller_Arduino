@@ -2010,7 +2010,7 @@
         } else {
           i2cRetryCount = Math.min(I2C_MAX_RETRIES, i2cRetryCount + 1);
           render();
-          if (state.menuIndex !== 7 && state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) drawTextRange(0, LCD_COLUMNS - 1, '!');
+          if (diagnosticsPageUsesI2cMarker(state.menuIndex)) drawTextRange(0, LCD_COLUMNS - 1, '!');
           updateStatus();
         }
         return;
@@ -2199,7 +2199,7 @@
       }
 
       if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && i2cRecoveryActive &&
-          state.menuIndex !== 7 && state.menuIndex !== MENU_ITEMS[MENU.DIAGNOSTICS].length - 1) {
+          diagnosticsPageUsesI2cMarker(state.menuIndex)) {
         lines[0] = `${padLine(lines[0]).slice(0, 15)}!`;
       }
       if (state.lcdOff) lines = ['                ', '                '];
@@ -2293,6 +2293,11 @@
 
     function getUptimeSeconds() {
       return Math.max(0, Math.floor((performance.now() - state.controllerStartedAt) / 1000));
+    }
+
+    function diagnosticsPageUsesI2cMarker(index) {
+      const item = MENU_ITEMS[MENU.DIAGNOSTICS][index];
+      return item !== 'I2C ADDRESS' && item !== 'I2C RECOVERIES' && item !== 'SYSTEM UPTIME' && item !== 'RETURN TO MENU';
     }
 
     function formatUptimeLine(value) {
