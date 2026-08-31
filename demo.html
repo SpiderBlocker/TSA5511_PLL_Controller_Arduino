@@ -1994,7 +1994,11 @@
       // startup DIAGNOSTICS: raw read-only probing only; never enter normal I²C recovery
       // or program the PLL, but do count communication that returns after the normal retry threshold.
       if (state.startupServiceMode) {
-        if (!diagnosticsActive || state.screen !== 'menu' || now - lastI2cCheckTime < DIAGNOSTICS_INTERVAL) return;
+        if (!diagnosticsActive || state.screen !== 'menu') {
+          i2cRetryCount = 0;
+          return;
+        }
+        if (now - lastI2cCheckTime < DIAGNOSTICS_INTERVAL) return;
         lastI2cCheckTime = now;
         const address = I2C_ADDRESSES[saved.pllAddressIndex];
         pulseI2cActivity(35);
@@ -2172,7 +2176,7 @@
 
       if (state.screen === 'splash') {
         lines[0] = centerLine('PLL CONTROLLER');
-        lines[1] = centerLine('V5.2.0');
+        lines[1] = centerLine('V5.2.1');
       } else if (state.screen === 'main') {
         lines[0] = rightCompose(lockText(), formatFrequencyRight(state.currentFreq, saved.decimals));
         lines[1] = !state.rfOutputEnabled && rfBlinkPhase ? padLine('RF DRIVE: OFF') : padLine(saved.stationName);
@@ -2207,8 +2211,9 @@
       displayedLockPending = state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && state.menuIndex === 2
         ? state.lockPending
         : null;
-      lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive);
-      lockLed.classList.toggle('error', i2cRecoveryActive);
+      const startupDiagnosticsFault = startupDiagnosticsFaultActive();
+      lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive && !startupDiagnosticsFault);
+      lockLed.classList.toggle('error', i2cRecoveryActive || startupDiagnosticsFault);
       updateStatus();
     }
 
@@ -2295,6 +2300,11 @@
       return Math.max(0, Math.floor((performance.now() - state.controllerStartedAt) / 1000));
     }
 
+    function startupDiagnosticsFaultActive() {
+      return Boolean(state?.startupServiceMode && state.screen === 'menu' &&
+        state.menuLevel === MENU.DIAGNOSTICS && i2cRetryCount > 0);
+    }
+
     function diagnosticsPageUsesI2cMarker(index) {
       const item = MENU_ITEMS[MENU.DIAGNOSTICS][index];
       return item !== 'I2C ADDRESS' && item !== 'I2C RECOVERIES' && item !== 'SYSTEM UPTIME' && item !== 'RETURN TO MENU';
@@ -2311,7 +2321,8 @@
     }
 
     function refreshDiagnosticsDisplay() {
-      if (state.screen !== 'menu' || state.menuLevel !== MENU.DIAGNOSTICS || i2cRecoveryActive) return;
+      if (state.screen !== 'menu' || state.menuLevel !== MENU.DIAGNOSTICS) return;
+      if (i2cRecoveryActive && state.menuIndex !== 7) return;
       if (state.menuIndex === 7) {
         const uptime = getUptimeSeconds();
         if (uptime !== displayedUptimeSecond) {
@@ -2332,8 +2343,9 @@
       }
       const elapsed = state.lockPending ? performance.now() - state.lockTime : state.lockTime;
       drawTextRange(1, 9, formatLockTimeField(elapsed, state.lockPending));
-      lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive);
-      lockLed.classList.toggle('error', i2cRecoveryActive);
+      const startupDiagnosticsFault = startupDiagnosticsFaultActive();
+      lockLed.classList.toggle('on', state.locked && !i2cRecoveryActive && !startupDiagnosticsFault);
+      lockLed.classList.toggle('error', i2cRecoveryActive || startupDiagnosticsFault);
       updateStatus();
     }
 
@@ -2470,7 +2482,7 @@
       if (state.menuLevel === MENU.SERVICE) {
         if (index === 0) return [padLine('DIAGNOSTICS'), padLine('SET to enter')];
         if (index === 1) return state.menuEdit
-          ? [padLine('VERSION: V5.2.0'), padLine('(C)2026 Loenie')]
+          ? [padLine('VERSION: V5.2.1'), padLine('(C)2026 Loenie')]
           : [padLine('SYSTEM INFO'), padLine('SET to view')];
         if (index === 2) {
           return [padLine('I2C FALLBACK'), state.menuEdit ? padLine(`> ${state.serviceActionConfirm ? 'yes' : 'no'}`) : padLine('SET to select')];
