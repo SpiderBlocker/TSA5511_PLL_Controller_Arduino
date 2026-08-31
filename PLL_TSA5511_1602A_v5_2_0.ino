@@ -1,0 +1,2916 @@
+/*
+TSA5511 PLL Controller
+
+DESCRIPTION
+  PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other
+  TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
+  It features an intuitive menu interface for configuring system settings, a quick menu for frequently used functions and a hidden service menu for diagnostics,
+  system information and maintenance functions, as described in detail below.
+  Persistent system settings and user memories are stored in EEPROM and automatically recalled upon restart.
+
+HARDWARE
+  • The hardware comprises an Arduino Nano or compatible, a standard 16x2 LCD display (used in 4-bit mode) with backlight and contrast adjustment, three pushbuttons
+    (DOWN/SET/UP, each with a 470 nF debouncing capacitor across its contact) and an optional PLL lock LED which also acts as a blinking fault indicator.
+    The lock status is also shown on the LCD display.
+  • LCD backlight control is available if connected to its reserved digital pin. Refer to code for pin mappings and change if necessary. Note that the digital pin used
+    for the LCD backlight must support PWM. Currently pin 6 is configured, which is valid on common Arduino boards.
+  • The current EEPROM layout requires at least 1 kB EEPROM, as provided by ATmega328P-based Arduino Nano boards.
+  • Pull-up resistors on SDA/SCL are required. Especially if SDA/SCL runs through RF-decoupling circuitry, you may want to use lower values for reliable communication,
+    such as 1 or 2 kΩ.
+  • If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause
+    a few ppm XTAL frequency deviation. This also allows unexpected TSA5511 POR events to be detected and counted; if both devices are power-cycled together, the POR
+    count is reset with the controller.
+
+USAGE
+  • Double-clicking SET opens the SYSTEM MENU. System submenu settings show "SET to edit" while browsing; ordinary edit fields show the selected value prefixed with "> ",
+    while the station-name editor uses its blinking cursor. Holding SET returns one level back while keeping pending changes in the temporary menu state until they are
+    explicitly saved or discarded. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary
+    name until it is explicitly saved or discarded. The available system settings are as follows:
+
+    ■ VCO SETTINGS     => • FREQUENCY BAND   > Various predefined frequency bands are available for selection. The last operating frequency will be stored in EEPROM for
+                                               each VCO frequency band and XTAL frequency separately. The last selected VCO frequency band will be stored in EEPROM for
+                                               each XTAL frequency separately as well.
+                          • PRECISION        > This sets the decimal precision at which the VCO frequency can be set and will be displayed. Note that if it is set to a
+                                               lower precision than required for the current VCO frequency, confirmation will result in the new VCO frequency being
+                                               rounded and set to the nearest possible value. User memories retain their exact stored frequency independently of this
+                                               setting; recalling a memory automatically raises precision only when required to reproduce that frequency exactly and
+                                               never lowers it. Since the minimum VCO frequency step size is derived from the PLL crystal frequency and the /8 prescaler
+                                               (25 kHz @ 1.6 MHz and 50 kHz @ 3.2 MHz), the actual frequency precision will default to the highest possible resolution
+                                               automatically, i.e. 3 decimals at 1.6 MHz and 2 decimals at 3.2 MHz respectively. This can be changed to a lower value if
+                                               so desired. Refer to additional explanation below at PLL SETTINGS > XTAL FREQUENCY.
+                          • RETURN           > Returns to the main settings menu.
+
+    ■ PLL SETTINGS     => • I2C ADDRESS      > This allows selecting the appropriate I²C address based on the actual hardware configuration of the TSA5511.
+                                               By applying a DC bias to pin P3 of the TSA5511, the I²C address can be configured to 0x60, 0x62, or 0x63, while 0x61 is
+                                               always valid regardless of the hardware configuration. By default the I²C address is set to 0x61.
+                                               When saving changes after selecting a new I²C address, communication is automatically verified. If verification fails, the
+                                               last known working I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is
+                                               stored and cannot be reconfigured through the menu, reset or power-cycle the controller while holding SET to open the
+                                               SERVICE MENU, then select and confirm I2C FALLBACK to restore the default fail-safe I²C address (0x61).
+                          • XTAL FREQUENCY   > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
+                                               theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper VCO
+                                               frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
+                                               adjusted accordingly.
+                                               Note that compatibility of the TSA5511 with a 1.6 MHz crystal frequency is not officially supported; however, it has been
+                                               empirically confirmed to work.
+                          • CHARGE PUMP      > This sets the PLL charge-pump current in locked state to high (220 µA) or low (50 µA). It should be set to high for the
+                                               DRFS06 exciter or to low for other platforms if required. The varicap drive can also be disabled for testing purposes.
+                          • PORT MAPPING     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
+                                               indicator and the transmitter RF output stage respectively. When using TSA5511 package variants with fewer available
+                                               output ports, make sure that PORT MAPPING only selects physically available ports.
+                          • RETURN           > Returns to the main settings menu.
+
+    ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in the idle locked state. Select characters using UP/DOWN and confirm each
+                                               character with SET. Hold UP/DOWN to auto-scroll characters; hold SET to return from the editor.
+                          • BACKLIGHT DIMMER > This toggles the automatic LCD backlight dimmer function (on or off).
+                          • SHOW MENU TITLE  > This toggles the animated title screen when entering SYSTEM MENU, QUICK MENU or SERVICE MENU.
+                          • RETURN           > Returns to the main settings menu.
+
+    ■ EXIT MENU        => Returns directly to the main interface if no settings were changed. A "*" at the upper-right marks pending unsaved changes. Otherwise:
+                          • save changes     > Stores any changes to EEPROM and returns to the main interface.
+                          • discard          > Discards any changes and returns to the main interface.
+                          • cancel           > Returns to the first index of the main menu.
+
+  • Press and hold SET from the main interface to open the QUICK MENU, which provides access to frequently used end-user functions. Within the QUICK MENU, holding SET
+    returns one level back, or exits the menu from its top level. The QUICK MENU provides the following functions:
+
+    ■ QUICK MENU       => • RECALL MEMORY    > Recalls one of six exact user-stored VCO frequencies for the current VCO frequency band and XTAL frequency. If required,
+                                               precision is automatically raised just enough to reproduce the stored frequency exactly, but is never lowered.
+                          • SAVE MEMORY      > Saves the exact current VCO frequency in one of six user memory slots for the current VCO frequency band and XTAL frequency.
+                          • CLEAR MEMORY     > Clears one of the user memory slots for the current VCO frequency band and XTAL frequency.
+                          • RF DRIVE         > Temporarily enables or disables the RF drive output without storing the state in EEPROM.
+                                               When off, the station name alternates with an RF DRIVE: OFF status message.
+                          • LCD OFF          > Turns off the LCD backlight until any button is pressed.
+                          • EXIT MENU        > Returns to the main interface.
+
+  • Hold UP and DOWN together for 1 second from the main interface to open the SERVICE MENU. A brief chord-acquisition window delays the first individual UP/DOWN action
+    just long enough to recognize the combination without briefly entering frequency edit mode. This service gesture remains available during runtime I²C recovery.
+    Alternatively, hold SET through the startup splash screen to enter the SERVICE MENU before normal PLL initialization. The SERVICE MENU provides:
+
+    ■ SERVICE MENU     => • DIAGNOSTICS      > Shows live TSA5511 lock/input status, live/completed PLL lock acquisition timing, PLL divisor and unexpected POR count.
+                                               It also shows the current I²C address, successfully completed I²C recovery count, controller uptime and the last successfully
+                                               programmed output-port bitmap. Use UP/DOWN to browse the read-only pages; select RETURN TO MENU or hold SET to return to
+                                               the SERVICE MENU. Before normal PLL initialization, DIAGNOSTICS uses read-only I²C probing; live TSA5511 values remain '-'
+                                               until the first successful status read. Failed reads mark pages with '!' immediately, while sustained startup failures
+                                               replace stale live values with '-'. The first successful read establishes the expected power-on POR baseline; later POR
+                                               events and sustained I²C losses that subsequently recover are counted. Lock timing, PLL divisor and output-port command
+                                               data are shown as not initialized.
+                          • SYSTEM INFO      > Shows the full firmware version and copyright information.
+                          • I2C FALLBACK     > Available only when the SERVICE MENU is entered during startup; restores the fail-safe I²C address (0x61) after single
+                                               confirmation and returns to the startup SERVICE MENU. Normal initialization resumes only after explicitly leaving the menu.
+                          • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation.
+                          • EXIT MENU        > Returns to the main interface, or resumes normal initialization when the SERVICE MENU was entered during startup.
+
+  • The SYSTEM MENU will time out after a preset period of inactivity, discarding any unsaved changes and returning to the main interface. The save/discard/cancel exit menu
+    requires explicit user action. During normal operation, the SERVICE MENU and DIAGNOSTICS use a longer inactivity timeout before returning to the main interface; when
+    entered during startup, SERVICE MENU/DIAGNOSTICS do not time out and normal initialization resumes only after explicit user action.
+  • The QUICK MENU will also time out after a preset period of inactivity and return to the main interface; its actions are applied immediately.
+  • Change VCO frequency using UP/DOWN and confirm with a short SET press. Holding SET cancels the frequency change and returns to the main interface unchanged.
+    Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. If no confirmation is given, the frequency edit will time out unchanged.
+  • PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after
+    lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes
+    the live lock/input information for display without overriding the operational lock state or output-port control; unexpected POR indications remain handled by the
+    normal recovery logic.
+  • If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be turned off completely from the QUICK MENU and will
+    be restored by pressing any button.
+  • During normal operation, I²C communication loss is indicated and retried automatically. System/Quick menus are closed and any unconfirmed frequency edit is cancelled,
+    while the SERVICE MENU remains accessible through its normal UP+DOWN gesture. DIAGNOSTICS stays browsable during recovery; a fixed "!" at the upper-right marks affected
+    data pages except SYSTEM UPTIME, live FL/input fields show "-" and PLL lock time shows "<unknown>" (RETURN TO MENU remains unmarked). A read-only interruption also
+    invalidates the measured lock time until a new uninterrupted acquisition starts. Pending settings are still discarded for safety. After communication is restored,
+    the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset; otherwise existing programming is retained and
+    lock verification resumes as needed.
+*/
+
+// === LIBRARIES ===
+    #include <EEPROM.h>
+    #include <Wire.h>
+    #include <LiquidCrystal.h>
+    #include <limits.h>
+
+
+// === COMPATIBILITY ===
+    #ifndef FPSTR
+        #define FPSTR(pstr_pointer) (reinterpret_cast<const __FlashStringHelper *>(pstr_pointer))
+    #endif
+
+
+// === SYSTEM CONSTANTS ===
+    // version & metadata
+    #define description "PLL CONTROLLER"
+    #define version "V5.2.0"
+    #define credits "(C)2026 Loenie"
+
+    // buttons pin mapping
+    const uint8_t downButton = 2; // DOWN button to ground
+    const uint8_t setButton = 3; // SET button to ground
+    const uint8_t upButton = 4; // UP button to ground
+
+    // indicators pin mapping (currently sharing same LED for both indicators)
+    const uint8_t lockIndicator = 5; // lock indicator LED anode
+    const uint8_t errIndicator = 5; // error indicator LED anode
+
+    // LCD display settings and pin mapping
+    LiquidCrystal lcd(8, 9, 10, 11, 12, 13); // RS, E, D4, D5, D6, D7
+    const uint8_t lcdBacklight = 6; // LCD backlight LED anode
+    const uint8_t lcdColumns = 16; // LCD column count
+    const uint8_t lcdRows = 2; // LCD row count
+    const uint8_t freqDisplayWidth = 8; // maximum width of formatted VCO frequency values on the LCD
+    const uint8_t lockStatusWidth = 5; // fixed LCD column width reserved for PLL lock status
+    const uint8_t lockStatusAnimWidth = 2; // character width of the unlocked status animation
+
+    // shared LCD strings (one PROGMEM copy for repeated text)
+    const char lcdTextMenuCursor[] PROGMEM = "> ";
+    const char lcdTextSetToEdit[] PROGMEM = "SET to edit";
+    const char lcdTextExitMenu[] PROGMEM = "EXIT MENU";
+    const char lcdTextSetToEnter[] PROGMEM = "SET to enter";
+    const char lcdTextSetToConfirm[] PROGMEM = "SET to confirm";
+    const char lcdTextSetToSelect[] PROGMEM = "SET to select";
+    const char lcdTextPLLLockTime[] PROGMEM = "PLL LOCK TIME";
+    const char lcdTextNotInitialized[] PROGMEM = "not initialized";
+    const char lcdTextVCOSettings[] PROGMEM = "VCO SETTINGS";
+    const char lcdTextDiagnostics[] PROGMEM = "DIAGNOSTICS";
+    const char lcdTextRecallMemory[] PROGMEM = "RECALL MEMORY";
+    const char lcdTextClearMemory[] PROGMEM = "CLEAR MEMORY";
+    const char lcdTextMemoryCursor[] PROGMEM = "> M";
+    const char lcdTextI2CFallback[] PROGMEM = "I2C FALLBACK";
+    const char lcdTextYes[] PROGMEM = "yes";
+    const char lcdTextNo[] PROGMEM = "no ";
+    const char lcdTextFactoryReset[] PROGMEM = "FACTORY RESET";
+    const char lcdTextCountSaturated[] PROGMEM = "99+";
+    const char lcdTextI2CAddress[] PROGMEM = "I2C ADDRESS";
+    const char lcdTextOn[] PROGMEM = "on ";
+    const char lcdTextOff[] PROGMEM = "off";
+    const char lcdSuffixMHz[] PROGMEM = " MHz";
+
+    // LCD brightness and dimmer settings
+    const uint8_t maxBrightness = 255; // maximum brightness
+    const uint8_t lowBrightness = 30; // dimmed brightness
+    const bool defaultBacklightDimActive = true; // default LCD backlight dimmer state
+
+    // menu entry title settings
+    const uint8_t menuEntryGapWidth = 3; // blank columns around the shrinking menu title before the target menu item appears
+    const bool defaultShowMenuTitle = true; // default menu entry title display state
+
+    // EEPROM storage settings
+    const uint16_t EEPROM_NAME_ADDR = 10; // station name                                  17 bytes (16 characters + null terminator)
+    const uint16_t EEPROM_DIM_ADDR = 30; // backlight dimmer setting                        1 byte
+    const uint16_t EEPROM_SHOW_MENU_TITLE_ADDR = 35; // menu entry title display setting    1 byte
+    const uint16_t EEPROM_DECIMAL_ADDR = 40; // VCO frequency decimal precision             1 byte
+    const uint16_t EEPROM_PLL_CONTROL_ADDR = 50; // PLL control setting                     1 byte
+    const uint16_t EEPROM_FREQBAND_ADDR = 60; // selected VCO frequency band index          2 bytes (1 byte x 2 XTAL)
+    const uint16_t EEPROM_XTAL_ADDR = 70; // 0 = 1.6 MHz, 1 = 3.2 MHz                       1 byte
+    const uint16_t EEPROM_I2C_ADDR = 80; // I²C address setting                             1 byte
+    const uint16_t EEPROM_OUTPUT_PORTS_ADDR = 86; // PLL output port mapping                3 bytes ([86]=locked, [87]=unlocked, [88]=RF drive)
+    const uint16_t EEPROM_BAND_FREQ_BASE_ADDR = 90; // VCO frequency per band, per XTAL    56 bytes (4 bytes x 7 bands x 2 XTAL)
+    const uint16_t EEPROM_USER_MEMORY_BASE_ADDR = 512; // user memory base address, requires 1 kB EEPROM and reserves room for future system settings
+    const unsigned long USER_MEMORY_EMPTY_FREQ = 0xFFFFFFFFUL; // erased/uninitialized user memory frequency value
+    const uint8_t EEPROM_ERASED_BYTE = 0xFF; // erased/uninitialized EEPROM byte value
+
+    // I²C settings
+    const unsigned long wireTimeout = 5000; // I²C transmission timeout, preventing I²C bus crash in some cases
+    const unsigned long i2cClock = 32000; // low I²C clock frequency, more robust through SDA/SCL RF decoupling circuitry (min. 31.25 kHz for 16 MHz ATmega328P)
+    const unsigned long i2cHealthCheckInterval = 2000; // I²C health check interval
+    const uint8_t i2cMaxRetries = 10; // maximum number of I²C transmission retries
+    const uint8_t i2cRetryDelay = 50; // delay between I²C retries
+
+    // Diagnostics settings
+    const unsigned long diagnosticsInterval = 50; // steady-state diagnostics status/display interval
+    const uint8_t diagnosticCountSaturation = 100; // shared saturation value for diagnostic counters displayed as 99+
+
+    // PLL settings
+        // PLL control
+        enum { CP_LOW = 0, CP_HIGH = 1, VARICAP_DRIVE_OFF = 2 }; // PLL control mode: charge pump low/high, or varicap drive disabled
+        const uint8_t defaultPLLControlMode = CP_HIGH; // default PLL control mode
+
+        // XTAL
+        const unsigned long PLL_XTAL_OPTIONS[] = { 1600000UL, 3200000UL }; // PLL crystal frequency options (Hz)
+        const uint8_t PLL_XTAL_MAX_DECIMALS[] = { 3, 2 }; // maximum decimal precision per PLL crystal frequency option
+        const uint8_t numXTALFreqOptions = sizeof(PLL_XTAL_OPTIONS) / sizeof(PLL_XTAL_OPTIONS[0]); // total number of selectable PLL crystal frequencies
+        static_assert(numXTALFreqOptions == sizeof(PLL_XTAL_MAX_DECIMALS) / sizeof(PLL_XTAL_MAX_DECIMALS[0]),
+            "XTAL option/precision table size mismatch");
+        const uint8_t defaultXTALFreqIndex = 1; // default PLL crystal frequency index = 3.2 MHz
+        const uint8_t defaultNumDecimals = 2; // default VCO frequency decimal precision
+
+        // I²C
+        const byte PLL_ADDRESSES[] = { 0x60, 0x61, 0x62, 0x63 }; // optional I²C addressing by P3-biasing; refer to TSA5511 datasheet, table 4 (0x61 is always valid)
+        const uint8_t numPLLAddresses = sizeof(PLL_ADDRESSES) / sizeof(PLL_ADDRESSES[0]); // total number of selectable PLL I²C addresses
+        const uint8_t defaultPLLAddrIndex = 1; // default I²C address index = 0x61
+
+        // output ports
+        enum { OUTPUT_PORT_PHASE_LOCKED, OUTPUT_PORT_PHASE_UNLOCKED, OUTPUT_PORT_PHASE_RF_DRIVE, numOutputPortEditPhases }; // output port editing phases
+        const uint8_t defaultPortIdxLock = 5; // default output port for an external lock indicator
+        const uint8_t defaultPortIdxUnlock = 6; // default output port for an external unlock indicator
+        const uint8_t defaultPortIdxRF = 2; // default output port to activate RF output stage in locked state
+
+        // lock monitoring
+        const unsigned long invalidLockTime = ULONG_MAX; // sentinel for unavailable/invalid PLL acquisition timing
+
+        // control constants
+        const byte PLL_PORT_NONE = 0x08; // no output port assigned
+        const byte PLL_BYTE1_POR = 0x80; // bit7 (power-on reset flag)
+        const byte PLL_BYTE1_FL = 0x40; // bit6 (lock flag)
+        const byte PLL_BYTE4_BASE = 0x8E; // control byte base: 1 CP T1 T0 1 1 1 OS, with CP/T1/T0/OS cleared
+        const byte PLL_BYTE4_CP = 0x40; // bit6 (CP)
+        const byte PLL_BYTE4_OS = 0x01; // bit0 (OS = varicap drive disable)
+
+        // divisor settings
+        const uint16_t PLL_XTAL_DIVISOR = 512; // crystal frequency divisor
+        const uint16_t PLL_DIVISOR_LIMIT = 0x7FFF; // cap divisor to 15 bits (MSB of high byte must remain zero)
+        const uint8_t PLL_PRESCALER_DIVISOR = 8; // prescaler divisor
+
+    // VCO frequency band settings
+    enum { FREQ_BAND_OIRT, FREQ_BAND_JAPAN, FREQ_BAND_WORLD, FREQ_BAND_2M, FREQ_BAND_70CM, FREQ_BAND_UHF, FREQ_BAND_FULL };
+    const unsigned long freqBands[][2] = {
+        { 65800000UL,   74000000UL }, // OIRT FM broadcast
+        { 76000000UL,   95000000UL }, // FM broadcast - Japan
+        { 87000000UL,  108000000UL }, // FM broadcast - ITU R1/R2/R3
+        { 144000000UL, 148000000UL }, // 2 m amateur band - ITU R1/R2/R3
+        { 420000000UL, 450000000UL }, // 70 cm amateur band - ITU R1/R2/R3
+        { 470000000UL, 862000000UL }, // UHF band - ITU R1/R2/R3 (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
+        { 64000000UL, 1300000000UL }  // full range as per TSA5511 specification (with XTAL = 1.6 MHz, upper frequency will be capped to 819.175 MHz)
+    };
+    const unsigned long hzPerMHz = 1000000UL; // number of Hz in one MHz
+    const byte defaultFreqBandIndex = FREQ_BAND_WORLD; // default VCO frequency band
+    const byte numFreqBands = sizeof(freqBands) / sizeof(freqBands[0]); // total number of selectable VCO frequency bands
+    static_assert(EEPROM_BAND_FREQ_BASE_ADDR + numFreqBands * numXTALFreqOptions * sizeof(unsigned long) <= EEPROM_USER_MEMORY_BASE_ADDR,
+        "Band-frequency bank overlaps user-memory bank");
+
+    // user memory settings
+    const byte numUserMemorySlots = 6; // number of user memory slots per VCO frequency band and XTAL frequency
+    static_assert(EEPROM_USER_MEMORY_BASE_ADDR + numFreqBands * numXTALFreqOptions * numUserMemorySlots * sizeof(unsigned long) <= 1024,
+        "User-memory bank exceeds 1 kB EEPROM");
+
+    // station name settings
+    const char defaultName[] PROGMEM = "Station Name"; // default station name stored in flash
+    const uint8_t maxNameLength = lcdColumns; // maximum station name length
+    const uint8_t asciiRange[2] = { 32, 126 }; // printable ASCII character range
+
+    // timing parameters
+        // time unit conversions
+        const uint8_t secondsPerMinute = 60; // seconds per minute
+        const uint8_t minutesPerHour = 60; // minutes per hour
+        const uint8_t hoursPerDay = 24; // hours per day
+        const unsigned long millisecondsPerSecond = 1000UL; // milliseconds per second
+        const unsigned int millisecondsPerTenth = millisecondsPerSecond / 10; // milliseconds per tenth of a second
+        const unsigned long secondsPerHour = (unsigned long)secondsPerMinute * minutesPerHour; // seconds per hour
+        const unsigned long secondsPerDay = secondsPerHour * hoursPerDay; // seconds per day
+        const unsigned long lockTimeTenthsLimit = 100UL * millisecondsPerSecond; // show tenths below 100 s once locked
+        const unsigned long lockingTimeTenthsLimit = 1000UL * millisecondsPerSecond; // show tenths below 1000 s while locking
+        const unsigned long lockTimeDisplayLimit = 10000UL * millisecondsPerSecond; // show >9999 s at 10000 s and above
+
+        // UI display delays and intervals
+        const unsigned long splashDelay = 2500; // duration to show splash screen
+        const unsigned long animInterval = 250; // animation speed during PLL unlocked status
+        const unsigned long rfOutputStatusInterval = 1000; // RF drive disabled status alternation interval
+        const unsigned long cursorBlinkInterval = 400; // half-cycle of the underscore cursor blink
+        const unsigned long errBlinkRate = 250; // error indicator blink interval
+        const unsigned long i2cFallbackDelay = 2500; // duration to show I²C address fallback notification
+        const unsigned long factoryResetMinDisplayTime = 750; // minimum duration to show factory reset status
+        const unsigned long menuEntryTitleDelay = 1000; // duration to show menu entry title
+        const unsigned long menuEntryAnimDelay = 70; // menu entry transition animation step delay
+        const unsigned long dimDelay = 2500; // brightness dimmer delay
+        const uint8_t dimStepDelay = 7; // gradual brightness dimming speed
+        const uint8_t backlightFadeStepDelay = 1; // LCD backlight fade-out speed
+
+        // UI inactivity timeouts
+        const unsigned long freqSetTimeout = 5000; // inactivity timeout in frequency set mode
+        const unsigned long menuTimeout = 20000; // inactivity timeout in menu navigation mode
+        const unsigned long serviceMenuTimeout = 300000; // extended inactivity timeout in runtime service/diagnostics mode
+
+        // button input timings and thresholds
+        const unsigned long zeroTimeClickSentinel = ULONG_MAX; // nonzero stand-in for a short-click timestamp at millis() == 0
+        const unsigned long initialPressDelay = 1000; // delay before auto-repeat when holding button
+        const unsigned long setLongPressDelay = 800; // delay before SET long-press actions are triggered
+        const unsigned long charScrollInterval = 200; // interval between character scroll steps
+        const unsigned long baseRepeatInterval = 80; // initial repeat interval before acceleration
+        const uint16_t serviceChordWindow = 150; // max. delay between UP/DOWN presses to recognize the service-menu chord
+        const uint16_t serviceMenuHoldDelay = 1000; // required UP+DOWN hold time before opening the service menu
+        const uint16_t pressAccelerationOffset = initialPressDelay * 7 / 10; // 0.7 base factor expressed as an integer delay term
+        const uint16_t pressTargetSweepSpeed = 500; // target sweep speed (Hz per ms) - high speeds may be limited by loop/display latencies
+        const uint16_t setClickInterval = 350; // double-click detection threshold
+        const uint8_t buttonTimingTolerance = 50; // guard interval to suppress unintended button events
+
+    // SET gestures
+    enum {
+        SET_GESTURE_NONE,
+        SET_GESTURE_SHORT,
+        SET_GESTURE_LONG
+    };
+
+    // menu
+    // Keep menu-level ordering intact: range comparisons below rely on system menus preceding SERVICE/DIAGNOSTICS and QUICK/USER menus.
+    enum {
+        MENU_LEVEL_MAIN,
+        MENU_LEVEL_VCO_SETTINGS,
+        MENU_LEVEL_PLL_SETTINGS,
+        MENU_LEVEL_GENERAL_SETTINGS,
+        MENU_LEVEL_SERVICE_MENU,
+        MENU_LEVEL_DIAGNOSTICS,
+        MENU_LEVEL_QUICK_MENU,
+        MENU_LEVEL_USER_MEMORY,
+        numMenuLevels
+    };
+
+    enum {
+        SYSTEM_MENU_VCO_SETTINGS,
+        SYSTEM_MENU_PLL_SETTINGS,
+        SYSTEM_MENU_GENERAL_SETTINGS,
+        SYSTEM_MENU_EXIT,
+        numSystemMenuItems
+    };
+
+    enum {
+        VCO_MENU_FREQUENCY_BAND,
+        VCO_MENU_PRECISION,
+        VCO_MENU_EXIT,
+        numVCOMenuItems
+    };
+
+    enum {
+        PLL_MENU_I2C_ADDRESS,
+        PLL_MENU_XTAL_FREQUENCY,
+        PLL_MENU_PLL_CONTROL,
+        PLL_MENU_PORT_MAPPING,
+        PLL_MENU_EXIT,
+        numPLLMenuItems
+    };
+
+    enum {
+        GENERAL_MENU_STATION_NAME,
+        GENERAL_MENU_BACKLIGHT_DIMMER,
+        GENERAL_MENU_SHOW_MENU_TITLE,
+        GENERAL_MENU_EXIT,
+        numGeneralMenuItems
+    };
+
+    enum {
+        SERVICE_MENU_DIAGNOSTICS,
+        SERVICE_MENU_SYSTEM_INFO,
+        SERVICE_MENU_I2C_FALLBACK,
+        SERVICE_MENU_FACTORY_RESET,
+        SERVICE_MENU_EXIT,
+        numServiceMenuItems
+    };
+
+    enum {
+        DIAGNOSTICS_MENU_STATUS,
+        DIAGNOSTICS_MENU_INPUTS,
+        DIAGNOSTICS_MENU_LOCK_TIME,
+        DIAGNOSTICS_MENU_PLL_DIVISOR,
+        DIAGNOSTICS_MENU_OUTPUT_PORTS,
+        DIAGNOSTICS_MENU_I2C_ADDRESS,
+        DIAGNOSTICS_MENU_I2C_RECOVERIES,
+        DIAGNOSTICS_MENU_UPTIME,
+        DIAGNOSTICS_MENU_EXIT,
+        numDiagnosticsMenuItems
+    };
+
+    enum {
+        USER_MENU_RECALL_MEMORY,
+        USER_MENU_STORE_MEMORY,
+        USER_MENU_CLEAR_MEMORY,
+        USER_MENU_RF_DRIVE,
+        USER_MENU_LCD_OFF,
+        USER_MENU_EXIT,
+        numUserMenuItems
+    };
+
+    enum {
+        EXIT_MENU_SAVE_CHANGES,
+        EXIT_MENU_DISCARD,
+        EXIT_MENU_CANCEL,
+        numExitMenuItems
+    };
+
+    // number of selectable menu items per menu level
+    const uint8_t menuLength[numMenuLevels] = {
+        numSystemMenuItems,       // MENU_LEVEL_MAIN
+        numVCOMenuItems,          // MENU_LEVEL_VCO_SETTINGS
+        numPLLMenuItems,          // MENU_LEVEL_PLL_SETTINGS
+        numGeneralMenuItems,      // MENU_LEVEL_GENERAL_SETTINGS
+        numServiceMenuItems,      // MENU_LEVEL_SERVICE_MENU
+        numDiagnosticsMenuItems,  // MENU_LEVEL_DIAGNOSTICS
+        numUserMenuItems,         // MENU_LEVEL_QUICK_MENU
+        numUserMemorySlots + 1    // MENU_LEVEL_USER_MEMORY, including return option
+    };
+
+
+// === DISPLAY MODES ===
+    enum {
+        SPLASH_SCREEN,
+        MAIN_INTERFACE,
+        SET_FREQUENCY_INTERFACE,
+        MENU_INTERFACE,
+        STATION_NAME_EDITOR,
+        PLL_LOCK_STATUS,
+        MENU_ENTRY_TITLE,
+        LCD_HIBERNATE,
+        I2C_ERROR,
+        FACTORY_RESET_STATUS,
+        I2C_STATUS_MARKER
+    };
+
+
+// === RUNTIME STATE VARIABLES ===
+    // I²C
+    enum { I2C_RECOVERY_NONE, I2C_RECOVERY_READ, I2C_RECOVERY_WRITE };
+    uint8_t i2cRecoveryState = I2C_RECOVERY_NONE; // I²C recovery state, preserving pre-error PLL state where applicable
+    uint8_t i2cRecoveryCount = 0; // successfully completed I²C recoveries since controller startup (displayed as 99+ at saturation)
+    uint8_t retryCount = 0; // consecutive I²C status-read failures during retry/recovery handling
+    uint8_t pllAddrIndex = defaultPLLAddrIndex; // current I²C address index
+    bool i2cFallbackActive = false; // true while the I²C fallback notification is displayed
+    bool startupServiceMode = false; // true while SERVICE MENU is entered before normal PLL initialization
+
+    // PLL settings
+    unsigned long lockTime = 0; // acquisition start timestamp while pending; last successful lock duration otherwise; invalidLockTime if unknown
+    byte pllStatusByte = 0; // most recently read raw TSA5511 status byte
+    byte pllPortByte = 0; // last successfully programmed TSA5511 output-port byte
+    uint8_t xtalFreqIndex = defaultXTALFreqIndex; // current PLL crystal frequency index
+    uint8_t portIdxLock = defaultPortIdxLock; // output port for an external lock indicator
+    uint8_t portIdxUnlock = defaultPortIdxUnlock; // output port for an external unlock indicator
+    uint8_t portIdxRF = defaultPortIdxRF; // output port to activate RF output stage in locked state
+    uint8_t pllControlMode = defaultPLLControlMode; // current PLL control mode
+    uint8_t porCount = 0; // unexpected POR events observed since controller startup, excluding the initial POR baseline (displayed as 99+ at saturation)
+    bool pllLock = false; // true if PLL is locked
+    bool pllCheckPending = false; // true while PLL lock verification is pending after programming
+    bool pllStatusValid = false; // true after at least one successful TSA5511 status read since controller startup
+    bool rfOutputEnabled = true; // true if RF drive output is temporarily enabled
+
+    // buttons
+    bool buttonDownState = false; // momentary state of DOWN button
+    bool buttonSetState = false; // momentary state of SET button
+    bool buttonUpState = false; // momentary state of UP button
+    bool buttonDownPressed = false; // DOWN button press latch for edge/repeat handling
+    bool buttonSetPressed = false; // SET button press latch for gesture handling
+    bool buttonUpPressed = false; // UP button press latch for edge/repeat handling
+
+    // station name editor
+    char stationName[maxNameLength + 1]; // current station name (null-terminated)
+    uint8_t editPosition = 0; // current cursor position in station name editor
+    bool stationNameEditMode = false; // true if station name editor is active
+
+    // LCD backlight control
+    bool backlightDimActive = defaultBacklightDimActive; // true if dimmer function is enabled
+    bool showMenuTitle = defaultShowMenuTitle; // true if menu entry titles are shown when entering menus
+    bool backlightOffRequested = false; // true if LCD backlight off was requested from the quick menu
+    bool backlightOff = false; // true if backlight is off
+
+    // frequency control
+    unsigned long lowerFreq = 0; // lower VCO frequency band edge
+    unsigned long upperFreq = 0; // upper VCO frequency band edge
+    unsigned long currentFreq = 0; // last successfully programmed VCO frequency
+    unsigned long targetFreq = 0; // target VCO frequency
+    byte freqBandIndex[numXTALFreqOptions]; // currently selected VCO frequency band index per XTAL frequency
+    uint8_t numDecimals = defaultNumDecimals; // VCO frequency decimal precision
+    bool freqSetMode = false; // true if frequency set mode is active
+
+    // menu
+    struct { // temporary system settings, committed only on SAVE CHANGES
+        char stationName[maxNameLength + 1];
+        byte freqBandIndex[numXTALFreqOptions];
+        uint8_t pllAddrIndex, xtalFreqIndex, pllControlMode, portIdxLock, portIdxUnlock, portIdxRF, numDecimals;
+        bool backlightDimActive, showMenuTitle;
+    } menuSettings;
+    unsigned long menuLockStartTime = 0; // time at which temporary menu input lock started
+    unsigned long menuInactivityTimer = 0; // tracks last interaction time in menu mode
+    uint8_t menuLevel = MENU_LEVEL_MAIN; // selected menu level
+    uint8_t menuIndex = SYSTEM_MENU_VCO_SETTINGS; // selected item index within current menu level
+    uint8_t prevMainMenuIndex = SYSTEM_MENU_VCO_SETTINGS; // main menu index to restore when returning from a system submenu
+    uint8_t outputPortsEditPhase = OUTPUT_PORT_PHASE_LOCKED; // selected output port edit phase
+    uint8_t menuEntryAnimStep = 0; // active menu-entry animation step; zero when no entry animation is running
+    uint8_t userMemoryAction = USER_MENU_RECALL_MEMORY; // selected user memory action
+    bool menuMode = false; // true if menu session is active
+    bool menuEditMode = false; // true when editing a setting
+    bool menuExitConfirmMode = false; // true if SAVE/DISCARD/CANCEL exit submenu is active
+    bool serviceActionConfirm = false; // true when the current service-action confirmation is set to yes
+    bool factoryResetFinalConfirm = false; // true when final factory reset confirmation is active
+    bool menuInputReleaseGuard = false; // suppress menu input across context transitions until physical button release
+
+
+// === FUNCTION PROTOTYPES ===
+    bool attemptI2C(bool isRead, byte address, byte* buffer, byte length, bool singleAttempt = false);
+    void display(uint8_t mode, bool refresh = true);
+
+
+// === SYSTEM STATE UTILITIES ===
+    bool systemSettingsChanged() {
+        return menuMode && menuLevel <= MENU_LEVEL_GENERAL_SETTINGS && (
+            menuSettings.pllAddrIndex != pllAddrIndex ||
+            menuSettings.xtalFreqIndex != xtalFreqIndex ||
+            menuSettings.pllControlMode != pllControlMode ||
+            menuSettings.portIdxLock != portIdxLock ||
+            menuSettings.portIdxUnlock != portIdxUnlock ||
+            menuSettings.portIdxRF != portIdxRF ||
+            menuSettings.numDecimals != numDecimals ||
+            memcmp(menuSettings.freqBandIndex, freqBandIndex, sizeof(freqBandIndex)) != 0 ||
+            menuSettings.backlightDimActive != backlightDimActive ||
+            menuSettings.showMenuTitle != showMenuTitle ||
+            memcmp(menuSettings.stationName, stationName, sizeof(stationName)) != 0);
+    }
+
+    unsigned long getUptimeSeconds() {
+        static unsigned long lastMillis = 0, remainder = 0, uptimeSeconds = 0;
+        unsigned long currentMillis = millis();
+        remainder += currentMillis - lastMillis; // unsigned subtraction remains valid across millis() rollover
+        lastMillis = currentMillis;
+        if (remainder >= millisecondsPerSecond) {
+            uptimeSeconds += remainder / millisecondsPerSecond;
+            remainder %= millisecondsPerSecond;
+        }
+        return uptimeSeconds;
+    }
+
+
+// === PLL OUTPUT PORT UTILITIES ===
+    bool isValidPLLPort(uint8_t portIndex) {
+        return portIndex < PLL_PORT_NONE;
+    }
+
+    bool isMappedToOtherOutput(uint8_t portIndex) {
+        if (!isValidPLLPort(portIndex)) return false; // allow 'none' to be assigned to multiple functions
+        return (outputPortsEditPhase != OUTPUT_PORT_PHASE_LOCKED && portIndex == menuSettings.portIdxLock)
+            || (outputPortsEditPhase != OUTPUT_PORT_PHASE_UNLOCKED && portIndex == menuSettings.portIdxUnlock)
+            || (outputPortsEditPhase != OUTPUT_PORT_PHASE_RF_DRIVE && portIndex == menuSettings.portIdxRF);
+    }
+
+    void adjustOutputPort(int8_t direction) {
+        uint8_t* portIndex = &menuSettings.portIdxRF;
+        if (outputPortsEditPhase == OUTPUT_PORT_PHASE_LOCKED) portIndex = &menuSettings.portIdxLock;
+        else if (outputPortsEditPhase == OUTPUT_PORT_PHASE_UNLOCKED) portIndex = &menuSettings.portIdxUnlock;
+
+        for (uint8_t attempts = 0; attempts <= PLL_PORT_NONE; attempts++) {
+            if (direction < 0) {
+                if (*portIndex == PLL_PORT_NONE) *portIndex = PLL_PORT_NONE - 1;
+                else if (*portIndex == 0) *portIndex = PLL_PORT_NONE;
+                else (*portIndex)--;
+            } else {
+                if (*portIndex == PLL_PORT_NONE) *portIndex = 0;
+                else if (*portIndex == PLL_PORT_NONE - 1) *portIndex = PLL_PORT_NONE;
+                else (*portIndex)++;
+            }
+
+            if (!isMappedToOtherOutput(*portIndex)) return;
+        }
+    }
+
+    bool updateOutputPorts(bool locked) {
+        if (locked && !pllLock) return false;
+
+        const uint8_t portIndex = locked ? portIdxLock : portIdxUnlock;
+        byte data[2] = {
+            byte(PLL_BYTE4_BASE
+                | ((pllControlMode == VARICAP_DRIVE_OFF) ? PLL_BYTE4_OS
+                    : ((!locked || pllControlMode == CP_HIGH) ? PLL_BYTE4_CP : 0))),
+            byte(isValidPLLPort(portIndex) ? _BV(portIndex) : 0)
+        };
+        if (locked && isValidPLLPort(portIdxRF) && rfOutputEnabled) data[1] |= _BV(portIdxRF);
+        if (!attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 2)) return false;
+        pllPortByte = data[1];
+        return true;
+    }
+
+
+// === FREQUENCY UTILITIES ===
+    // Minimum VCO frequency step size in Hz, derived from the PLL reference frequency and prescaler
+    unsigned long getVCOFreqStep() { return (PLL_XTAL_OPTIONS[xtalFreqIndex] * PLL_PRESCALER_DIVISOR) / PLL_XTAL_DIVISOR; }
+
+    // maximum decimal precision supported by the current XTAL setting
+    uint8_t getMaxNumDecimals() { return (xtalFreqIndex < numXTALFreqOptions) ? PLL_XTAL_MAX_DECIMALS[xtalFreqIndex] : defaultNumDecimals; }
+
+    // minimum decimal precision required to represent a valid PLL frequency exactly
+    uint8_t getRequiredNumDecimals(unsigned long frequency) {
+        unsigned long divisor = hzPerMHz;
+        uint8_t decimals = 0;
+        while (decimals < getMaxNumDecimals() && frequency % divisor) {
+            divisor /= 10;
+            decimals++;
+        }
+        return decimals;
+    }
+
+    // determine step size multiplier for current display precision and XTAL setting
+    uint8_t getStepSizeMultiplier() {
+        unsigned long displayStepSize = hzPerMHz;  // base display step size in Hz before applying decimal precision
+        for (uint8_t i = constrain(numDecimals, 0, getMaxNumDecimals()); i; i--) displayStepSize /= 10;
+        uint8_t multiplier = (displayStepSize + getVCOFreqStep() - 1) / getVCOFreqStep();
+        while ((unsigned long)getVCOFreqStep() * multiplier % displayStepSize) multiplier++; // ensure each PLL step is exactly representable at current display precision
+        return multiplier;
+    }
+
+    // VCO frequency validation
+    unsigned long validateFreq(unsigned long frequency, bool alignToStepSize = false, int8_t alignDirection = 0) {
+        frequency = constrain(frequency, getVCOFreqStep(), (unsigned long)PLL_DIVISOR_LIMIT * getVCOFreqStep()); // constrain VCO frequency within valid PLL divisor range
+        unsigned long step = getVCOFreqStep() * (alignToStepSize ? getStepSizeMultiplier() : 1); // select step size (base PLL step size or visible step size)
+        if (alignDirection > 0) return ((frequency + step - 1) / step) * step; // align frequency upward to next valid step
+        if (alignDirection < 0) return (frequency / step) * step; // align frequency downward to previous valid step
+        return ((frequency + step / 2) / step) * step; // align frequency to nearest valid step using integer rounding
+    }
+
+
+// === MAIN PROGRAM LOGIC ===
+void setup() {
+    setupHardware();
+    initialize();
+}
+
+void loop() {
+    getUptimeSeconds(); // keep rollover-safe uptime accounting current even when its diagnostics page is not displayed
+    readButtons();
+    handleBacklightControl();
+    handleMainInput();
+    handleMenu();
+    monitorPLL();
+}
+
+void setupHardware() {
+    // I/O pins
+    pinMode(downButton, INPUT_PULLUP);
+    pinMode(setButton, INPUT_PULLUP);
+    pinMode(upButton, INPUT_PULLUP);
+    pinMode(lockIndicator, OUTPUT);
+    pinMode(errIndicator, OUTPUT);
+    pinMode(lcdBacklight, OUTPUT);
+
+    // I²C
+    Wire.begin();
+    Wire.setClock(i2cClock);
+    Wire.setWireTimeout(wireTimeout, true);
+
+    // display
+    lcd.begin(lcdColumns, lcdRows);
+}
+
+void initialize() {
+    analogWrite(lcdBacklight, maxBrightness);
+    display(SPLASH_SCREEN);
+    delay(splashDelay);
+    readSettings();
+    handleStartupServiceMenu();
+    readInitialPLLStatus();
+    configurePLL(false);
+    display(MAIN_INTERFACE);
+    display(PLL_LOCK_STATUS);
+}
+
+// enter SERVICE MENU when SET is held through the startup splash screen
+void handleStartupServiceMenu() {
+    if (digitalRead(setButton)) return;
+
+    startupServiceMode = menuMode = true;
+    menuLevel = MENU_LEVEL_SERVICE_MENU;
+    menuIndex = SERVICE_MENU_DIAGNOSTICS;
+    menuEditMode = menuExitConfirmMode = stationNameEditMode = false;
+    serviceActionConfirm = factoryResetFinalConfirm = false;
+    display(MENU_ENTRY_TITLE);
+    menuInputReleaseGuard = true;
+    menuInactivityTimer = millis();
+    while (startupServiceMode) {
+        getUptimeSeconds();
+        readButtons();
+        handleMenu();
+        if (startupServiceMode) monitorPLL(); // read-only status probing while startup DIAGNOSTICS is active
+    }
+    menuMode = menuEditMode = menuExitConfirmMode = stationNameEditMode = false;
+    serviceActionConfirm = factoryResetFinalConfirm = false;
+    menuLevel = MENU_LEVEL_MAIN;
+    menuIndex = SYSTEM_MENU_VCO_SETTINGS;
+}
+
+// read and retain TSA5511 status before initial PLL programming
+void readInitialPLLStatus() {
+    if (attemptI2C(true, PLL_ADDRESSES[pllAddrIndex], &pllStatusByte, 1)) {
+        if (pllStatusValid && (pllStatusByte & PLL_BYTE1_POR) && porCount < diagnosticCountSaturation) porCount++;
+        pllStatusValid = true;
+    }
+}
+
+// restore safe default I²C address (0x61) from startup SERVICE MENU
+void restoreI2CDefaults() {
+    pllAddrIndex = defaultPLLAddrIndex;
+    storeI2CAddress();
+    i2cFallbackActive = true;
+    display(I2C_ERROR);
+    delay(i2cFallbackDelay);
+    i2cFallbackActive = false;
+    display(MENU_INTERFACE); // remain in startup SERVICE MENU; explicit exit resumes initialization
+}
+
+void readSettings() {
+    readXTALFreq();
+    readNumDecimals();
+    readLastFrequencyBand();
+    readI2CAddress();
+    readPLLControl();
+    readOutputPorts();
+    readStationName();
+    readDimmerStatus();
+    readShowMenuTitleStatus();
+}
+
+void readXTALFreq() {
+    uint8_t val = EEPROM.read(EEPROM_XTAL_ADDR);
+    xtalFreqIndex = (val < numXTALFreqOptions) ? val : defaultXTALFreqIndex;
+}
+
+void readNumDecimals() {
+    uint8_t val = EEPROM.read(EEPROM_DECIMAL_ADDR);
+    numDecimals = min(val, getMaxNumDecimals()); // limit precision to valid range for current XTAL setting
+}
+
+// read selected VCO frequency band from EEPROM and apply new range
+void readLastFrequencyBand() {
+    // read band index per XTAL frequency
+    for (uint8_t i = 0; i < numXTALFreqOptions; i++) {
+        uint8_t val = EEPROM.read(EEPROM_FREQBAND_ADDR + i);
+        freqBandIndex[i] = (val < numFreqBands) ? val : defaultFreqBandIndex;
+    }
+
+    // apply current band for active XTAL frequency
+    uint8_t currentBandIndex = freqBandIndex[xtalFreqIndex];
+    lowerFreq = validateFreq(freqBands[currentBandIndex][0], true, 1);
+    upperFreq = validateFreq(freqBands[currentBandIndex][1], true, -1);
+
+    // load last-used frequency for this band and XTAL frequency if valid, else default to lower band edge
+    unsigned long storedFreq = readLastBandFrequency(currentBandIndex, xtalFreqIndex);
+    targetFreq = (storedFreq >= freqBands[currentBandIndex][0]
+        && storedFreq <= min(freqBands[currentBandIndex][1], (unsigned long)PLL_DIVISOR_LIMIT * getVCOFreqStep())
+        && validateFreq(storedFreq, false) == storedFreq)
+        ? constrain(validateFreq(storedFreq, true), lowerFreq, upperFreq) : lowerFreq;
+}
+
+// read last-used VCO frequency for selected band index and XTAL frequency
+unsigned long readLastBandFrequency(byte bandIndex, byte xtalIndex) {
+    if (bandIndex >= numFreqBands || xtalIndex >= numXTALFreqOptions) return 0;
+    unsigned long freq;
+    EEPROM.get(EEPROM_BAND_FREQ_BASE_ADDR + ((bandIndex * numXTALFreqOptions + xtalIndex) * sizeof(unsigned long)), freq);
+    return freq;
+}
+
+void readI2CAddress() {
+    uint8_t val = EEPROM.read(EEPROM_I2C_ADDR);
+    pllAddrIndex = (val < numPLLAddresses) ? val : defaultPLLAddrIndex;
+}
+
+void readPLLControl() {
+    uint8_t v = EEPROM.read(EEPROM_PLL_CONTROL_ADDR); // read stored PLL control mode
+    pllControlMode = (v <= VARICAP_DRIVE_OFF) ? v : defaultPLLControlMode; // validate and apply default if needed
+}
+
+void readOutputPorts() {
+    uint8_t b0 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + OUTPUT_PORT_PHASE_LOCKED); // read locked index, PLL_PORT_NONE, or EEPROM_ERASED_BYTE if EEPROM is blank
+    uint8_t b1 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + OUTPUT_PORT_PHASE_UNLOCKED); // read unlocked index, PLL_PORT_NONE, or EEPROM_ERASED_BYTE if EEPROM is blank
+    uint8_t b2 = EEPROM.read(EEPROM_OUTPUT_PORTS_ADDR + OUTPUT_PORT_PHASE_RF_DRIVE); // read RF drive index, PLL_PORT_NONE, or EEPROM_ERASED_BYTE if EEPROM is blank
+
+    // apply default output port mapping in case of uninitialized/blank EEPROM
+    if (b0 == EEPROM_ERASED_BYTE && b1 == EEPROM_ERASED_BYTE && b2 == EEPROM_ERASED_BYTE) {
+        portIdxLock = defaultPortIdxLock;
+        portIdxUnlock = defaultPortIdxUnlock;
+        portIdxRF = defaultPortIdxRF;
+        return;
+    }
+
+    // clamp to valid range, else 'none'
+    portIdxLock = isValidPLLPort(b0) ? b0 : PLL_PORT_NONE; // locked index or 'none'
+    portIdxUnlock = isValidPLLPort(b1) ? b1 : PLL_PORT_NONE; // unlocked index or 'none'
+    portIdxRF = isValidPLLPort(b2) ? b2 : PLL_PORT_NONE; // RF drive index or 'none'
+
+    // remove duplicate output port assignments from old or corrupted EEPROM data
+    if (isValidPLLPort(portIdxUnlock) && portIdxUnlock == portIdxLock) portIdxUnlock = PLL_PORT_NONE;
+    if (isValidPLLPort(portIdxRF) && (portIdxRF == portIdxLock || portIdxRF == portIdxUnlock)) portIdxRF = PLL_PORT_NONE;
+}
+
+void readStationName() {
+    EEPROM.get(EEPROM_NAME_ADDR, stationName); // read station name from EEPROM
+    bool invalid = stationName[maxNameLength] != '\0'; // check if station name has a valid null terminator
+    stationName[maxNameLength] = '\0'; // ensure null terminator regardless
+
+    // check for invalid characters or uninitialized EEPROM content
+    for (uint8_t i = 0; i < maxNameLength; i++) {
+        uint8_t c = (uint8_t)stationName[i];
+        if (c < asciiRange[0] || c > asciiRange[1]) {
+            invalid = true;
+            break;
+        }
+    }
+    if (invalid) {
+        const uint8_t defaultNameLength = sizeof(defaultName) - 1;
+        memcpy_P(stationName, defaultName, defaultNameLength); // copy default station name from flash
+        memset(stationName + defaultNameLength, ' ', maxNameLength - defaultNameLength); // fill remainder with spaces
+        stationName[maxNameLength] = '\0'; // ensure null terminator again
+    }
+}
+
+void readDimmerStatus() {
+    uint8_t val = EEPROM.read(EEPROM_DIM_ADDR);
+    backlightDimActive = (val == EEPROM_ERASED_BYTE) ? defaultBacklightDimActive : (val != 0); // erased value falls back to default; any other non-zero value reads as true
+}
+
+void readShowMenuTitleStatus() {
+    uint8_t val = EEPROM.read(EEPROM_SHOW_MENU_TITLE_ADDR);
+    showMenuTitle = (val == EEPROM_ERASED_BYTE) ? defaultShowMenuTitle : (val != 0); // erased value falls back to default; any other non-zero value reads as true
+}
+
+void readButtons() {
+    static unsigned long lastMultiButtonTime = 0;
+    static bool multiButtonLockout = false;
+    unsigned long currentMillis = millis();
+
+    buttonDownState = !digitalRead(downButton);
+    buttonSetState  = !digitalRead(setButton);
+    buttonUpState   = !digitalRead(upButton);
+
+    uint8_t buttonCount = buttonDownState + buttonSetState + buttonUpState;
+
+    if (buttonCount > 1) multiButtonLockout = true;
+    if (multiButtonLockout) {
+        buttonDownState = buttonSetState = buttonUpState = false;
+        buttonDownPressed = buttonSetPressed = buttonUpPressed = false;
+        if (buttonCount == 0) {
+            multiButtonLockout = false;
+            lastMultiButtonTime = currentMillis;
+        }
+        return;
+    }
+    if (currentMillis - lastMultiButtonTime < buttonTimingTolerance) {
+        buttonDownState = buttonSetState = buttonUpState = false;
+        buttonDownPressed = buttonSetPressed = buttonUpPressed = false;
+    }
+}
+
+void handleBacklightControl() {
+    static unsigned long dimmerTimer = 0;
+    static unsigned long lastDimmerUpdateTime = 0;
+    static unsigned long lastRFOutputStatusTime = 0;
+    static uint8_t currentBrightness = maxBrightness;
+
+    if (i2cRecoveryState) {
+        currentBrightness = maxBrightness;
+        analogWrite(lcdBacklight, currentBrightness);
+        return;
+    }
+
+    if (backlightOffRequested) {
+        backlightOffRequested = false;
+        while (currentBrightness) {
+            analogWrite(lcdBacklight, --currentBrightness);
+            delay(backlightFadeStepDelay);
+        }
+        backlightOff = true;
+        display(LCD_HIBERNATE);
+        while (!digitalRead(setButton)); // ensure that SET is released, to prevent backlight from being turned on again
+        buttonSetState = buttonSetPressed = false;
+        return;
+    }
+
+    // no LCD backlight control in frequency set mode or menu mode
+    if (freqSetMode || menuMode) {
+        dimmerTimer = 0;
+        return;
+    }
+
+    unsigned long currentMillis = millis();
+
+    // restore brightness by pressing any button; raw UP+DOWN also keeps the service-menu hold from dimming
+    if (buttonDownState || buttonSetState || buttonUpState || (!digitalRead(downButton) && !digitalRead(upButton))) {
+        currentBrightness = maxBrightness;
+        analogWrite(lcdBacklight, currentBrightness);
+        if (backlightOff) {
+            backlightOff = false;
+            display(LCD_HIBERNATE);
+            uint8_t btn = buttonDownState ? downButton : buttonUpState ? upButton : setButton; // determine which button triggered the wake-up
+            while (!digitalRead(btn)); // wait for button release
+            switch (btn) { // clear button state and press flags to suppress immediate action
+                case downButton: buttonDownState = buttonDownPressed = false; break;
+                case upButton: buttonUpState = buttonUpPressed = false; break;
+                case setButton: buttonSetState = buttonSetPressed = false; break;
+            }
+        }
+        dimmerTimer = currentMillis;
+    }
+
+    // no LCD backlight dimming while RF drive is temporarily disabled
+    if (!rfOutputEnabled) {
+        dimmerTimer = 0;
+        if (!backlightOff && currentBrightness < maxBrightness) {
+            currentBrightness = maxBrightness;
+            analogWrite(lcdBacklight, currentBrightness);
+        }
+        if (!backlightOff && currentMillis - lastRFOutputStatusTime >= rfOutputStatusInterval) {
+            lastRFOutputStatusTime = currentMillis;
+            display(MAIN_INTERFACE, false); // alternate only row 2; frequency/lock display remains unchanged
+        }
+        return;
+    }
+
+    // no LCD backlight dimming if unlocked
+    if (!pllLock) {
+        dimmerTimer = 0;
+        return;
+    }
+
+    // initialize dimmer timer without blocking SET long-press handling
+    if (dimmerTimer == 0) {
+        dimmerTimer = currentMillis;
+    }
+
+    // gradual dimming after timeout
+    if (backlightDimActive && (currentMillis - dimmerTimer > dimDelay) && !backlightOff && currentBrightness > lowBrightness) {
+        if (currentMillis - lastDimmerUpdateTime >= dimStepDelay) {
+            currentBrightness--;
+            analogWrite(lcdBacklight, currentBrightness);
+            lastDimmerUpdateTime = currentMillis;
+        }
+    }
+}
+
+void handleMainInput() {
+    enum { SERVICE_PRESS_CHORD = 2, SERVICE_PRESS_CANCELLED = 3 };
+    static unsigned long freqSetInactivityTimer = 0;
+    static int8_t servicePress = 0; // -1/+1 = pending DOWN/UP; named states handle chord acceptance/cancellation
+
+    if (menuMode) {
+        servicePress = 0;
+        return;
+    }
+    unsigned long currentMillis = millis();
+
+    // briefly defer the first main-screen UP/DOWN action so a near-simultaneous chord does not flash the frequency-set UI
+    if (!freqSetMode && !backlightOff) {
+        const bool downHeld = !digitalRead(downButton), upHeld = !digitalRead(upButton), setReleased = digitalRead(setButton);
+
+        if (servicePress == SERVICE_PRESS_CHORD || servicePress == SERVICE_PRESS_CANCELLED) {
+            if (servicePress == SERVICE_PRESS_CHORD && downHeld && upHeld && setReleased) {
+                if (currentMillis - freqSetInactivityTimer >= serviceMenuHoldDelay) {
+                    servicePress = 0;
+                    menuMode = true;
+                    menuLevel = MENU_LEVEL_SERVICE_MENU;
+                    menuIndex = SERVICE_MENU_DIAGNOSTICS;
+                    menuEditMode = menuExitConfirmMode = stationNameEditMode = false;
+                    serviceActionConfirm = factoryResetFinalConfirm = false;
+                    display(MENU_ENTRY_TITLE);
+                    menuInputReleaseGuard = true; // keep the new menu context inert until the entry transition and opening-button release are complete
+                    menuInactivityTimer = millis();
+                }
+                return;
+            }
+            servicePress = SERVICE_PRESS_CANCELLED; // interrupted chord: suppress residual UP/DOWN until both buttons are fully released
+            if (downHeld || upHeld) return;
+            servicePress = 0;
+            return;
+        }
+
+        if (setReleased && (downHeld != upHeld)) {
+            int8_t direction = downHeld ? -1 : 1;
+            if (!servicePress || servicePress != direction) {
+                servicePress = direction;
+                freqSetInactivityTimer = currentMillis;
+                return;
+            }
+            if (currentMillis - freqSetInactivityTimer < serviceChordWindow) return;
+        } else if (setReleased && downHeld && upHeld) {
+            if (!servicePress || currentMillis - freqSetInactivityTimer <= serviceChordWindow) {
+                servicePress = SERVICE_PRESS_CHORD;
+                freqSetInactivityTimer = currentMillis; // the 1 s hold starts when both buttons are actually down
+                return;
+            }
+            int8_t direction = servicePress; // second button arrived too late: honour the original single-button action
+            servicePress = 0;
+            if (i2cRecoveryState) return;
+            applyFrequencyChange(true, direction);
+            freqSetInactivityTimer = currentMillis;
+            return;
+        } else if (servicePress) {
+            int8_t direction = servicePress;
+            bool shortPress = currentMillis - freqSetInactivityTimer < serviceChordWindow;
+            servicePress = 0;
+            if (shortPress && !i2cRecoveryState) { // preserve very short UP/DOWN taps that end inside the chord-acquisition window
+                applyFrequencyChange(true, direction);
+                freqSetInactivityTimer = currentMillis;
+                return;
+            }
+        }
+    } else servicePress = 0;
+
+    if (i2cRecoveryState) return; // only the service-menu chord remains active during recovery
+    if (!(buttonDownState || buttonSetState || buttonUpState) && !freqSetMode) return; // avoid redundant processing
+
+    // change VCO frequency
+    auto changeFreq = [](int8_t direction) { applyFrequencyChange(true, direction); };
+    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, changeFreq);
+    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, changeFreq);
+    if (buttonDownState || buttonUpState) {
+        freqSetInactivityTimer = currentMillis;
+    }
+
+    // confirm new frequency on SET short-press release, or cancel on SET long-press / timeout
+    if (freqSetMode) {
+        uint8_t setGesture = readSetGesture(false);
+        if (buttonSetState) {
+            freqSetInactivityTimer = currentMillis;
+            menuInputReleaseGuard = true;
+        }
+        if (setGesture == SET_GESTURE_SHORT) {
+            applyFrequencyChange(false, 0);
+            return;
+        }
+        if (setGesture == SET_GESTURE_LONG) {
+            freqSetMode = false;
+            targetFreq = currentFreq;
+            menuLockStartTime = currentMillis;
+            menuInputReleaseGuard = true;
+            display(MAIN_INTERFACE);
+            return;
+        }
+    }
+
+    if (freqSetMode && currentMillis - freqSetInactivityTimer > freqSetTimeout) {
+        freqSetMode = false;
+        servicePress = (!digitalRead(downButton) || !digitalRead(upButton)) ? SERVICE_PRESS_CANCELLED : 0;
+        readSetGesture(true);
+        targetFreq = currentFreq;
+        display(MAIN_INTERFACE);
+    }
+}
+
+void applyFrequencyChange(bool adjusting, int8_t direction) {
+    if (adjusting) {
+        // UP/DOWN action
+        if (freqSetMode) {
+            unsigned long step = min(getStepSizeMultiplier() * getVCOFreqStep(), upperFreq - lowerFreq); // constrain step size within range
+            targetFreq = (direction > 0) ? targetFreq + step : targetFreq - step;
+        }
+        targetFreq = (targetFreq < lowerFreq) ? upperFreq : (targetFreq > upperFreq) ? lowerFreq : targetFreq;
+        display(SET_FREQUENCY_INTERFACE); // must precede freqSetMode = true so "SET " is drawn only on initial entry
+        freqSetMode = true;
+    } else {
+        // SET action
+        unsigned long currentMillis = millis();
+        configurePLL(false);
+        freqSetMode = false;
+        menuLockStartTime = currentMillis; // block menu entry immediately after freqSetMode
+        menuInputReleaseGuard = true;
+        display(MAIN_INTERFACE);
+    }
+}
+
+void handleMenu() {
+    static unsigned long lastShortClickTime = 0;
+    static unsigned long clickStartTime = 0;
+    unsigned long currentMillis = millis();
+
+    if (i2cRecoveryState && !(menuMode && (menuLevel == MENU_LEVEL_SERVICE_MENU || menuLevel == MENU_LEVEL_DIAGNOSTICS))) return;
+    if (menuMode && !stationNameEditMode) {
+        display(MENU_ENTRY_TITLE, false); // advance a running menu-entry animation without blocking PLL handling
+        if (menuEntryAnimStep) return; // keep entry-transition input out of the newly opened menu context
+    }
+
+    // keep menu/context transitions input-atomic until all physical buttons have been released
+    if (menuInputReleaseGuard) {
+        if (digitalRead(downButton) && digitalRead(setButton) && digitalRead(upButton)) {
+            menuInputReleaseGuard = false;
+            buttonDownPressed = buttonUpPressed = false;
+            readSetGesture(true);
+            if (menuMode) menuInactivityTimer = currentMillis;
+        }
+        return;
+    }
+
+    const bool settingsChanged = systemSettingsChanged();
+
+    // expire pending first click to prevent false double-click detection after millis() rollover
+    if (lastShortClickTime && currentMillis - lastShortClickTime >= setClickInterval) lastShortClickTime = 0;
+
+    auto returnToMainInterface = []() {
+        if (startupServiceMode) {
+            startupServiceMode = false; // leave startup SERVICE MENU and resume normal initialization
+            menuInputReleaseGuard = buttonSetState; // ignore a still-held SET until release
+            return;
+        }
+        menuMode = false;
+        menuEditMode = false;
+        menuExitConfirmMode = false;
+        stationNameEditMode = false;
+        menuLevel = MENU_LEVEL_MAIN;
+        menuIndex = SYSTEM_MENU_VCO_SETTINGS;
+        userMemoryAction = USER_MENU_RECALL_MEMORY;
+        menuLockStartTime = millis();
+        menuInputReleaseGuard = true;
+        if (i2cRecoveryState) display(I2C_ERROR);
+        else {
+            display(MAIN_INTERFACE);
+            display(PLL_LOCK_STATUS);
+        }
+    };
+
+    auto returnFromUserMenu = [&]() {
+        if (menuLevel == MENU_LEVEL_USER_MEMORY) {
+            menuLevel = MENU_LEVEL_QUICK_MENU;
+            menuIndex = userMemoryAction;
+            display(MENU_INTERFACE);
+        } else {
+            returnToMainInterface();
+        }
+    };
+
+    auto returnFromSystemMenu = [&]() {
+        if (stationNameEditMode) return; // station name editor has its own SET handling
+        if (menuEditMode) {
+            menuEditMode = false;
+            outputPortsEditPhase = OUTPUT_PORT_PHASE_LOCKED;
+            serviceActionConfirm = false;
+            factoryResetFinalConfirm = false;
+            display(MENU_INTERFACE);
+            return;
+        }
+        if (menuExitConfirmMode) {
+            menuExitConfirmMode = false;
+            menuLevel = MENU_LEVEL_MAIN;
+            menuIndex = SYSTEM_MENU_EXIT;
+        } else if (menuLevel == MENU_LEVEL_MAIN) {
+            if (!settingsChanged) {
+                returnToMainInterface();
+                return;
+            }
+            menuExitConfirmMode = true;
+            menuIndex = EXIT_MENU_SAVE_CHANGES;
+        } else {
+            menuLevel = MENU_LEVEL_MAIN;
+            menuIndex = prevMainMenuIndex;
+        }
+        display(MENU_INTERFACE);
+    };
+
+    // reset menu timeout on any button press
+    if (buttonDownState || buttonUpState || buttonSetState) menuInactivityTimer = currentMillis;
+
+    // discard changes and exit menu on timeout if inactive (startup service/diagnostics never time out)
+    if (!startupServiceMode && menuMode && !menuExitConfirmMode &&
+        currentMillis - menuInactivityTimer > ((menuLevel == MENU_LEVEL_SERVICE_MENU || menuLevel == MENU_LEVEL_DIAGNOSTICS) ? serviceMenuTimeout : menuTimeout)) {
+        if (menuLevel >= MENU_LEVEL_SERVICE_MENU) {
+            returnToMainInterface();
+            return;
+        }
+        restoreSettings();
+        menuLockStartTime = currentMillis;
+        return;
+    }
+
+    if (!menuMode) {
+        // block menu access if station name editor is active or menu input is temporarily locked
+        if (stationNameEditMode || currentMillis - menuLockStartTime < setClickInterval) return;
+
+        // detect SET long-press for quick menu and SET double-click for settings menu
+        if (buttonSetState && clickStartTime == 0) clickStartTime = currentMillis;
+        if (buttonSetState && clickStartTime != 0 && currentMillis - clickStartTime > setLongPressDelay && !backlightOff) {
+            clickStartTime = 0;
+            lastShortClickTime = 0;
+            menuMode = true;
+            menuLevel = MENU_LEVEL_QUICK_MENU;
+            menuIndex = USER_MENU_RECALL_MEMORY;
+            menuEditMode = false;
+            menuExitConfirmMode = false;
+            stationNameEditMode = false;
+            serviceActionConfirm = false;
+            factoryResetFinalConfirm = false;
+            userMemoryAction = USER_MENU_RECALL_MEMORY;
+            display(MENU_ENTRY_TITLE);
+            menuInputReleaseGuard = true;
+            menuInactivityTimer = millis();
+            return;
+        }
+        if (!buttonSetState && clickStartTime != 0) {
+            unsigned long clickDuration = currentMillis - clickStartTime;
+            clickStartTime = 0;
+            if (clickDuration < setClickInterval) {
+                bool validDoubleClick =
+                    lastShortClickTime &&
+                    currentMillis - lastShortClickTime >= buttonTimingTolerance;
+                lastShortClickTime = validDoubleClick ? 0 : (currentMillis ? currentMillis : zeroTimeClickSentinel);
+                if (validDoubleClick) { // valid double-click detected: enter settings menu
+                    menuMode = true;
+                    menuLevel = MENU_LEVEL_MAIN;
+                    menuIndex = SYSTEM_MENU_VCO_SETTINGS;
+                    menuEditMode = false;
+                    menuExitConfirmMode = false;
+                    stationNameEditMode = false;
+                    serviceActionConfirm = false;
+                    factoryResetFinalConfirm = false;
+                    menuSettings.pllAddrIndex = pllAddrIndex;
+                    menuSettings.xtalFreqIndex = xtalFreqIndex;
+                    menuSettings.pllControlMode = pllControlMode;
+                    menuSettings.portIdxLock = portIdxLock;
+                    menuSettings.portIdxUnlock = portIdxUnlock;
+                    menuSettings.portIdxRF = portIdxRF;
+                    menuSettings.numDecimals = numDecimals;
+                    memcpy(menuSettings.freqBandIndex, freqBandIndex, sizeof(freqBandIndex));
+                    menuSettings.backlightDimActive = backlightDimActive;
+                    menuSettings.showMenuTitle = showMenuTitle;
+                    memcpy(menuSettings.stationName, stationName, sizeof(stationName));
+                    outputPortsEditPhase = OUTPUT_PORT_PHASE_LOCKED;
+                    display(MENU_ENTRY_TITLE);
+                    menuInputReleaseGuard = true; // accept menu input only after the opening gesture is fully released
+                    menuInactivityTimer = millis();
+                    return;
+                }
+            }
+        }
+        return;
+    }
+
+    if (stationNameEditMode) {
+        // station name editor active as submenu
+        handleStationNameEdit();
+        return;
+    }
+
+    uint8_t setGesture = readSetGesture(false);
+    bool setShortAction = (setGesture == SET_GESTURE_SHORT);
+    bool setLongAction = (setGesture == SET_GESTURE_LONG);
+
+    if (menuLevel == MENU_LEVEL_SERVICE_MENU) {
+        if (menuEditMode) {
+            if (menuIndex == SERVICE_MENU_SYSTEM_INFO) {
+                if (setShortAction || setLongAction) {
+                    menuEditMode = false;
+                    display(MENU_INTERFACE);
+                }
+                return;
+            }
+
+            // I2C FALLBACK uses one confirmation; FACTORY RESET retains its existing second confirmation
+            handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                serviceActionConfirm = false;
+                display(MENU_INTERFACE);
+            });
+            handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                serviceActionConfirm = true;
+                display(MENU_INTERFACE);
+            });
+            if (setLongAction) {
+                menuEditMode = false;
+                serviceActionConfirm = factoryResetFinalConfirm = false;
+                display(MENU_INTERFACE);
+                return;
+            }
+            if (setShortAction) {
+                if (serviceActionConfirm) {
+                    if (menuIndex == SERVICE_MENU_I2C_FALLBACK) {
+                        menuEditMode = false;
+                        serviceActionConfirm = false;
+                        restoreI2CDefaults();
+                        return;
+                    }
+                    if (factoryResetFinalConfirm) {
+                        factoryReset();
+                        return;
+                    }
+                    factoryResetFinalConfirm = true;
+                    serviceActionConfirm = false;
+                    display(MENU_INTERFACE);
+                    return;
+                }
+                menuEditMode = false;
+                serviceActionConfirm = factoryResetFinalConfirm = false;
+                display(MENU_INTERFACE);
+            }
+            return;
+        }
+
+        if (buttonDownState && !buttonDownPressed) {
+            buttonDownPressed = true;
+            if (menuIndex > 0) menuIndex--;
+            if (!startupServiceMode && menuIndex == SERVICE_MENU_I2C_FALLBACK) menuIndex--;
+            display(MENU_INTERFACE);
+        } else if (!buttonDownState) buttonDownPressed = false;
+        if (buttonUpState && !buttonUpPressed) {
+            buttonUpPressed = true;
+            if (menuIndex < menuLength[menuLevel] - 1) menuIndex++;
+            if (!startupServiceMode && menuIndex == SERVICE_MENU_I2C_FALLBACK) menuIndex++;
+            display(MENU_INTERFACE);
+        } else if (!buttonUpState) buttonUpPressed = false;
+
+        if (setLongAction || (setShortAction && menuIndex == SERVICE_MENU_EXIT)) {
+            returnToMainInterface();
+            return;
+        }
+        if (setShortAction) {
+            if (menuIndex == SERVICE_MENU_DIAGNOSTICS) {
+                menuLevel = MENU_LEVEL_DIAGNOSTICS;
+                menuIndex = DIAGNOSTICS_MENU_STATUS;
+            } else {
+                menuEditMode = true; // SYSTEM INFO view or service-action confirmation
+                if (menuIndex == SERVICE_MENU_I2C_FALLBACK || menuIndex == SERVICE_MENU_FACTORY_RESET)
+                    serviceActionConfirm = factoryResetFinalConfirm = false;
+            }
+            display(MENU_INTERFACE);
+        }
+        return;
+    }
+
+    if (menuLevel == MENU_LEVEL_DIAGNOSTICS) {
+        static unsigned long lastDiagnosticsRefresh = 0;
+        if (buttonDownState && !buttonDownPressed) {
+            buttonDownPressed = true;
+            if (menuIndex > 0) menuIndex--;
+            display(MENU_INTERFACE);
+        } else if (!buttonDownState) {
+            buttonDownPressed = false;
+        }
+        if (buttonUpState && !buttonUpPressed) {
+            buttonUpPressed = true;
+            if (menuIndex < menuLength[menuLevel] - 1) menuIndex++;
+            display(MENU_INTERFACE);
+        } else if (!buttonUpState) {
+            buttonUpPressed = false;
+        }
+        if (setLongAction || (setShortAction && menuIndex == DIAGNOSTICS_MENU_EXIT)) {
+            menuLevel = MENU_LEVEL_SERVICE_MENU;
+            menuIndex = SERVICE_MENU_DIAGNOSTICS;
+            display(MENU_INTERFACE);
+            return;
+        }
+        if (!i2cRecoveryState && menuIndex != DIAGNOSTICS_MENU_EXIT && currentMillis - lastDiagnosticsRefresh >= diagnosticsInterval) {
+            lastDiagnosticsRefresh = currentMillis;
+            display(MENU_INTERFACE, false); // update only changed live values without full-page LCD redraw
+        }
+        return;
+    }
+
+    if (menuLevel >= MENU_LEVEL_QUICK_MENU) {
+        handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+            if (menuLevel == MENU_LEVEL_USER_MEMORY) {
+                menuIndex = (menuIndex == 0) ? (menuLength[menuLevel] - 1) : (menuIndex - 1);
+                display(MENU_INTERFACE);
+            } else if (menuIndex > 0) {
+                menuIndex--;
+                display(MENU_INTERFACE);
+            }
+        });
+        handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+            if (menuLevel == MENU_LEVEL_USER_MEMORY) {
+                menuIndex = (menuIndex >= menuLength[menuLevel] - 1) ? 0 : (menuIndex + 1);
+                display(MENU_INTERFACE);
+            } else if (menuIndex < menuLength[menuLevel] - 1) {
+                menuIndex++;
+                display(MENU_INTERFACE);
+            }
+        });
+
+        if (setLongAction) {
+            returnFromUserMenu();
+            return;
+        }
+        if (setShortAction) {
+            if (menuLevel == MENU_LEVEL_QUICK_MENU) {
+                if (menuIndex < USER_MENU_RF_DRIVE) {
+                    userMemoryAction = menuIndex;
+                    menuLevel = MENU_LEVEL_USER_MEMORY;
+                    menuIndex = 0;
+                    display(MENU_INTERFACE);
+                } else if (menuIndex == USER_MENU_RF_DRIVE) {
+                    rfOutputEnabled = !rfOutputEnabled;
+                    if (pllLock && !updateOutputPorts(true)) {
+                        rfOutputEnabled = !rfOutputEnabled;
+                        updateOutputPorts(true);
+                    }
+                    display(MENU_INTERFACE);
+                } else if (menuIndex == USER_MENU_LCD_OFF) {
+                    menuMode = false;
+                    menuEditMode = false;
+                    menuExitConfirmMode = false;
+                    menuLevel = MENU_LEVEL_MAIN;
+                    menuIndex = SYSTEM_MENU_VCO_SETTINGS;
+                    userMemoryAction = USER_MENU_RECALL_MEMORY;
+                    backlightOffRequested = true;
+                    menuLockStartTime = millis();
+                    menuInputReleaseGuard = true;
+                } else {
+                    returnToMainInterface();
+                }
+            } else if (menuLevel == MENU_LEVEL_USER_MEMORY) {
+                if (menuIndex == numUserMemorySlots) {
+                    returnFromUserMenu();
+                    return;
+                }
+                if (userMemoryAction == USER_MENU_RECALL_MEMORY) {
+                    unsigned long memoryFreq;
+                    if (readUserMemoryFrequency(menuIndex, memoryFreq)) {
+                        uint8_t requiredDecimals = getRequiredNumDecimals(memoryFreq);
+                        if (numDecimals < requiredDecimals) {
+                            numDecimals = requiredDecimals; // raise precision only as far as needed for exact recall
+                            readLastFrequencyBand(); // refresh precision-dependent band limits
+                        }
+                        targetFreq = memoryFreq;
+                        configurePLL(false);
+                        if (!i2cRecoveryState) storeNumDecimals(); // persist automatic precision increase only if PLL apply succeeded
+                        returnToMainInterface();
+                    } else {
+                        display(MENU_INTERFACE);
+                    }
+                } else if (userMemoryAction == USER_MENU_STORE_MEMORY) {
+                    storeUserMemoryFrequency(menuIndex);
+                    menuLevel = MENU_LEVEL_QUICK_MENU;
+                    menuIndex = userMemoryAction;
+                    display(MENU_INTERFACE);
+                } else if (userMemoryAction == USER_MENU_CLEAR_MEMORY) {
+                    clearUserMemoryFrequency(menuIndex);
+                    menuLevel = MENU_LEVEL_QUICK_MENU;
+                    menuIndex = userMemoryAction;
+                    display(MENU_INTERFACE);
+                }
+            }
+        }
+        return;
+    }
+
+    // handle user input in the exit confirmation submenu (save / discard / cancel)
+    if (menuExitConfirmMode) {
+        handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+            if (menuIndex > 0) {
+                menuIndex--;
+                display(MENU_INTERFACE);
+            }
+        });
+        handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+            if (menuIndex < numExitMenuItems - 1) {
+                menuIndex++;
+                display(MENU_INTERFACE);
+            }
+        });
+
+        if (setLongAction) {
+            returnFromSystemMenu();
+            return;
+        }
+        if (setShortAction) {
+            if (menuIndex == EXIT_MENU_SAVE_CHANGES) { // save changes
+                if (menuSettings.pllAddrIndex != pllAddrIndex &&
+                    !attemptI2C(false, PLL_ADDRESSES[menuSettings.pllAddrIndex], nullptr, 0)) { // new I²C address is invalid
+                    menuSettings.pllAddrIndex = pllAddrIndex;
+                    i2cFallbackActive = true;
+                    display(I2C_ERROR);
+                    i2cFallbackActive = false;
+                    unsigned long startTime = millis();
+                    while (millis() - startTime < i2cFallbackDelay) {
+                        blinkLed(errIndicator, errBlinkRate);
+                    }
+                    digitalWrite(errIndicator, LOW);
+                }
+                pllAddrIndex = menuSettings.pllAddrIndex;
+                xtalFreqIndex = menuSettings.xtalFreqIndex;
+                pllControlMode = menuSettings.pllControlMode;
+                portIdxLock = menuSettings.portIdxLock;
+                portIdxUnlock = menuSettings.portIdxUnlock;
+                portIdxRF = menuSettings.portIdxRF;
+                numDecimals = menuSettings.numDecimals;
+                memcpy(freqBandIndex, menuSettings.freqBandIndex, sizeof(freqBandIndex));
+                backlightDimActive = menuSettings.backlightDimActive;
+                showMenuTitle = menuSettings.showMenuTitle;
+                memcpy(stationName, menuSettings.stationName, sizeof(stationName));
+                storeStationName();
+                storeBandIndex();
+                storeNumDecimals();
+                storeI2CAddress();
+                storeXTALFreq();
+                storePLLControl();
+                storeOutputPorts();
+                storeDimmerStatus();
+                storeShowMenuTitleStatus();
+                readLastFrequencyBand();
+                configurePLL(true); // apply the complete PLL configuration after saving system settings
+                restoreSettings();
+            } else if (menuIndex == EXIT_MENU_DISCARD) { // discard changes
+                restoreSettings();
+            } else if (menuIndex == EXIT_MENU_CANCEL) { // cancel and return to the main menu
+                menuExitConfirmMode = false;
+                menuIndex = SYSTEM_MENU_VCO_SETTINGS; // return to the first main menu option
+                display(MENU_INTERFACE);
+            }
+        }
+        return;
+    }
+
+    // menu navigation mode: use UP/DOWN to select option, SET to confirm
+    uint8_t menuItemCount = menuLength[menuLevel];
+
+    if (!menuEditMode) {
+        if (buttonDownState && !buttonDownPressed) {
+            buttonDownPressed = true;
+            if (menuIndex > 0) menuIndex--;
+            display(MENU_INTERFACE);
+        } else if (!buttonDownState) {
+            buttonDownPressed = false;
+        }
+        if (buttonUpState && !buttonUpPressed) {
+            buttonUpPressed = true;
+            if (menuIndex < menuItemCount - 1) menuIndex++;
+            display(MENU_INTERFACE);
+        } else if (!buttonUpState) {
+            buttonUpPressed = false;
+        }
+
+        if (setLongAction) {
+            returnFromSystemMenu();
+            return;
+        }
+        if (setShortAction) {
+            if (menuLevel == MENU_LEVEL_MAIN) {
+                switch (menuIndex) {
+                    case SYSTEM_MENU_VCO_SETTINGS:
+                        prevMainMenuIndex = menuIndex; menuLevel = MENU_LEVEL_VCO_SETTINGS;
+                        menuIndex = VCO_MENU_FREQUENCY_BAND;
+                        break; // enter VCO settings
+                    case SYSTEM_MENU_PLL_SETTINGS:
+                        prevMainMenuIndex = menuIndex; menuLevel = MENU_LEVEL_PLL_SETTINGS;
+                        menuIndex = PLL_MENU_I2C_ADDRESS;
+                        break; // enter PLL settings
+                    case SYSTEM_MENU_GENERAL_SETTINGS:
+                        prevMainMenuIndex = menuIndex; menuLevel = MENU_LEVEL_GENERAL_SETTINGS;
+                        menuIndex = GENERAL_MENU_STATION_NAME;
+                        break; // enter general settings
+                    case SYSTEM_MENU_EXIT:
+                        if (!settingsChanged) {
+                            returnToMainInterface();
+                            return;
+                        }
+                        menuExitConfirmMode = true;
+                        menuIndex = EXIT_MENU_SAVE_CHANGES;
+                        break; // open exit menu only when settings changed
+                }
+                display(MENU_INTERFACE);
+            } else {
+                if (menuIndex == menuLength[menuLevel] - 1) {
+                    menuLevel = MENU_LEVEL_MAIN; // return option
+                    menuIndex = prevMainMenuIndex;
+                    display(MENU_INTERFACE);
+                } else if (menuLevel == MENU_LEVEL_GENERAL_SETTINGS && menuIndex == GENERAL_MENU_STATION_NAME) {
+                    // station name editor
+                    editPosition = 0;
+                    stationNameEditMode = true;
+                    display(STATION_NAME_EDITOR);
+                    return;
+                } else {
+                    menuEditMode = true;
+                    display(MENU_INTERFACE);
+                }
+            }
+        }
+    } else {
+        // menu edit mode: adjust settings
+        if (menuLevel == MENU_LEVEL_VCO_SETTINGS) {
+            switch (menuIndex) {
+                case VCO_MENU_FREQUENCY_BAND:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        auto& idx = menuSettings.freqBandIndex[menuSettings.xtalFreqIndex];
+                        idx = (idx == 0) ? (numFreqBands - 1) : (idx - 1);
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        auto& idx = menuSettings.freqBandIndex[menuSettings.xtalFreqIndex];
+                        idx = (idx >= numFreqBands - 1) ? 0 : (idx + 1);
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+                case VCO_MENU_PRECISION:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        if (menuSettings.numDecimals > 0) menuSettings.numDecimals--;
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        if (menuSettings.numDecimals < PLL_XTAL_MAX_DECIMALS[menuSettings.xtalFreqIndex]) menuSettings.numDecimals++;
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+            }
+        } else if (menuLevel == MENU_LEVEL_PLL_SETTINGS) {
+            switch (menuIndex) {
+                case PLL_MENU_I2C_ADDRESS:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        if (menuSettings.pllAddrIndex > 0) menuSettings.pllAddrIndex--;
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        if (menuSettings.pllAddrIndex + 1 < numPLLAddresses) menuSettings.pllAddrIndex++;
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+                case PLL_MENU_XTAL_FREQUENCY:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        if (menuSettings.xtalFreqIndex > 0) {
+                            menuSettings.xtalFreqIndex--;
+                            menuSettings.numDecimals = PLL_XTAL_MAX_DECIMALS[menuSettings.xtalFreqIndex];
+                        }
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        if (menuSettings.xtalFreqIndex + 1 < numXTALFreqOptions) {
+                            menuSettings.xtalFreqIndex++;
+                            menuSettings.numDecimals = PLL_XTAL_MAX_DECIMALS[menuSettings.xtalFreqIndex];
+                        }
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+                case PLL_MENU_PLL_CONTROL:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        if (menuSettings.pllControlMode == VARICAP_DRIVE_OFF) menuSettings.pllControlMode = CP_LOW;
+                        else if (menuSettings.pllControlMode == CP_LOW) menuSettings.pllControlMode = CP_HIGH;
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        if (menuSettings.pllControlMode == CP_HIGH) menuSettings.pllControlMode = CP_LOW;
+                        else if (menuSettings.pllControlMode == CP_LOW) menuSettings.pllControlMode = VARICAP_DRIVE_OFF;
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+                case PLL_MENU_PORT_MAPPING: // output ports: function → output port mapping (locked → unlocked → RF drive)
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        adjustOutputPort(-1);
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        adjustOutputPort(1);
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+            }
+        } else if (menuLevel == MENU_LEVEL_GENERAL_SETTINGS) {
+            switch (menuIndex) {
+                case GENERAL_MENU_BACKLIGHT_DIMMER:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        menuSettings.backlightDimActive = false;
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        menuSettings.backlightDimActive = true;
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+                case GENERAL_MENU_SHOW_MENU_TITLE:
+                    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, [](int8_t) {
+                        menuSettings.showMenuTitle = false;
+                        display(MENU_INTERFACE);
+                    });
+                    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, [](int8_t) {
+                        menuSettings.showMenuTitle = true;
+                        display(MENU_INTERFACE);
+                    });
+                    break;
+            }
+        }
+
+        // SET confirms and advances phase or returns to menu navigation mode; SET long-press leaves edit mode
+        if (setLongAction) {
+            returnFromSystemMenu();
+            return;
+        }
+        if (setShortAction) {
+            if (menuLevel == MENU_LEVEL_PLL_SETTINGS && menuIndex == PLL_MENU_PORT_MAPPING) {
+                // advance edit phase: locked -> unlocked -> RF drive -> exit edit mode
+                if (outputPortsEditPhase + 1 < numOutputPortEditPhases) {
+                    outputPortsEditPhase++;
+                    display(MENU_INTERFACE);
+                    return; // stay in edit mode
+                } else {
+                    outputPortsEditPhase = OUTPUT_PORT_PHASE_LOCKED; // reset for next time
+                }
+            }
+            menuEditMode = false;
+            display(MENU_INTERFACE);
+        }
+    }
+}
+
+// restore all system settings from EEPROM, realign target frequency and return to main interface
+void restoreSettings() {
+    readSettings();
+    menuMode = menuEditMode = menuExitConfirmMode = stationNameEditMode = false;
+    serviceActionConfirm = false;
+    factoryResetFinalConfirm = false;
+    menuLevel = MENU_LEVEL_MAIN;
+    menuLockStartTime = millis();
+    menuInputReleaseGuard = true;
+    display(MAIN_INTERFACE);
+    display(PLL_LOCK_STATUS);
+}
+
+// perform factory reset by clearing entire EEPROM and reloading defaults
+void factoryReset() {
+    unsigned long startTime = millis();
+    display(FACTORY_RESET_STATUS); // remain visible for the actual reset duration, subject to the minimum display time
+    for (uint16_t addr = 0; addr < EEPROM.length(); addr++) {
+        EEPROM.update(addr, EEPROM_ERASED_BYTE);
+    }
+    readSettings();
+    outputPortsEditPhase = OUTPUT_PORT_PHASE_LOCKED;
+    rfOutputEnabled = true;
+    backlightOffRequested = false;
+    while (millis() - startTime < factoryResetMinDisplayTime) {}
+    if (startupServiceMode) {
+        startupServiceMode = false; // normal initialization will apply the restored defaults
+        return;
+    }
+    configurePLL(true); // restore the complete default PLL configuration
+    menuMode = false;
+    menuEditMode = false;
+    menuExitConfirmMode = false;
+    serviceActionConfirm = false;
+    factoryResetFinalConfirm = false;
+    menuLevel = MENU_LEVEL_MAIN;
+    menuIndex = SYSTEM_MENU_VCO_SETTINGS;
+    menuLockStartTime = millis();
+    menuInputReleaseGuard = true;
+    display(MAIN_INTERFACE);
+    display(PLL_LOCK_STATUS);
+}
+
+void handleStationNameEdit() {
+    if (!stationNameEditMode) return;
+    display(STATION_NAME_EDITOR, false);
+
+    // select character
+    auto editCharacter = [](int8_t direction) { applyStationNameEdit(true, direction, false); };
+    handleButtonRepeat(buttonDownState, buttonDownPressed, -1, editCharacter);
+    handleButtonRepeat(buttonUpState, buttonUpPressed, 1, editCharacter);
+
+    // confirm character or return from editor
+    uint8_t setGesture = readSetGesture(false);
+    if (setGesture == SET_GESTURE_SHORT) {
+        applyStationNameEdit(false, 0, false);
+    } else if (setGesture == SET_GESTURE_LONG) {
+        applyStationNameEdit(false, 0, true);
+    }
+}
+
+void applyStationNameEdit(bool editCharacter, int8_t direction, bool finishEdit) {
+    if (editCharacter) {
+        // UP/DOWN action
+        uint8_t range = asciiRange[1] - asciiRange[0] + 1;
+        menuSettings.stationName[editPosition] = (menuSettings.stationName[editPosition] - asciiRange[0] + direction + range) % range + asciiRange[0];
+    } else {
+        // SET action
+        if (finishEdit || editPosition >= maxNameLength - 1) { // finish station name edit on SET long-press or when last character is confirmed
+            stationNameEditMode = false; // exit station name editor
+            editPosition = 0; // reset edit position after editor exit
+            menuSettings.stationName[maxNameLength] = '\0'; // ensure null terminator in edit buffer
+            display(MENU_INTERFACE); // show menu again
+            menuInputReleaseGuard = true; // wait for physical button release before accepting new menu input
+            return; // prevent further display call
+        } else {
+            editPosition++; // move to next character
+        }
+    }
+    display(STATION_NAME_EDITOR);
+}
+
+// decode SET short-release and long-press gestures for context-specific handling
+uint8_t readSetGesture(bool reset) {
+    static unsigned long setPressStartTime = 0;
+    static bool setLongPressHandled = false;
+    unsigned long currentMillis = millis();
+
+    if (reset) {
+        buttonSetPressed = false;
+        setPressStartTime = 0;
+        setLongPressHandled = false;
+        return SET_GESTURE_NONE;
+    }
+    if (buttonSetState) {
+        if (!buttonSetPressed) {
+            buttonSetPressed = true;
+            setPressStartTime = currentMillis;
+            setLongPressHandled = false;
+        } else if (!setLongPressHandled && currentMillis - setPressStartTime >= setLongPressDelay) {
+            setLongPressHandled = true;
+            return SET_GESTURE_LONG;
+        }
+    } else if (buttonSetPressed) {
+        bool wasLongPress = setLongPressHandled;
+        buttonSetPressed = false;
+        setPressStartTime = 0;
+        setLongPressHandled = false;
+        if (!wasLongPress) return SET_GESTURE_SHORT;
+    }
+    return SET_GESTURE_NONE;
+}
+
+void handleButtonRepeat(bool buttonState, bool& buttonPressed, int8_t direction, void (*action)(int8_t)) {
+    static unsigned long pressStartTime = 0, lastActionTime = 0;
+    unsigned long currentMillis = millis();
+    unsigned long totalPressTime = currentMillis - pressStartTime;
+    unsigned long fastPressInterval = baseRepeatInterval;
+
+    if (buttonState) {
+        // change on first button press, or - when holding button - continuously after initialPressDelay
+        if (!buttonPressed) {
+            pressStartTime = currentMillis;
+            lastActionTime = currentMillis;
+            buttonPressed = true;
+            action(direction);
+        } else {
+            // adaptive gradual acceleration in frequency SET mode
+            if (freqSetMode && totalPressTime >= initialPressDelay) {
+                fastPressInterval =
+                    ((unsigned long)getStepSizeMultiplier() * getVCOFreqStep() * initialPressDelay / pressTargetSweepSpeed) /
+                    (pressAccelerationOffset + totalPressTime - initialPressDelay);
+            }
+            // auto-repeat action after initialPressDelay
+            if (totalPressTime >= initialPressDelay &&
+                currentMillis - lastActionTime >= fastPressInterval &&
+                (!menuMode || stationNameEditMode)) {
+                // fixed scroll speed in station name editor
+                if (!stationNameEditMode || currentMillis - lastActionTime >= charScrollInterval) {
+                    lastActionTime = currentMillis;
+                    action(direction);
+                }
+            }
+        }
+    } else {
+        buttonPressed = false; // reset on button release
+    }
+}
+
+void configurePLL(bool force) {
+    targetFreq = validateFreq(targetFreq, true); // align target frequency to current visible step size before programming PLL
+    if (targetFreq == currentFreq && !force) return;
+    unsigned long divisor = (targetFreq / getVCOFreqStep()); // calculate divisor
+    byte data[4]; // full programming (TSA5511 datasheet, table 1)
+    data[0] = (divisor & 0xFF00) >> 8; // extract high divisor byte
+    data[1] = divisor & 0x00FF; // extract low divisor byte
+    data[2] = PLL_BYTE4_BASE // use high charge-pump current during acquisition, unless varicap drive is disabled
+        | ((pllControlMode != VARICAP_DRIVE_OFF) ? PLL_BYTE4_CP : 0)
+        | ((pllControlMode == VARICAP_DRIVE_OFF) ? PLL_BYTE4_OS : 0);
+    data[3] = isValidPLLPort(portIdxUnlock) ? _BV(portIdxUnlock) : 0; // assert unlocked if assigned; otherwise all ports low
+    if (attemptI2C(false, PLL_ADDRESSES[pllAddrIndex], data, 4)) {
+        lockTime = millis();
+        if (lockTime == invalidLockTime) lockTime--; // reserve sentinel used for invalid lock timing across millis rollover
+        pllPortByte = data[3];
+        storeBandFrequency(freqBandIndex[xtalFreqIndex], xtalFreqIndex, targetFreq);
+        currentFreq = targetFreq;
+        pllCheckPending = true;
+    }
+}
+
+void monitorPLL() {
+    static unsigned long lastCheckTime = 0;
+    static uint8_t lockVerifyCount = 0;
+    unsigned long currentMillis = millis();
+    const bool diagnosticsActive = menuMode && menuLevel == MENU_LEVEL_DIAGNOSTICS;
+    const bool recoveryMenuActive = diagnosticsActive || (menuMode && menuLevel == MENU_LEVEL_SERVICE_MENU);
+
+    // startup DIAGNOSTICS probes raw status without entering normal recovery or programming the PLL
+    if (startupServiceMode) {
+        if (!diagnosticsActive) {
+            retryCount = 0; // do not carry startup DIAGNOSTICS retries into normal operation
+            return;
+        }
+        if (currentMillis - lastCheckTime < diagnosticsInterval) return;
+        lastCheckTime = currentMillis;
+        byte statusByte;
+        if (attemptI2C(true, PLL_ADDRESSES[pllAddrIndex], &statusByte, 1, true)) {
+            // count restored communication after a sustained startup diagnostics fault
+            if (retryCount >= i2cMaxRetries && i2cRecoveryCount < diagnosticCountSaturation) i2cRecoveryCount++;
+            // exclude the first valid status read as the expected power-on POR baseline
+            if (pllStatusValid && (statusByte & PLL_BYTE1_POR) && porCount < diagnosticCountSaturation) porCount++;
+            if (retryCount && menuIndex != DIAGNOSTICS_MENU_UPTIME && menuIndex != DIAGNOSTICS_MENU_EXIT)
+                display(I2C_STATUS_MARKER, false); // clear stale-data marker immediately after communication recovers
+            retryCount = 0;
+            pllStatusByte = statusByte;
+            pllStatusValid = true;
+        } else {
+            if (retryCount < i2cMaxRetries) retryCount++;
+            if (menuIndex != DIAGNOSTICS_MENU_UPTIME && menuIndex != DIAGNOSTICS_MENU_EXIT) display(I2C_STATUS_MARKER);
+        }
+        return;
+    }
+
+    if (i2cRecoveryState) blinkLed(errIndicator, errBlinkRate);
+
+    const unsigned long checkInterval =
+        (retryCount || lockVerifyCount) ? i2cRetryDelay :
+        i2cRecoveryState ? i2cHealthCheckInterval :
+        !pllCheckPending ? (diagnosticsActive ? diagnosticsInterval : i2cHealthCheckInterval) : 0;
+    if (currentMillis - lastCheckTime < checkInterval) return;
+    lastCheckTime = currentMillis;
+
+    byte statusByte;
+    if (!attemptI2C(true, PLL_ADDRESSES[pllAddrIndex], &statusByte, 1, true)) {
+        if (++retryCount < i2cMaxRetries) return;
+        retryCount = lockVerifyCount = 0;
+        if (!i2cRecoveryState) {
+            if (freqSetMode) targetFreq = currentFreq; // discard unconfirmed frequency change before recovery
+            if (menuMode && !recoveryMenuActive) restoreSettings(); // SERVICE/DIAGNOSTICS have no pending system settings to restore
+            i2cRecoveryState = I2C_RECOVERY_READ;
+            lockTime = invalidLockTime; // any read interruption invalidates the measured acquisition timing
+            pllLock = false; // preserve pllCheckPending to retain the pre-error acquisition state
+            freqSetMode = false;
+            menuMode = recoveryMenuActive; // keep SERVICE/DIAGNOSTICS navigable during recovery
+            backlightOffRequested = backlightOff = false;
+            digitalWrite(lockIndicator, LOW);
+            if (diagnosticsActive) display(MENU_INTERFACE); // replace unavailable live data immediately
+            else if (!recoveryMenuActive) display(I2C_ERROR);
+        }
+        return;
+    }
+
+    retryCount = 0;
+    // exclude the first successful status read as the power-on POR baseline
+    if (pllStatusValid && (statusByte & PLL_BYTE1_POR) && porCount < diagnosticCountSaturation) porCount++;
+    pllStatusByte = statusByte;
+    pllStatusValid = true;
+
+    if (i2cRecoveryState == I2C_RECOVERY_READ &&
+        !pllCheckPending &&
+        !(statusByte & (PLL_BYTE1_FL | PLL_BYTE1_POR)) &&
+        ++lockVerifyCount < i2cMaxRetries) return;
+
+    lockVerifyCount = 0;
+    if (i2cRecoveryState || (statusByte & PLL_BYTE1_POR)) {
+        if (freqSetMode) targetFreq = currentFreq; // discard unconfirmed frequency change before recovery handling
+        if (menuMode && !recoveryMenuActive) restoreSettings(); // recovery-safe SERVICE/DIAGNOSTICS retain the current page
+        freqSetMode = false;
+        menuMode = recoveryMenuActive;
+        const uint8_t recoveryState = i2cRecoveryState;
+        i2cRecoveryState = I2C_RECOVERY_NONE;
+        pllLock = false;
+        digitalWrite(lockIndicator, LOW);
+        digitalWrite(errIndicator, LOW);
+
+        if (recoveryState == I2C_RECOVERY_WRITE || (statusByte & PLL_BYTE1_POR)) {
+            configurePLL(true); // restore all PLL data after an uncertain write or unexpected TSA5511 reset
+            if (i2cRecoveryState) return;
+        } else {
+            pllLock = (statusByte & PLL_BYTE1_FL) != 0;
+            // complete interrupted acquisition or restart acquisition without rewriting divisor
+            if (pllLock == pllCheckPending && !updateOutputPorts(pllLock)) return;
+            if (pllLock && pllCheckPending) {
+                if (lockTime != invalidLockTime) lockTime = currentMillis - lockTime;
+            } else if (!pllLock && !pllCheckPending) {
+                lockTime = currentMillis; // start a new uninterrupted acquisition after recovery
+                if (lockTime == invalidLockTime) lockTime--;
+            }
+            pllCheckPending = !pllLock;
+        }
+
+        if (recoveryState && i2cRecoveryCount < diagnosticCountSaturation) i2cRecoveryCount++; // count only a fully completed I²C recovery
+        digitalWrite(lockIndicator, pllLock ? HIGH : LOW);
+        if (recoveryMenuActive) {
+            buttonDownPressed = buttonDownState;
+            buttonUpPressed = buttonUpState;
+            menuInputReleaseGuard = buttonSetState;
+            readSetGesture(true); // suppress any menu key still held as recovery completes
+            menuInactivityTimer = currentMillis;
+            display(MENU_INTERFACE);
+        } else {
+            display(MAIN_INTERFACE);
+            display(PLL_LOCK_STATUS);
+        }
+        return;
+    }
+    if (!pllCheckPending) return;
+    pllLock = (statusByte & PLL_BYTE1_FL) != 0;
+    if (!menuMode) display(PLL_LOCK_STATUS);
+
+    // update output port bitmap for current lock state
+    if (pllLock && updateOutputPorts(true)) {
+        if (lockTime != invalidLockTime) lockTime = currentMillis - lockTime;
+        pllCheckPending = false; // stop operational polling after lock; diagnostics may continue sampling raw FL without applying it
+    }
+    digitalWrite(lockIndicator, pllLock ? HIGH : LOW);
+}
+
+// store system settings
+void storeBandIndex() {
+    for (uint8_t i = 0; i < numXTALFreqOptions; i++) {
+        EEPROM.update(EEPROM_FREQBAND_ADDR + i, freqBandIndex[i]);
+    }
+}
+
+void storeNumDecimals() {
+    EEPROM.update(EEPROM_DECIMAL_ADDR, numDecimals);
+}
+
+void storeBandFrequency(byte bandIndex, byte xtalIndex, unsigned long frequency) {
+    if (bandIndex < numFreqBands && xtalIndex < numXTALFreqOptions && frequency != currentFreq) { // avoid unnecessary EEPROM access
+        // calculate EEPROM address from band and XTAL index
+        EEPROM.put(EEPROM_BAND_FREQ_BASE_ADDR +
+                   ((bandIndex * numXTALFreqOptions + xtalIndex) * sizeof(unsigned long)), frequency);
+    }
+}
+
+void storeI2CAddress() {
+    EEPROM.update(EEPROM_I2C_ADDR, pllAddrIndex);
+}
+
+void storeXTALFreq() {
+    EEPROM.update(EEPROM_XTAL_ADDR, xtalFreqIndex);
+}
+
+void storePLLControl() {
+    EEPROM.update(EEPROM_PLL_CONTROL_ADDR, pllControlMode);
+}
+
+void storeOutputPorts() {
+    auto enc = [](uint8_t p) { return isValidPLLPort(p) ? p : PLL_PORT_NONE; }; // encode port index into storage format or 'none'
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + OUTPUT_PORT_PHASE_LOCKED, enc(portIdxLock));
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + OUTPUT_PORT_PHASE_UNLOCKED, enc(portIdxUnlock));
+    EEPROM.update(EEPROM_OUTPUT_PORTS_ADDR + OUTPUT_PORT_PHASE_RF_DRIVE, enc(portIdxRF));
+}
+
+void storeDimmerStatus() {
+    EEPROM.update(EEPROM_DIM_ADDR, backlightDimActive);
+}
+
+void storeShowMenuTitleStatus() {
+    EEPROM.update(EEPROM_SHOW_MENU_TITLE_ADDR, showMenuTitle);
+}
+
+void storeStationName() {
+    stationName[maxNameLength] = '\0'; // ensure null terminator
+
+    // validate characters before storing
+    bool valid = true;
+    for (uint8_t i = 0; i < maxNameLength; i++) {
+        uint8_t c = (uint8_t)stationName[i];
+        if (c < asciiRange[0] || c > asciiRange[1]) {
+            valid = false;
+            break;
+        }
+    }
+
+    // fallback to default name if invalid
+    if (!valid) {
+        const uint8_t defaultNameLength = sizeof(defaultName) - 1;
+        memcpy_P(stationName, defaultName, defaultNameLength); // copy default station name from flash
+        memset(stationName + defaultNameLength, ' ', maxNameLength - defaultNameLength); // pad with spaces
+        stationName[maxNameLength] = '\0';
+    }
+    EEPROM.put(EEPROM_NAME_ADDR, stationName); // update semantics avoid rewriting unchanged bytes
+}
+
+// user memory EEPROM access
+uint16_t getUserMemoryAddress(byte slotIndex) {
+    uint16_t bankIndex = freqBandIndex[xtalFreqIndex] * numXTALFreqOptions + xtalFreqIndex;
+    return EEPROM_USER_MEMORY_BASE_ADDR + ((bankIndex * numUserMemorySlots + slotIndex) * sizeof(unsigned long));
+}
+
+bool readUserMemoryFrequency(byte slotIndex, unsigned long& frequency) {
+    if (slotIndex >= numUserMemorySlots) return false;
+
+    EEPROM.get(getUserMemoryAddress(slotIndex), frequency);
+    uint8_t bandIndex = freqBandIndex[xtalFreqIndex];
+    return frequency != USER_MEMORY_EMPTY_FREQ
+        && frequency >= freqBands[bandIndex][0]
+        && frequency <= min(freqBands[bandIndex][1], (unsigned long)PLL_DIVISOR_LIMIT * getVCOFreqStep())
+        && validateFreq(frequency, false) == frequency; // validate exact preset independently of current precision
+}
+
+void storeUserMemoryFrequency(byte slotIndex) {
+    if (slotIndex >= numUserMemorySlots) return;
+
+    EEPROM.put(getUserMemoryAddress(slotIndex), currentFreq);
+}
+
+void clearUserMemoryFrequency(byte slotIndex) {
+    if (slotIndex >= numUserMemorySlots) return;
+
+    uint16_t startAddr = getUserMemoryAddress(slotIndex);
+    for (uint8_t i = 0; i < sizeof(unsigned long); i++) {
+        EEPROM.update(startAddr + i, EEPROM_ERASED_BYTE);
+    }
+}
+
+bool attemptI2C(bool isRead, byte address, byte* buffer, byte length, bool singleAttempt) {
+    for (uint8_t i = singleAttempt ? 1 : i2cMaxRetries; i > 0; i--) {
+        if (isRead) {
+            if (Wire.requestFrom(address, length) == length) {
+                for (byte j = 0; j < length; j++) buffer[j] = Wire.read();
+                return true;
+            }
+        } else {
+            Wire.beginTransmission(address);
+            if (length > 0) Wire.write(buffer, length);
+            if (Wire.endTransmission() == 0) return true;
+        }
+        if (i > 1) delay(i2cRetryDelay);
+    }
+    if (!singleAttempt && address == PLL_ADDRESSES[pllAddrIndex]) { // exclude expected failures while probing a new address
+        const bool diagnosticsActive = menuMode && menuLevel == MENU_LEVEL_DIAGNOSTICS;
+        const bool recoveryMenuActive = diagnosticsActive || (menuMode && menuLevel == MENU_LEVEL_SERVICE_MENU);
+        if (menuMode && !recoveryMenuActive) restoreSettings(); // SERVICE/DIAGNOSTICS have no pending system settings to restore
+        if (!isRead && length) {
+            i2cRecoveryState = I2C_RECOVERY_WRITE;
+            pllCheckPending = false;
+        } else {
+            i2cRecoveryState = I2C_RECOVERY_READ;
+            lockTime = invalidLockTime; // any read interruption invalidates the measured acquisition timing
+        }
+        pllLock = false;
+        freqSetMode = false;
+        menuMode = recoveryMenuActive; // keep SERVICE/DIAGNOSTICS navigable during recovery
+        backlightOffRequested = backlightOff = false;
+        digitalWrite(lockIndicator, LOW);
+        if (diagnosticsActive) display(MENU_INTERFACE); // replace unavailable live data immediately
+        else if (!recoveryMenuActive) display(I2C_ERROR);
+    }
+    return false;
+}
+
+void blinkLed(uint8_t ledPin, unsigned long interval) {
+    static unsigned long lastBlinkTime = 0;
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - lastBlinkTime >= interval) {
+        lastBlinkTime = currentMillis;
+        digitalWrite(ledPin, !digitalRead(ledPin));
+    }
+}
+
+void display(uint8_t mode, bool refresh) {
+    static unsigned long cursorBlinkTime = 0;
+    static unsigned long menuEntryAnimTime = 0;
+    static bool stationNameCursorVisible = false;
+    static bool stationNameCursorActive = false;
+
+    if (i2cRecoveryState && mode != I2C_ERROR && mode != I2C_STATUS_MARKER && mode != FACTORY_RESET_STATUS &&
+        !(menuMode && (menuLevel == MENU_LEVEL_SERVICE_MENU || menuLevel == MENU_LEVEL_DIAGNOSTICS) &&
+        (mode == MENU_INTERFACE || mode == MENU_ENTRY_TITLE))) return;
+    if (mode != MENU_ENTRY_TITLE) menuEntryAnimStep = 0; // any other display update supersedes a running menu-entry animation
+
+    // prepare a fixed LCD field for right-aligned content, clearing any unused leading positions
+    auto rightAlign = [](uint8_t row, uint8_t startCol, uint8_t width, uint8_t length) {
+        lcd.setCursor(startCol, row);
+        for (uint8_t i = length; i < width; i++) lcd.print(' ');
+    };
+
+    // print a single-character status marker at the upper-right LCD position
+    auto printStatusMarker = [](char marker) {
+        lcd.setCursor(lcdColumns - 1, 0);
+        lcd.print(marker);
+    };
+
+    // format VCO frequency exactly from integer Hz at the requested decimal precision, avoiding AVR floating-point rounding artifacts
+    auto formatFreq = [](char* buffer, unsigned long frequency, uint8_t decimals) {
+        unsigned long scale = 1, divisor = hzPerMHz;
+        for (uint8_t i = 0; i < decimals; i++) {
+            scale *= 10;
+            divisor /= 10;
+        }
+        unsigned long rounded = (frequency + divisor / 2) / divisor;
+        ultoa(rounded / scale, buffer, 10);
+        char* p = buffer + strlen(buffer);
+        if (decimals) {
+            *p++ = '.';
+            for (unsigned long place = scale / 10; place; place /= 10) *p++ = '0' + (rounded % scale / place) % 10;
+            *p = '\0';
+        }
+    };
+
+    // format right-aligned VCO frequency with optional prefix/suffix and dynamic decimal precision
+    auto printFreq = [&](uint8_t row, unsigned long frequency, const __FlashStringHelper* prefix, const char* suffix) {
+        char buffer[freqDisplayWidth + 1]; // buffer for formatted frequency string and null terminator
+        formatFreq(buffer, frequency, numDecimals);
+        uint8_t col = lcdColumns - (freqDisplayWidth + strlen_P(suffix)); // compute starting column for fixed-width frequency field
+        if (prefix) {
+            lcd.setCursor(0, row);
+            lcd.print(prefix);
+        }
+        rightAlign(row, col, freqDisplayWidth, strlen(buffer));
+        lcd.print(buffer);
+        lcd.print((const __FlashStringHelper*)suffix);
+    };
+
+    // build a fixed-width LCD line from a flash string
+    auto buildLine = [](char* line, const char* text, bool centered) {
+        memset(line, ' ', lcdColumns);
+        line[lcdColumns] = '\0';
+        uint8_t len = strlen_P(text);
+        if (len > lcdColumns) len = lcdColumns;
+        uint8_t col = centered ? (lcdColumns - len) / 2 : 0;
+        memcpy_P(line + col, text, len);
+    };
+
+    // print a complete prebuilt LCD line without relying on residual characters
+    auto printLine = [](uint8_t row, const char* line) {
+        lcd.setCursor(0, row);
+        lcd.print(line);
+    };
+
+    // clear a complete LCD line in a single print operation
+    auto clearLine = [&](uint8_t row) {
+        char line[lcdColumns + 1];
+        memset(line, ' ', lcdColumns);
+        line[lcdColumns] = '\0';
+        printLine(row, line);
+    };
+
+    // print the submenu return option
+    auto printReturnMenuItem = []() {
+        lcd.print(F("RETURN TO MENU"));
+        lcd.setCursor(0, 1);
+        lcd.print(FPSTR(lcdTextSetToConfirm));
+    };
+
+    // underscore cursor only active in station name editor
+    if (mode != STATION_NAME_EDITOR && stationNameCursorActive) {
+        lcd.noCursor();
+        cursorBlinkTime = 0;
+        stationNameCursorVisible = stationNameCursorActive = false;
+    }
+
+    // display modes
+    switch(mode) {
+        case SPLASH_SCREEN:
+            lcd.clear();
+            lcd.setCursor((lcdColumns - (sizeof(description) - 1)) / 2, 0);
+            lcd.print(F(description));
+            lcd.setCursor((lcdColumns - (sizeof(version) - 1)) / 2, 1);
+            lcd.print(F(version));
+            break;
+
+        case MAIN_INTERFACE:
+            if (refresh) printFreq(0, targetFreq, nullptr, lcdSuffixMHz);
+            lcd.setCursor(0, 1);
+            if (!rfOutputEnabled && ((millis() / rfOutputStatusInterval) % 2)) {
+                clearLine(1); // clear row before showing the centered RF drive override status
+                lcd.setCursor(0, 1);
+                lcd.print(F("RF DRIVE: OFF"));
+            } else {
+                lcd.print(stationName);
+            }
+            break;
+
+        case SET_FREQUENCY_INTERFACE:
+            if (!freqSetMode) { // avoid time-consuming repeated LCD instructions during auto-repeat VCO frequency change
+                lcd.setCursor(0, 1);
+                lcd.print(F("SET "));
+            }
+            printFreq(1, targetFreq, nullptr, lcdSuffixMHz);
+            break;
+
+        case MENU_INTERFACE:
+            if (refresh) lcd.clear();
+            lcd.setCursor(0, 0);
+            if (menuExitConfirmMode) {
+                lcd.setCursor(0, 0);
+                lcd.print(FPSTR(lcdTextExitMenu));
+                lcd.setCursor(0, 1);
+                lcd.print(FPSTR(lcdTextMenuCursor));
+                switch (menuIndex) {
+                    case EXIT_MENU_SAVE_CHANGES: lcd.print(F("save changes")); break;
+                    case EXIT_MENU_DISCARD: lcd.print(F("discard")); break;
+                    case EXIT_MENU_CANCEL: lcd.print(F("cancel")); break;
+                }
+                break;
+            }
+            if (menuLevel == MENU_LEVEL_QUICK_MENU) {
+                switch (menuIndex) {
+                    case USER_MENU_RECALL_MEMORY: lcd.print(FPSTR(lcdTextRecallMemory)); break;
+                    case USER_MENU_STORE_MEMORY: lcd.print(F("SAVE MEMORY")); break;
+                    case USER_MENU_CLEAR_MEMORY: lcd.print(FPSTR(lcdTextClearMemory)); break;
+                    case USER_MENU_RF_DRIVE:
+                        lcd.print(F("RF DRIVE: "));
+                        lcd.print(rfOutputEnabled ? F("ON") : F("OFF"));
+                        break;
+                    case USER_MENU_LCD_OFF: lcd.print(F("LCD OFF")); break;
+                    case USER_MENU_EXIT: lcd.print(FPSTR(lcdTextExitMenu)); break;
+                }
+                lcd.setCursor(0, 1);
+                if (menuIndex == USER_MENU_RF_DRIVE) {
+                    lcd.print(F("SET to toggle"));
+                } else if (menuIndex == USER_MENU_EXIT || menuIndex == USER_MENU_LCD_OFF) {
+                    lcd.print(FPSTR(lcdTextSetToConfirm));
+                } else {
+                    lcd.print(FPSTR(lcdTextSetToSelect));
+                }
+            } else if (menuLevel == MENU_LEVEL_USER_MEMORY) {
+                switch (userMemoryAction) {
+                    case USER_MENU_RECALL_MEMORY: lcd.print(FPSTR(lcdTextRecallMemory)); break;
+                    case USER_MENU_STORE_MEMORY: printFreq(0, currentFreq, F("SAVE "), lcdSuffixMHz); break;
+                    case USER_MENU_CLEAR_MEMORY: lcd.print(FPSTR(lcdTextClearMemory)); break;
+                }
+                lcd.setCursor(0, 1);
+                if (menuIndex == numUserMemorySlots) {
+                    lcd.print(F("> return"));
+                } else {
+                    unsigned long memoryFreq = 0;
+                    if (readUserMemoryFrequency(menuIndex, memoryFreq)) {
+                        const char* suffix = lcdSuffixMHz;
+                        char buffer[freqDisplayWidth + 1]; // buffer for formatted frequency string and null terminator
+                        formatFreq(buffer, memoryFreq, max(numDecimals, getRequiredNumDecimals(memoryFreq))); // show exact preset without lowering current precision
+
+                        uint8_t valueLength = strlen(buffer) + strlen_P(suffix);
+                        uint8_t spacerCol = (valueLength < lcdColumns) ? lcdColumns - valueLength - 1 : 0; // reserve one leading space before the frequency
+
+                        lcd.print(spacerCol < (sizeof("> M1:") - 1) ? F(">M") : FPSTR(lcdTextMemoryCursor));
+                        lcd.print(menuIndex + 1);
+                        lcd.print(':');
+                        lcd.setCursor(spacerCol, 1);
+                        lcd.print(' ');
+                        lcd.print(buffer);
+                        lcd.print((const __FlashStringHelper*)suffix);
+                    } else {
+                        lcd.print(FPSTR(lcdTextMemoryCursor));
+                        lcd.print(menuIndex + 1);
+                        lcd.print(':');
+                        lcd.setCursor(lcdColumns - (sizeof("<empty>") - 1), 1);
+                        lcd.print(F("<empty>"));
+                    }
+                }
+            } else if (menuLevel == MENU_LEVEL_MAIN) {
+                switch (menuIndex) {
+                    case SYSTEM_MENU_VCO_SETTINGS:
+                        lcd.print(FPSTR(lcdTextVCOSettings));
+                        lcd.setCursor(0, 1);
+                        lcd.print(FPSTR(lcdTextSetToEnter));
+                        break;
+                    case SYSTEM_MENU_PLL_SETTINGS:
+                        lcd.print(F("PLL SETTINGS"));
+                        lcd.setCursor(0, 1);
+                        lcd.print(FPSTR(lcdTextSetToEnter));
+                        break;
+                    case SYSTEM_MENU_GENERAL_SETTINGS:
+                        lcd.print(F("GENERAL SETTINGS"));
+                        lcd.setCursor(0, 1);
+                        lcd.print(FPSTR(lcdTextSetToEnter));
+                        break;
+                    case SYSTEM_MENU_EXIT:
+                        lcd.print(FPSTR(lcdTextExitMenu));
+                        if (systemSettingsChanged()) printStatusMarker('*');
+                        lcd.setCursor(0, 1);
+                        lcd.print(F("SET to proceed"));
+                        break;
+                }
+            } else if (menuLevel == MENU_LEVEL_SERVICE_MENU) {
+                switch (menuIndex) {
+                    case SERVICE_MENU_DIAGNOSTICS:
+                        lcd.print(FPSTR(lcdTextDiagnostics));
+                        lcd.setCursor(0, 1);
+                        lcd.print(FPSTR(lcdTextSetToEnter));
+                        break;
+                    case SERVICE_MENU_SYSTEM_INFO:
+                        if (menuEditMode) {
+                            lcd.print(F("VERSION: " version));
+                            lcd.setCursor(0, 1);
+                            lcd.print(F(credits));
+                        } else {
+                            lcd.print(F("SYSTEM INFO"));
+                            lcd.setCursor(0, 1);
+                            lcd.print(F("SET to view"));
+                        }
+                        break;
+                    case SERVICE_MENU_I2C_FALLBACK:
+                        lcd.print(FPSTR(lcdTextI2CFallback));
+                        lcd.setCursor(0, 1);
+                        if (menuEditMode) {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(serviceActionConfirm ? FPSTR(lcdTextYes) : FPSTR(lcdTextNo));
+                        } else {
+                            lcd.print(FPSTR(lcdTextSetToSelect));
+                        }
+                        break;
+                    case SERVICE_MENU_FACTORY_RESET:
+                        lcd.print(factoryResetFinalConfirm ? F("CLEAR ALL DATA?") : FPSTR(lcdTextFactoryReset));
+                        lcd.setCursor(0, 1);
+                        if (menuEditMode) {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(serviceActionConfirm ? FPSTR(lcdTextYes) : FPSTR(lcdTextNo));
+                        } else {
+                            lcd.print(FPSTR(lcdTextSetToSelect));
+                        }
+                        break;
+                    case SERVICE_MENU_EXIT:
+                        lcd.print(FPSTR(lcdTextExitMenu));
+                        lcd.setCursor(0, 1);
+                        lcd.print(FPSTR(lcdTextSetToConfirm));
+                        break;
+                }
+            } else if (menuLevel == MENU_LEVEL_DIAGNOSTICS) {
+                static uint8_t displayedDiagnosticsByte = 0, displayedDiagnosticsCount = 0;
+                static bool displayedDiagnosticsValid = false;
+                switch (menuIndex) {
+                    case DIAGNOSTICS_MENU_STATUS: {
+                        bool statusAvailable = pllStatusValid && !i2cRecoveryState && !(startupServiceMode && retryCount >= i2cMaxRetries);
+                        bool fl = statusAvailable && (pllStatusByte & PLL_BYTE1_FL);
+                        if (!refresh && statusAvailable == displayedDiagnosticsValid && (!statusAvailable || fl == (displayedDiagnosticsByte != 0)) &&
+                            porCount == displayedDiagnosticsCount) break;
+                        if (refresh) lcd.print(F("PLL STATUS"));
+                        lcd.setCursor(0, 1);
+                        lcd.print(F("FL:"));
+                        if (statusAvailable) lcd.print(fl);
+                        else lcd.print('-');
+                        lcd.print(F(" POR cnt:"));
+                        if (porCount < diagnosticCountSaturation) lcd.print(porCount);
+                        else lcd.print(FPSTR(lcdTextCountSaturated));
+                        displayedDiagnosticsValid = statusAvailable;
+                        displayedDiagnosticsByte = fl;
+                        displayedDiagnosticsCount = porCount;
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_INPUTS: {
+                        bool inputsAvailable = pllStatusValid && !i2cRecoveryState && !(startupServiceMode && retryCount >= i2cMaxRetries);
+                        uint8_t inputs = pllStatusByte;
+                        if (!refresh && inputsAvailable == displayedDiagnosticsValid && (!inputsAvailable || inputs == displayedDiagnosticsByte)) break;
+                        if (refresh) lcd.print(F("P7 P5 P4 P6"));
+                        lcd.setCursor(0, 1);
+                        if (!inputsAvailable) lcd.print(F("-  -  -  ---"));
+                        else {
+                            for (int8_t bit = 5; bit >= 3; bit--) {
+                                lcd.print((inputs >> bit) & 1);
+                                lcd.print(F("  "));
+                            }
+                            for (int8_t bit = 2; bit >= 0; bit--) lcd.print((inputs >> bit) & 1);
+                        }
+                        displayedDiagnosticsByte = inputs;
+                        displayedDiagnosticsValid = inputsAvailable;
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_LOCK_TIME: {
+                        static bool displayedPending = false;
+                        static char displayedTime[sizeof(">9999 s")] = "";
+                        if (startupServiceMode) {
+                            if (!refresh) break;
+                            lcd.print(FPSTR(lcdTextPLLLockTime));
+                            lcd.setCursor(0, 1);
+                            lcd.print(FPSTR(lcdTextNotInitialized));
+                            displayedTime[0] = '\0';
+                            break;
+                        }
+                        if (i2cRecoveryState || lockTime == invalidLockTime) {
+                            if (!refresh) break;
+                            lcd.print(FPSTR(lcdTextPLLLockTime));
+                            lcd.setCursor(0, 1);
+                            lcd.print(F("<unknown>"));
+                            displayedTime[0] = '\0';
+                            break;
+                        }
+                        if (refresh) lcd.print(FPSTR(lcdTextPLLLockTime));
+                        if (refresh || displayedPending != pllCheckPending) {
+                            lcd.setCursor(0, 1);
+                            lcd.print(pllCheckPending ? F("locking  ") : F("locked in"));
+                            displayedPending = pllCheckPending;
+                        }
+
+                        // live refresh only rewrites the seven-character time field when its visible value changes
+                        unsigned long elapsed = pllCheckPending ? millis() - lockTime : lockTime;
+                        bool showTenths = elapsed < (pllCheckPending ? lockingTimeTenthsLimit : lockTimeTenthsLimit);
+                        char buffer[sizeof(">9999 s")];
+                        if (elapsed < lockTimeDisplayLimit) {
+                            ultoa(elapsed / millisecondsPerSecond, buffer, 10);
+                            char* p = buffer + strlen(buffer);
+                            if (showTenths) {
+                                *p++ = '.';
+                                *p++ = '0' + (elapsed % millisecondsPerSecond) / millisecondsPerTenth;
+                            }
+                            *p++ = ' ';
+                            *p++ = 's';
+                            *p = '\0';
+                        } else memcpy_P(buffer, PSTR(">9999 s"), sizeof(">9999 s"));
+                        uint8_t length = strlen(buffer);
+                        if (!refresh && !memcmp(buffer, displayedTime, length + 1)) break;
+                        rightAlign(1, sizeof("locked in") - 1, lcdColumns - (sizeof("locked in") - 1), length);
+                        lcd.print(buffer);
+                        memcpy(displayedTime, buffer, length + 1);
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_PLL_DIVISOR: {
+                        if (!refresh) break;
+                        lcd.print(F("PLL DIVISOR"));
+                        lcd.setCursor(0, 1);
+                        if (startupServiceMode || !currentFreq) {
+                            lcd.print(FPSTR(lcdTextNotInitialized));
+                            break;
+                        }
+                        uint16_t divisor = currentFreq / getVCOFreqStep();
+                        lcd.print(F("N:"));
+                        lcd.print(divisor);
+                        lcd.print(F(" 0x"));
+                        if (divisor < 0x1000) lcd.print('0');
+                        if (divisor < 0x0100) lcd.print('0');
+                        if (divisor < 0x0010) lcd.print('0');
+                        lcd.print(divisor, HEX);
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_OUTPUT_PORTS: {
+                        if (startupServiceMode || !currentFreq) {
+                            if (!refresh) break;
+                            lcd.print(F("PORT COMMAND"));
+                            lcd.setCursor(0, 1);
+                            lcd.print(FPSTR(lcdTextNotInitialized));
+                            break;
+                        }
+                        if (!refresh && pllPortByte == displayedDiagnosticsByte) break;
+                        if (refresh) {
+                            lcd.print(F("PORT CMD 0x"));
+                            lcd.setCursor(0, 1);
+                            lcd.print(F("P7..P0 "));
+                        }
+                        lcd.setCursor(sizeof("PORT CMD 0x") - 1, 0);
+                        if (pllPortByte < 0x10) lcd.print('0');
+                        lcd.print(pllPortByte, HEX);
+                        lcd.setCursor(sizeof("P7..P0 ") - 1, 1);
+                        for (int8_t bit = 7; bit >= 0; bit--) lcd.print((pllPortByte >> bit) & 1);
+                        displayedDiagnosticsByte = pllPortByte;
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_I2C_ADDRESS:
+                        if (!refresh) break;
+                        lcd.print(FPSTR(lcdTextI2CAddress));
+                        lcd.setCursor(0, 1);
+                        lcd.print(F("current: 0x"));
+                        lcd.print(PLL_ADDRESSES[pllAddrIndex], HEX);
+                        break;
+                    case DIAGNOSTICS_MENU_I2C_RECOVERIES: {
+                        if (!refresh && i2cRecoveryCount == displayedDiagnosticsCount) break;
+                        if (refresh) {
+                            lcd.print(F("I2C RECOVERIES"));
+                            lcd.setCursor(0, 1);
+                            lcd.print(F("count: "));
+                        } else {
+                            rightAlign(1, sizeof("count: ") - 1, sizeof("99+") - 1, 0);
+                            lcd.setCursor(sizeof("count: ") - 1, 1);
+                        }
+                        if (i2cRecoveryCount < diagnosticCountSaturation) lcd.print(i2cRecoveryCount);
+                        else lcd.print(FPSTR(lcdTextCountSaturated));
+                        displayedDiagnosticsCount = i2cRecoveryCount;
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_UPTIME: {
+                        static unsigned long displayedUptime = 0;
+                        unsigned long uptime = getUptimeSeconds();
+                        if (!refresh && uptime == displayedUptime) break;
+                        if (refresh) lcd.print(F("SYSTEM UPTIME"));
+
+                        // Build old/new fixed-width rows and rewrite only character runs that actually changed.
+                        auto formatUptimeLine = [](char* line, unsigned long value) {
+                            memset(line, ' ', lcdColumns);
+                            line[lcdColumns] = '\0';
+                            char* p = line;
+                            auto appendNumber = [&](unsigned long number) {
+                                ultoa(number, p, 10);
+                                p += strlen(p);
+                            };
+                            auto appendTwoDigits = [&](uint8_t number) {
+                                *p++ = '0' + number / 10;
+                                *p++ = '0' + number % 10;
+                            };
+
+                            if (value < secondsPerMinute) {
+                                appendNumber(value);
+                                *p++ = ' ';
+                                *p++ = 's';
+                            } else if (value < secondsPerHour) {
+                                appendNumber(value / secondsPerMinute);
+                                *p++ = 'm';
+                                *p++ = ' ';
+                                appendTwoDigits(value % secondsPerMinute);
+                                *p++ = 's';
+                            } else if (value < secondsPerDay) {
+                                appendNumber(value / secondsPerHour);
+                                *p++ = 'h';
+                                *p++ = ' ';
+                                appendTwoDigits((value / secondsPerMinute) % minutesPerHour);
+                                *p++ = 'm';
+                                *p++ = ' ';
+                                appendTwoDigits(value % secondsPerMinute);
+                                *p++ = 's';
+                            } else {
+                                appendNumber(value / secondsPerDay);
+                                *p++ = 'd';
+                                *p++ = ' ';
+                                appendTwoDigits((value / secondsPerHour) % hoursPerDay);
+                                *p++ = 'h';
+                                *p++ = ' ';
+                                appendTwoDigits((value / secondsPerMinute) % minutesPerHour);
+                                *p++ = 'm';
+                            }
+                        };
+
+                        char line[lcdColumns + 1];
+                        formatUptimeLine(line, uptime);
+                        if (refresh) {
+                            lcd.setCursor(0, 1);
+                            lcd.print(line);
+                        } else {
+                            char previousLine[lcdColumns + 1];
+                            formatUptimeLine(previousLine, displayedUptime);
+                            for (uint8_t col = 0; col < lcdColumns;) {
+                                if (line[col] == previousLine[col]) {
+                                    col++;
+                                    continue;
+                                }
+                                lcd.setCursor(col, 1);
+                                do lcd.print(line[col++]);
+                                while (col < lcdColumns && line[col] != previousLine[col]);
+                            }
+                        }
+                        displayedUptime = uptime;
+                        break;
+                    }
+                    case DIAGNOSTICS_MENU_EXIT:
+                        printReturnMenuItem();
+                        break;
+                }
+            } else if (menuLevel == MENU_LEVEL_VCO_SETTINGS) {
+                switch (menuIndex) {
+                    case VCO_MENU_FREQUENCY_BAND:
+                        lcd.print(F("FREQUENCY BAND"));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) {
+                            lcd.print(FPSTR(lcdTextSetToEdit));
+                            break;
+                        }
+                        lcd.print(FPSTR(lcdTextMenuCursor));
+                        switch (menuSettings.freqBandIndex[menuSettings.xtalFreqIndex]) {
+                            case FREQ_BAND_OIRT: lcd.print(F("FM OIRT")); break;
+                            case FREQ_BAND_JAPAN: lcd.print(F("FM Japan")); break;
+                            case FREQ_BAND_WORLD: lcd.print(F("FM World")); break;
+                            case FREQ_BAND_2M: lcd.print(F("2 m")); break;
+                            case FREQ_BAND_70CM: lcd.print(F("70 cm")); break;
+                            case FREQ_BAND_UHF: lcd.print(F("UHF")); break;
+                            case FREQ_BAND_FULL: default: lcd.print(F("64-1300 MHz")); break;
+                        }
+                        break;
+                    case VCO_MENU_PRECISION:
+                        lcd.print(F("PRECISION"));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) lcd.print(FPSTR(lcdTextSetToEdit));
+                        else {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(menuSettings.numDecimals);
+                            lcd.print(menuSettings.numDecimals == 1 ? F(" decimal") : F(" decimals"));
+                        }
+                        break;
+                    case VCO_MENU_EXIT:
+                        printReturnMenuItem();
+                        break;
+                }
+            } else if (menuLevel == MENU_LEVEL_PLL_SETTINGS) {
+                switch (menuIndex) {
+                    case PLL_MENU_I2C_ADDRESS:
+                        lcd.print(FPSTR(lcdTextI2CAddress));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) lcd.print(FPSTR(lcdTextSetToEdit));
+                        else {
+                            lcd.print(F("> 0x"));
+                            lcd.print(PLL_ADDRESSES[menuSettings.pllAddrIndex], HEX);
+                        }
+                        break;
+                    case PLL_MENU_XTAL_FREQUENCY:
+                        lcd.print(F("XTAL FREQUENCY"));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) lcd.print(FPSTR(lcdTextSetToEdit));
+                        else {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(PLL_XTAL_OPTIONS[menuSettings.xtalFreqIndex] / hzPerMHz);
+                            lcd.print('.');
+                            lcd.print((PLL_XTAL_OPTIONS[menuSettings.xtalFreqIndex] % hzPerMHz) / (hzPerMHz / 10));
+                            lcd.print(FPSTR(lcdSuffixMHz));
+                        }
+                        break;
+                    case PLL_MENU_PLL_CONTROL:
+                        lcd.print(F("CHARGE PUMP"));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) lcd.print(FPSTR(lcdTextSetToEdit));
+                        else {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(menuSettings.pllControlMode == CP_LOW ? F("low ") : (menuSettings.pllControlMode == CP_HIGH ? F("high") : F("disabled")));
+                        }
+                        break;
+                    case PLL_MENU_PORT_MAPPING: {
+                        lcd.print(F("PORT MAPPING"));
+                        if (!menuEditMode) {
+                            lcd.setCursor(0, 1);
+                            lcd.print(FPSTR(lcdTextSetToEdit));
+                            break;
+                        }
+                        lcd.print(' ');
+                        lcd.print(outputPortsEditPhase + 1);
+                        lcd.print('/');
+                        lcd.print(numOutputPortEditPhases);
+                        lcd.setCursor(0, 1);
+                        auto printPort = [](uint8_t portIndex) {
+                            if (isValidPLLPort(portIndex)) {
+                                lcd.print('P');
+                                lcd.print(portIndex);
+                            } else lcd.print(F("none"));
+                        };
+                        lcd.print(FPSTR(lcdTextMenuCursor));
+                        if (outputPortsEditPhase == OUTPUT_PORT_PHASE_LOCKED) {
+                            lcd.print(F("locked: "));
+                            printPort(menuSettings.portIdxLock);
+                        } else if (outputPortsEditPhase == OUTPUT_PORT_PHASE_UNLOCKED) {
+                            lcd.print(F("unlocked: "));
+                            printPort(menuSettings.portIdxUnlock);
+                        } else {
+                            lcd.print(F("RF drive: "));
+                            printPort(menuSettings.portIdxRF);
+                        }
+                        break;
+                    }
+                    case PLL_MENU_EXIT:
+                        printReturnMenuItem();
+                        break;
+                }
+            } else if (menuLevel == MENU_LEVEL_GENERAL_SETTINGS) {
+                switch (menuIndex) {
+                    case GENERAL_MENU_STATION_NAME:
+                        lcd.print(F("STATION NAME"));
+                        lcd.setCursor(0, 1);
+                        lcd.print(FPSTR(lcdTextSetToEdit));
+                        break;
+                    case GENERAL_MENU_BACKLIGHT_DIMMER:
+                        lcd.print(F("BACKLIGHT DIMMER"));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) lcd.print(FPSTR(lcdTextSetToEdit));
+                        else {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(menuSettings.backlightDimActive ? FPSTR(lcdTextOn) : FPSTR(lcdTextOff));
+                        }
+                        break;
+                    case GENERAL_MENU_SHOW_MENU_TITLE:
+                        lcd.print(F("SHOW MENU TITLE"));
+                        lcd.setCursor(0, 1);
+                        if (!menuEditMode) lcd.print(FPSTR(lcdTextSetToEdit));
+                        else {
+                            lcd.print(FPSTR(lcdTextMenuCursor));
+                            lcd.print(menuSettings.showMenuTitle ? FPSTR(lcdTextOn) : FPSTR(lcdTextOff));
+                        }
+                        break;
+                    case GENERAL_MENU_EXIT:
+                        printReturnMenuItem();
+                        break;
+                }
+            }
+            if (i2cRecoveryState && menuLevel == MENU_LEVEL_DIAGNOSTICS &&
+                menuIndex != DIAGNOSTICS_MENU_UPTIME && menuIndex != DIAGNOSTICS_MENU_EXIT) printStatusMarker('!');
+            break;
+
+        case I2C_STATUS_MARKER:
+            printStatusMarker(refresh ? '!' : ' ');
+            break;
+
+        case STATION_NAME_EDITOR:
+            if (refresh) {
+                lcd.setCursor(editPosition, 1);
+                if (!stationNameCursorActive) {
+                    lcd.setCursor(0, 1);
+                    lcd.print(menuSettings.stationName);
+                } else lcd.print(menuSettings.stationName[editPosition]);
+                lcd.setCursor(editPosition, 1);
+                cursorBlinkTime = millis();
+                stationNameCursorVisible = stationNameCursorActive = true;
+                lcd.cursor();
+            } else if (stationNameCursorActive && millis() - cursorBlinkTime >= cursorBlinkInterval) {
+                cursorBlinkTime = millis();
+                stationNameCursorVisible = !stationNameCursorVisible;
+                stationNameCursorVisible ? lcd.cursor() : lcd.noCursor();
+            }
+            break;
+
+        case PLL_LOCK_STATUS:
+            static unsigned long lastCharScrollTime = 0;
+            static uint8_t charPos = 0;
+            static bool movingRight = true;
+
+            if (pllLock) {
+                lcd.setCursor(0, 0);
+                lcd.print(F("LOCK "));
+            } else {
+                // animation if unlocked
+                unsigned long currentMillis = millis();
+
+                if (currentMillis - lastCharScrollTime >= animInterval) {
+                    lastCharScrollTime = currentMillis;
+                    lcd.setCursor(0, 0);
+                    for (uint8_t i = 0; i < lockStatusWidth; i++) lcd.print(' ');
+                    lcd.setCursor(charPos, 0);
+                    lcd.print(movingRight ? F(">>") : F("<<"));
+                    charPos += movingRight ? 1 : -1;
+                    if (charPos == 0 || charPos == lockStatusWidth - lockStatusAnimWidth) movingRight = !movingRight;
+                }
+            }
+            break;
+
+        case MENU_ENTRY_TITLE: {
+            if (!showMenuTitle) {
+                menuEntryAnimStep = 0;
+                if (refresh) display(MENU_INTERFACE);
+                break;
+            }
+            if (!refresh && !menuEntryAnimStep) break;
+
+            const char* titleText = menuLevel == MENU_LEVEL_SERVICE_MENU ? PSTR("SERVICE MENU") :
+                menuLevel >= MENU_LEVEL_QUICK_MENU ? PSTR("QUICK MENU") : PSTR("SYSTEM MENU");
+            const char* targetText = menuLevel == MENU_LEVEL_SERVICE_MENU ? lcdTextDiagnostics :
+                menuLevel >= MENU_LEVEL_QUICK_MENU ? lcdTextRecallMemory : lcdTextVCOSettings;
+            unsigned long currentMillis = millis();
+
+            if (refresh) {
+                char titleLine[lcdColumns + 1];
+                buildLine(titleLine, titleText, true);
+                lcd.clear();
+                printLine(0, titleLine);
+                menuEntryAnimTime = currentMillis;
+                menuEntryAnimStep = 1;
+                break;
+            }
+
+            unsigned long interval = menuEntryAnimStep == 1 ? menuEntryTitleDelay : menuEntryAnimDelay;
+            if (currentMillis - menuEntryAnimTime < interval) break;
+            menuEntryAnimTime = currentMillis;
+
+            const uint8_t maxStep = (lcdColumns / 2) + menuEntryGapWidth;
+            if (menuEntryAnimStep > maxStep) {
+                menuEntryAnimStep = 0;
+                menuInactivityTimer = currentMillis; // preserve pre-animation inactivity timing semantics
+                display(MENU_INTERFACE);
+                break;
+            }
+
+            uint8_t step = menuEntryAnimStep++;
+            char titleLine[lcdColumns + 1], targetLine[lcdColumns + 1], frameLine[lcdColumns + 1];
+            buildLine(titleLine, titleText, true);
+            buildLine(targetLine, targetText, false);
+            memcpy(frameLine, titleLine, lcdColumns + 1);
+            uint8_t eraseCount = min(step, lcdColumns / 2);
+            for (uint8_t i = 0; i < eraseCount; i++) {
+                frameLine[i] = ' ';
+                frameLine[lcdColumns - 1 - i] = ' ';
+            }
+            if (step > menuEntryGapWidth) {
+                uint8_t revealCount = min((uint8_t)(step - menuEntryGapWidth), (uint8_t)(lcdColumns / 2));
+                for (uint8_t i = 0; i < revealCount; i++) {
+                    frameLine[i] = targetLine[i];
+                    frameLine[lcdColumns - 1 - i] = targetLine[lcdColumns - 1 - i];
+                }
+            }
+            printLine(0, frameLine);
+            break;
+        }
+
+        case LCD_HIBERNATE:
+            backlightOff ? lcd.clear() : (display(MAIN_INTERFACE), display(PLL_LOCK_STATUS));
+            break;
+
+        case FACTORY_RESET_STATUS:
+            analogWrite(lcdBacklight, maxBrightness);
+            lcd.clear();
+            lcd.print(FPSTR(lcdTextFactoryReset));
+            lcd.setCursor(0, 1);
+            lcd.print(F("resetting..."));
+            break;
+
+        case I2C_ERROR:
+            analogWrite(lcdBacklight, maxBrightness);
+            lcd.clear();
+            lcd.print(i2cFallbackActive ? FPSTR(lcdTextI2CFallback) : F("I2C ERROR"));
+            lcd.setCursor(0, 1);
+            if (i2cFallbackActive) {
+                lcd.print(F("restoring 0x"));
+                lcd.print(PLL_ADDRESSES[pllAddrIndex], HEX);
+            } else {
+                lcd.print(F("retrying..."));
+            }
+            break;
+    }
+}

@@ -1,6 +1,6 @@
 # TSA5511 PLL Controller for Arduino
 
-**Current firmware: v5.1.7**
+**Current firmware: v5.2.0**
 
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
@@ -24,7 +24,7 @@ The demo is a functional simulation for demonstration purposes and does not comm
 - If used with the DRFS06 it is recommended to supply the controller separately from the TSA5511, as slight voltage fluctuations on the TSA5511 supply rail may cause a few ppm XTAL frequency deviation. This also allows unexpected TSA5511 POR events to be detected and counted; if both devices are power-cycled together, the POR count is reset with the controller.
 
 # Usage
-- Double-clicking SET opens the SYSTEM MENU. All system-setting edits remain in a temporary menu state and do not affect the active PLL/runtime configuration until **save changes** is selected. In system submenus, holding SET returns one level back while keeping pending changes until they are explicitly saved or discarded. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary name until it is explicitly saved or discarded. The available system settings are as follows:
+- Double-clicking SET opens the SYSTEM MENU. All system-setting edits remain in a temporary menu state and do not affect the active PLL/runtime configuration until **save changes** is selected. System submenu settings show `SET to edit` while browsing; ordinary edit fields show the selected value prefixed with `>`, while the station-name editor uses its blinking cursor. Holding SET returns one level back while keeping pending changes until they are explicitly saved or discarded. A `*` at the upper-right of EXIT MENU marks pending unsaved changes. In the station name editor, SET confirms characters and holding SET returns from the editor while keeping the edited temporary name until it is explicitly saved or discarded. The available system settings are as follows:
 
 ```text
 
@@ -47,7 +47,7 @@ The demo is a functional simulation for demonstration purposes and does not comm
                                                When saving changes after selecting a new I²C address, communication is automatically verified. If verification fails, the
                                                last known working I²C address will be restored automatically. In the unlikely event that an incompatible I²C address is
                                                stored and cannot be reconfigured through the menu, reset or power-cycle the controller while holding SET to open the
-                                               SERVICE MENU, then select I2C FALLBACK to restore the default fail-safe I²C address (0x61).
+                                               SERVICE MENU, then select and confirm I2C FALLBACK to restore the default fail-safe I²C address (0x61).
                           • XTAL FREQUENCY   > This setting must match the actual PLL crystal frequency. The default PLL crystal frequency is 3.2 MHz, resulting in a
                                                theoretical upper VCO frequency of 1,638.35 MHz. If a PLL crystal frequency of 1.6 MHz is used, the theoretical upper VCO
                                                frequency will be 819.175 MHz, in which case any upper band limit exceeding this maximum value will be automatically
@@ -67,7 +67,7 @@ The demo is a functional simulation for demonstration purposes and does not comm
                           • SHOW MENU TITLE  > This toggles the animated title screen when entering SYSTEM MENU, QUICK MENU or SERVICE MENU.
                           • RETURN           > Returns to the main settings menu.
 
-    ■ EXIT MENU        => Returns directly to the main interface if no settings were changed. Otherwise:
+    ■ EXIT MENU        => Returns directly to the main interface if no settings were changed. A "*" at the upper-right marks pending unsaved changes. Otherwise:
                           • save changes     > Stores any changes to EEPROM and returns to the main interface.
                           • discard          > Discards any changes and returns to the main interface.
                           • cancel           > Returns to the first index of the main menu.
@@ -93,17 +93,17 @@ The demo is a functional simulation for demonstration purposes and does not comm
 
 ```text
 
-    ■ SERVICE MENU     => • DIAGNOSTICS      > Shows live TSA5511 lock/input status, live/completed PLL lock acquisition timing, unexpected POR and successfully completed
-                                               I²C recovery counts since controller startup, and the last successfully programmed output-port bitmap. Use UP/DOWN to browse
-                                               the read-only pages; select RETURN TO MENU or hold SET to return to the SERVICE MENU. Before normal PLL initialization, the
-                                               DIAGNOSTICS function uses read-only I²C probing; values remain '-' until the first successful status read; failed reads
-                                               mark affected pages with '!' immediately, while sustained startup failures replace stale live values with '-'. The first successful read establishes the expected
-                                               power-on POR baseline; later POR events and sustained I²C losses that subsequently recover are counted. Before normal
-                                               PLL initialization, lock timing and output-port command data are shown as not initialized; the output-port command remains
-                                               so until the first successful PLL programming.
+    ■ SERVICE MENU     => • DIAGNOSTICS      > Shows live TSA5511 lock/input status, live/completed PLL lock acquisition timing, PLL divisor and unexpected POR count.
+                                               It also shows the current I²C address, successfully completed I²C recovery count, controller uptime and the last successfully
+                                               programmed output-port bitmap. Use UP/DOWN to browse the read-only pages; select RETURN TO MENU or hold SET to return to
+                                               the SERVICE MENU. Before normal PLL initialization, DIAGNOSTICS uses read-only I²C probing; live TSA5511 values remain '-'
+                                               until the first successful status read. Failed reads mark affected pages with '!' immediately, while sustained startup
+                                               failures replace stale live values with '-'. The first successful read establishes the expected power-on POR baseline;
+                                               later POR events and sustained I²C losses that subsequently recover are counted. Lock timing, PLL divisor and output-port
+                                               command data are shown as not initialized.
                           • SYSTEM INFO      > Shows the full firmware version and copyright information.
-                          • I2C FALLBACK     > Available only when the SERVICE MENU is entered during startup; restores the fail-safe I²C address (0x61) and returns to
-                                               the startup SERVICE MENU. Normal initialization resumes only after explicitly leaving the menu.
+                          • I2C FALLBACK     > Available only when the SERVICE MENU is entered during startup; restores the fail-safe I²C address (0x61) after a single
+                                               NO/YES confirmation and returns to the startup SERVICE MENU. Normal initialization resumes only after explicitly leaving the menu.
                           • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation. During the reset,
                                                the dedicated FACTORY RESET / resetting... status remains visible for at least 750 ms (or longer if the reset itself takes longer).
                           • EXIT MENU        > Returns to the main interface, or resumes normal initialization when the SERVICE MENU was entered during startup.
@@ -113,6 +113,6 @@ The demo is a functional simulation for demonstration purposes and does not comm
 - The SYSTEM MENU will time out after a preset period of inactivity, discarding any unsaved changes and returning to the main interface. The save/discard/cancel exit menu requires explicit user action. During normal operation, the SERVICE MENU and DIAGNOSTICS use a longer inactivity timeout before returning to the main interface; when entered during startup, SERVICE MENU/DIAGNOSTICS do not time out and normal initialization resumes only after explicit user action.
 - The QUICK MENU will also time out after a preset period of inactivity and return to the main interface; its actions are applied immediately.
 - Change VCO frequency using UP/DOWN and confirm with a short SET press. Holding SET cancels the frequency change and returns to the main interface unchanged. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. If no confirmation is given, the frequency edit will time out unchanged. A UP+DOWN chord that began during frequency editing is consumed until both buttons are released, so it cannot open the Service Menu after the frequency-edit timeout.
-- PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes the live lock/input information for display without overriding the operational lock state or output-port control; unexpected POR indications remain handled by the normal recovery logic.
+- PLL lock is verified after programming. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes the live lock/input information for display without overriding the operational lock state or output-port control; it also exposes PLL divisor, current I²C address, recovery count and controller uptime, while unexpected POR indications remain handled by the normal recovery logic.
 - If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be turned off completely from the QUICK MENU and will be restored by pressing any button.
-- During normal operation, I²C communication loss is indicated and retried automatically. System/Quick menus are closed and any unconfirmed frequency edit is cancelled, while the SERVICE MENU remains accessible through its normal UP+DOWN gesture. DIAGNOSTICS stays browsable during recovery; a fixed `!` at the upper-right marks affected data pages, live FL/input fields show `-` and PLL lock time shows `<unknown>` (the RETURN TO MENU navigation page remains unmarked). A read-only interruption also invalidates the measured lock time until a new uninterrupted acquisition starts. Pending settings are still discarded for safety. The I²C recovery counter is incremented only after recovery has successfully completed. After communication is restored, the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset; after a read-only interruption without POR, existing programming is retained and lock verification resumes as needed.
+- During normal operation, I²C communication loss is indicated and retried automatically. System/Quick menus are closed and any unconfirmed frequency edit is cancelled, while the SERVICE MENU remains accessible through its normal UP+DOWN gesture. DIAGNOSTICS stays browsable during recovery; a fixed `!` at the upper-right marks affected data pages except SYSTEM UPTIME, live FL/input fields show `-` and PLL lock time shows `<unknown>` (the RETURN TO MENU navigation page remains unmarked). A read-only interruption also invalidates the measured lock time until a new uninterrupted acquisition starts. Pending settings are still discarded for safety. The I²C recovery counter is incremented only after recovery has successfully completed. After communication is restored, the PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset; after a read-only interruption without POR, existing programming is retained and lock verification resumes as needed.
