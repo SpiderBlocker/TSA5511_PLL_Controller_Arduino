@@ -1802,6 +1802,9 @@
         }
       }
 
+      // SYSTEM UPTIME is controller-local and must keep refreshing independently of I²C recovery.
+      if (state.screen === 'menu' && state.menuLevel === MENU.DIAGNOSTICS && state.menuIndex === 7) refreshDiagnosticsDisplay();
+
       const canDim = state.screen === 'main' && state.locked && state.rfOutputEnabled && saved.dimmer && !state.lcdOff;
       if (canDim && now - state.lastActivity > DIM_DELAY && !state.dimmed) {
         state.dimmed = true;
