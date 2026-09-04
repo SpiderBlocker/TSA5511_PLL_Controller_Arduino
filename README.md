@@ -1,6 +1,6 @@
 # TSA5511 PLL Controller for Arduino
 
-**Current firmware: v5.2.1**
+**Current firmware: v5.2.2**
 
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
@@ -106,7 +106,9 @@ The demo is a functional simulation for demonstration purposes and does not comm
                                                may instead reflect its programmed output condition.
                           • SYSTEM INFO      > Shows the full firmware version and copyright information.
                           • I2C FALLBACK     > Available only when the SERVICE MENU is entered during startup; restores the fail-safe I²C address (0x61) after a single
-                                               NO/YES confirmation and returns to the startup SERVICE MENU. Normal initialization resumes only after explicitly leaving the menu.
+                                               NO/YES confirmation and returns to the startup SERVICE MENU. If an I²C fault is already active, its `!` marker and blinking
+                                               fault indicator remain active during fallback until communication is subsequently verified. Normal initialization resumes
+                                               only after explicitly leaving the menu.
                           • FACTORY RESET    > Clears all stored settings and user memories and restores the default settings after double confirmation. During the reset,
                                                the dedicated FACTORY RESET / resetting... status remains visible for at least 750 ms (or longer if the reset itself takes longer).
                           • EXIT MENU        > Returns to the main interface, or resumes normal initialization when the SERVICE MENU was entered during startup.
