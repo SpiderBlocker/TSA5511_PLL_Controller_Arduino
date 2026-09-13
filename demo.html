@@ -1196,7 +1196,7 @@
     'use strict';
 
     const LCD_COLUMNS = 16;
-    const FIRMWARE_VERSION = 'V5.2.2';
+    const FIRMWARE_VERSION = 'V5.2.3';
     const LOCK_DELAY = 3500;
     const SPLASH_DELAY = 2500;
     const DIM_DELAY = 2500;
@@ -1971,6 +1971,7 @@
               : 'PLL reprogrammed after I²C write recovery'
         }) && recoveryWasActive) {
           state.i2cRecoveryCount = Math.min(DIAGNOSTIC_COUNT_SATURATION, state.i2cRecoveryCount + 1);
+          logEvent('LCD controller reinitialized after completed I²C recovery.');
           if (resumeMenu) render();
         }
         return;
@@ -1984,7 +1985,10 @@
       }
       state.lockPending = !tsaLockFlag;
       state.lastPortBitmap = commandedPortBitmap(state.locked);
-      if (recoveryWasActive) state.i2cRecoveryCount = Math.min(DIAGNOSTIC_COUNT_SATURATION, state.i2cRecoveryCount + 1);
+      if (recoveryWasActive) {
+        state.i2cRecoveryCount = Math.min(DIAGNOSTIC_COUNT_SATURATION, state.i2cRecoveryCount + 1);
+        logEvent('LCD controller reinitialized after completed I²C recovery.');
+      }
       logEvent(saved.pllControl === 2
         ? 'I²C recovery completed; charge pump disabled, PLL remains unlocked.'
         : tsaLockFlag
@@ -2504,9 +2508,10 @@
           if (!state.statusValid || i2cRecoveryActive || (state.startupServiceMode && i2cRetryCount >= I2C_MAX_RETRIES)) {
             return [padLine('P7 P5 P4 P6'), padLine('-  -  -  ---')];
           }
-          const bits = [5, 4, 3].map(bit => (state.lastStatusByte >> bit) & 1);
-          const adc = [2, 1, 0].map(bit => (state.lastStatusByte >> bit) & 1).join('');
-          return [padLine('P7 P5 P4 P6'), padLine(`${bits[0]}  ${bits[1]}  ${bits[2]}  ${adc}`)];
+          const portCommand = state.startupServiceMode ? 0 : state.lastPortBitmap;
+          const digitalInput = (port, bit) => (portCommand & (1 << port)) ? '-' : ((state.lastStatusByte >> bit) & 1);
+          const adc = (portCommand & (1 << 6)) ? '---' : [2, 1, 0].map(bit => (state.lastStatusByte >> bit) & 1).join('');
+          return [padLine('P7 P5 P4 P6'), padLine(`${digitalInput(7, 5)}  ${digitalInput(5, 4)}  ${digitalInput(4, 3)}  ${adc}`)];
         }
         if (index === 2) {
           if (state.startupServiceMode) return [padLine('PLL LOCK TIME'), padLine('not initialized')];
