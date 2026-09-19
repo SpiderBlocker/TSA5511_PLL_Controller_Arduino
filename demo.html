@@ -1196,10 +1196,10 @@
     'use strict';
 
     const LCD_COLUMNS = 16;
-    const FIRMWARE_VERSION = 'V5.3.0';
+    const FIRMWARE_VERSION = 'V5.3.1';
     const LOCK_DELAY = 3500;
     const SPLASH_DELAY = 2500;
-    const PLL_STARTUP_DELAY = 200;
+    const PLL_STARTUP_DELAY = 250;
     const DIM_DELAY = 2500;
     const DIM_FADE_DURATION = 2200;
     const DIM_LEVEL = 0.30;
@@ -1947,10 +1947,8 @@
       }
       state.screen = splashActive ? 'splash' : resumeMenu ? 'menu' : 'main';
       state.lastActivity = performance.now();
-      if (resumeMenu) {
-        state.lastMenuActivity = state.lastActivity;
-        guardInputUntilRelease();
-      }
+      if (resumeMenu) state.lastMenuActivity = state.lastActivity;
+      if (!splashActive) guardInputUntilRelease();
 
       if (porDetected || recoveryReason === 'write') {
         state.locked = false;
@@ -2647,6 +2645,8 @@
     }
 
     function finishSave(pending) {
+      const pllConfigChanged = ['pllAddressIndex', 'xtalIndex', 'pllControl', 'portLock', 'portUnlock', 'portRF']
+        .some(key => pending[key] !== saved[key]);
       saved = deepClone(pending);
       saved.stationName = normalizeName(saved.stationName);
       saved.decimals = Math.min(saved.decimals, MAX_DECIMALS[saved.xtalIndex]);
@@ -2659,7 +2659,7 @@
       state.targetFreq = newFreq;
       guardInputUntilRelease();
       logEvent('System settings saved.');
-      programmePLL(newFreq, { force: true, reason: 'PLL configuration updated' });
+      programmePLL(newFreq, { force: pllConfigChanged, reason: 'PLL configuration updated' });
     }
 
     function handleSetShort() {
