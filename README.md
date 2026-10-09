@@ -1,6 +1,12 @@
 # TSA5511 PLL Controller for Arduino
 
-**Current firmware: v5.3.1**
+**Current firmware: v5.3.2**
+
+# What's new in v5.3.2
+- Non-blocking, integer-quadratic LCD backlight dimming and LCD OFF fade, with reliable release-before-wake protection.
+- Non-blocking 2.5 s I²C fallback notifications while PLL/I²C monitoring continues.
+- More consistent SET confirmation priority across menus and the station-name editor, including safe SAVE/DISCARD handling.
+- Small code cleanup, shared helpers and clearer documentation of P3 addressing and the intentional operational lock-monitoring limitation.
 
 # Description
 PLL controller for the TSA5511, initially intended to replace the proprietary controller for the DRFS06 exciter by Dutch RF Shop, but it can be used for any other TSA5511-based exciter, operating in a VCO frequency range of 64 MHz up to 1,300 MHz as per specification of the TSA5511.
@@ -58,7 +64,8 @@ The demo is a functional simulation for demonstration purposes and does not comm
                                                DRFS06 exciter or to low for other platforms if required. The varicap drive can also be disabled for testing purposes.
                           • PORT MAPPING     > This setting maps corresponding output ports on the TSA5511 to drive an external lock indicator, an external unlock
                                                indicator and the transmitter RF output stage respectively. When using TSA5511 package variants with fewer available
-                                               output ports, make sure that PORT MAPPING only selects physically available ports.
+                                               output ports, make sure that PORT MAPPING only selects physically available ports. P3 also selects the optional hardware I²C
+                                               addresses, so driving P3 may affect these alternate addresses; address 0x61 remains valid.
                           • RETURN           > Returns to the main settings menu.
 
     ■ GENERAL SETTINGS => • STATION NAME     > This sets the radio station name that is shown in the idle locked state. Select characters using UP/DOWN and confirm each
@@ -84,7 +91,8 @@ The demo is a functional simulation for demonstration purposes and does not comm
                           • CLEAR MEMORY     > Clears one of the user memory slots for the current VCO frequency band and XTAL frequency.
                           • RF DRIVE         > Temporarily enables or disables the RF drive output without storing the state in EEPROM.
                                                When off, the station name alternates with an RF DRIVE: OFF status message.
-                          • LCD OFF          > Turns off the LCD backlight until any button is pressed.
+                          • LCD OFF          > Fades the backlight fully off; after all three buttons have been released continuously for 50 ms, a new button press
+                                               restores the display. Button presses during fading cannot cancel LCD OFF.
                           • EXIT MENU        > Returns to the main interface.
 
 ```
@@ -109,8 +117,10 @@ The demo is a functional simulation for demonstration purposes and does not comm
 
 - The SYSTEM MENU will time out after a preset period of inactivity, discarding any unsaved changes and returning to the main interface. The save/discard/cancel exit menu requires explicit user action. The SERVICE MENU and DIAGNOSTICS use a longer inactivity timeout before returning to the main interface.
 - The QUICK MENU will also time out after a preset period of inactivity and return to the main interface; its actions are applied immediately.
+- A recognized SET confirmation takes priority over new UP/DOWN navigation in the same scan, preventing a different menu item from being confirmed accidentally. The existing multi-button lockout still rejects genuinely overlapping presses. In the station-name editor, holding UP/DOWN retains the normal initial 1 s delay before character auto-repeat.
 - Change VCO frequency using UP/DOWN and confirm with a short SET press. Holding SET cancels the frequency change and returns to the main interface unchanged. Holding UP/DOWN will auto-sweep through the VCO frequency band with gradual acceleration. If no confirmation is given, the frequency edit will time out unchanged. A UP+DOWN chord that began during frequency editing is consumed until both buttons are released, so it cannot open the Service Menu after the frequency-edit timeout.
 - During startup, the 2.5 s splash remains visible while PLL initialization and monitoring proceed in the background. A 250 ms settling interval precedes the first TSA5511 I²C access, and normal UI input remains suppressed until the splash has ended and all buttons are released.
-- PLL lock is verified after programming, with acquisition timing ending on the successful status read that reports FL set. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes the live lock/input information for display without overriding the operational lock state or output-port control; it also exposes PLL divisor, current I²C address, recovery count and controller uptime, while unexpected POR indications remain handled by the normal recovery logic.
-- If enabled, the LCD backlight will dim after a preset period in quiescent state (locked). The LCD backlight can be turned off completely from the QUICK MENU and will be restored by pressing any button. The waking press is consumed until all buttons have been released, preventing it from triggering an unintended action.
+- PLL lock is verified after programming, with acquisition timing ending on the successful status read that reports FL set. To prevent false unlock indications caused by FM modulation, operational lock-flag polling is intentionally stopped after lock has been detected; periodic TSA5511 status monitoring nevertheless remains active, including during menu operation and frequency editing. DIAGNOSTICS refreshes the live lock/input information for display without overriding the operational lock state or output-port control; it also exposes PLL divisor, current I²C address, recovery count and controller uptime, while unexpected POR indications remain handled by the normal recovery logic. A subsequent genuine loss of lock without an I²C fault or POR may therefore remain undetected.
+- If enabled, the LCD backlight dims non-blockingly with an integer quadratic (approximately gamma-2) fade after 2.5 s of inactivity in the locked idle state. Dimming proceeds from PWM 255 to 30 over approximately 1.575 s. QUICK MENU > LCD OFF uses the same quadratic fade to PWM 0 (up to approximately 255 ms from full brightness). The fade always completes; all three buttons must then remain released for 50 ms before a new press can wake the LCD. The waking press is consumed rather than triggering another action.
+- The 2.5 s I²C fallback notifications (Service Menu fallback and an invalid newly selected address during SAVE CHANGES) are non-blocking: I²C/PLL monitoring continues while the notice is displayed, and user input resumes after the notice.
 - During normal operation, I²C communication loss is indicated and retried automatically. System/Quick menus are closed and any unconfirmed frequency edit is cancelled, while the SERVICE MENU remains accessible through its normal UP+DOWN gesture. Both the SERVICE MENU and DIAGNOSTICS stay browsable during recovery; `I2C FALLBACK` is exposed as a recovery action and a fixed `!` appears at the upper-right of every page, including I2C ADDRESS, I2C RECOVERIES, SYSTEM UPTIME and RETURN TO MENU. SYSTEM UPTIME continues to refresh, live FL/input fields show `-` and PLL lock time shows `<unknown>`. A read-only interruption also invalidates the measured lock time until a new uninterrupted acquisition starts. Pending settings are still discarded for safety. The I²C recovery counter is incremented only after recovery has successfully completed. After a completed I²C recovery, the LCD controller is reinitialized before the interface is redrawn to resynchronize its state if the fault or a related supply disturbance affected the display interface. Any controller button still held as recovery completes must be released before normal main-screen input resumes. The PLL is fully reprogrammed only if a write may have failed or the TSA5511 POR flag indicates an unexpected reset; after a read-only interruption without POR, existing programming is retained and lock verification resumes as needed.
